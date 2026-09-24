@@ -159,7 +159,10 @@ def simulate_plan(
             return out
 
     gross = (exit_a / entry_a - 1) * sign
-    cost = 2 * one_way
+    # Exact cash accounting per unit of pre-cost entry value: the buy leg costs one_way x entry and
+    # the sell leg one_way x exit, so round-trip cost = one_way x (1 + exit/entry) (same for shorts).
+    # This is what the share-based backtester and the paper ledgers book.
+    cost = one_way * (1 + exit_a / entry_a)
     out.exit_date = dates[exit_i]
     out.exit_reason = reason.value
     out.exit_price_raw = _f(exit_raw)

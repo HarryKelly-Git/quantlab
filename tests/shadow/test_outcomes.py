@@ -61,12 +61,12 @@ def test_outcome_equals_simulate_plan_and_hand_computation(db, config):
     assert row["entry_date"] == cal.sessions[3].date().isoformat() and row["entry_price"] == pytest.approx(10.2)
     assert row["exit_date"] == cal.sessions[7].date().isoformat() and row["exit_price"] == pytest.approx(12.3)
     assert row["hit_target"] == 1 and row["hit_stop"] == 0
-    assert row["ret"] == pytest.approx(12.3 / 10.2 - 1 - 2 * 15e-4)
+    assert row["ret"] == pytest.approx(12.3 / 10.2 - 1 - 15e-4 * (1 + 12.3 / 10.2))  # exact two-leg cost
     # buy-and-hold: 5 sessions held (3..7) -> exit at the open of session 8 (12.8)
-    assert row["ret_hold"] == pytest.approx(12.8 / 10.2 - 1 - 2 * 15e-4)
+    assert row["ret_hold"] == pytest.approx(12.8 / 10.2 - 1 - 15e-4 * (1 + 12.8 / 10.2))
     det = db.fetchone("SELECT * FROM shadow_outcome_details WHERE opportunity_id=?", (oid,))
     assert det["exit_reason"] == "TARGET" and det["hold_exit_reason"] == "TIME" and det["method"].startswith("tradesim")
-    assert det["cost_ret"] == pytest.approx(2 * 15e-4) and det["direction"] == "LONG"
+    assert det["cost_ret"] == pytest.approx(15e-4 * (1 + 12.3 / 10.2)) and det["direction"] == "LONG"
     assert det["panel_last_date"] == cal.sessions[-1].date().isoformat()
 
 
@@ -143,7 +143,7 @@ def test_delisting_needs_grace_period(db, config):
     assert row["ret"] == pytest.approx(exp.net_ret)
     # entry at the open of session 3 (29); exit value = last close (27) x (1 - 30%); adv ~ $28M -> 5+5 bps/side
     assert costs.delisting_return == pytest.approx(-0.30)
-    assert row["ret"] == pytest.approx(27 * 0.7 / 29 - 1 - 2 * 10e-4)
+    assert row["ret"] == pytest.approx(27 * 0.7 / 29 - 1 - 10e-4 * (1 + 27 * 0.7 / 29))
 
 
 def test_missing_bars_inside_window_wait(db, config):
