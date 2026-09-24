@@ -19,7 +19,8 @@ from ..conftest import ROOT
 
 REGISTRY = load_all_features()
 # Catalog groups not implemented yet (tracked in README "Status"); everything else must exist.
-PENDING_GROUPS = {"event", "fundamental", "news"}
+PENDING_GROUPS = {"fundamental", "news"}
+PENDING_NAMES = {"sue"}          # needs the fundamental as-of engine
 
 
 def _catalog_names() -> dict[str, str]:
@@ -37,7 +38,7 @@ def _catalog_names() -> dict[str, str]:
 def test_catalog_names_registered():
     catalog = _catalog_names()
     assert len(catalog) > 40
-    missing = [n for n, g in catalog.items() if g not in PENDING_GROUPS and n not in REGISTRY]
+    missing = [n for n, g in catalog.items() if g not in PENDING_GROUPS and n not in PENDING_NAMES and n not in REGISTRY]
     assert not missing, f"catalog features not registered: {missing}"
     extra = [n for n in REGISTRY.names() if n not in catalog]
     assert not extra, f"registered features missing from ARCHITECTURE.md catalog: {extra}"
@@ -119,3 +120,33 @@ def test_market_features_single_column(bundle):
     assert s.notna().sum() > 100
     br = fs.market("breadth_50").dropna()
     assert ((br >= 0) & (br <= 1)).all()
+
+
+def test_ear_known_only_after_reaction_plus_one(bundle):
+    """ear_3d must be NaN on the reaction session and appear at reaction+1."""
+    fs = FeatureSet(bundle)
+    ear = fs.get("ear_3d")
+    ev = bundle.events.dropna(subset=["reaction_date"])
+    checked = 0
+    for sym, r in zip(ev["symbol"], ev["reaction_date"]):
+        if sym not in ear.columns or r not in ear.index:
+            continue
+        i = ear.index.get_loc(r)
+        if i + 1 >= len(ear.index) or i < 70:
+            continue
+        assert np.isnan(ear.iat[i, ear.columns.get_loc(sym)])
+        if bundle.panel.close[sym].iloc[i - 1:i + 2].notna().all():
+            assert np.isfinite(ear.iat[i + 1, ear.columns.get_loc(sym)])
+            checked += 1
+        if checked > 20:
+            break
+    assert checked > 5
+
+
+def test_days_since_earnings_counts_from_reaction(bundle):
+    fs = FeatureSet(bundle)
+    ds = fs.get("days_since_earnings")
+    r = bundle.events.dropna(subset=["reaction_date"]).iloc[10]
+    i = ds.index.get_loc(r["reaction_date"])
+    assert ds.iat[i, ds.columns.get_loc(r["symbol"])] == 0
+    assert ds.iat[i + 1, ds.columns.get_loc(r["symbol"])] == 1

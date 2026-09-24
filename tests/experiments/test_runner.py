@@ -53,3 +53,14 @@ def test_failed_experiment_is_recorded(ctx):
         with reg.run("boom", "backtest") as exp_id:
             raise RuntimeError("boom")
     assert reg.get(exp_id)["results"][-1]["status"] == "failed"
+
+
+@pytest.mark.slow
+def test_planted_pead_edge_is_found(ctx):
+    """Method validation for the event pipeline: a planted post-earnings drift must be detectable."""
+    IngestionService(ctx.config, ctx.store, ctx.db).ingest_synthetic(
+        SyntheticSpec(n_stocks=80, start="2016-01-04", end="2021-12-31", seed=5, pead_edge=0.002))
+    run = run_strategy_backtest(ctx, ["pead_ear"], synthetic=True)
+    ic = run.information_content.query("horizon == 20")
+    assert ic["n_signals"].iloc[0] > 50
+    assert ic["mean_excess"].iloc[0] > 0 and ic["t_stat_dates"].iloc[0] > 2

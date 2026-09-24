@@ -90,11 +90,11 @@ class TradingCalendar:
 
     def first_usable_sessions(self, available_at: pd.Series) -> pd.Series:
         """Vectorized :meth:`first_usable_session` (NaT when beyond the calendar)."""
-        ts = pd.to_datetime(available_at, utc=True)
-        idx = self._cutoffs_utc.searchsorted(ts.values, side="left")
+        ts = pd.DatetimeIndex(pd.to_datetime(available_at, utc=True))
+        idx = self._cutoffs_utc.searchsorted(ts, side="left")
         out = np.full(len(idx), np.datetime64("NaT"), dtype="datetime64[ns]")
-        ok = idx < len(self.sessions)
-        out[ok] = self.sessions.values[idx[ok]]
+        ok = (idx < len(self.sessions)) & ~ts.isna()
+        out[ok] = self.sessions.values.astype("datetime64[ns]")[idx[ok]]
         return pd.Series(out, index=available_at.index)
 
     def reaction_session(self, event_time: pd.Timestamp | datetime | str) -> pd.Timestamp | None:

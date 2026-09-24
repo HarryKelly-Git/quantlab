@@ -181,3 +181,10 @@ def test_schema_conform_rejects_naive_timestamps(synthetic_market):
 def test_pit_status_ordering():
     assert PitStatus.weakest([PitStatus.PIT, PitStatus.UNKNOWN]) is PitStatus.UNKNOWN
     assert PitStatus.weakest([PitStatus.PIT, PitStatus.ASSUMED_STATIC]) is PitStatus.ASSUMED_STATIC
+
+
+def test_first_usable_sessions_vectorized_matches_scalar():
+    cal = TradingCalendar.business_days("2024-01-01", "2024-01-31")
+    ts = pd.Series(pd.to_datetime(["2024-01-10 15:59", "2024-01-10 16:01", "2024-01-12 23:00"]).tz_localize("America/New_York"))
+    got = cal.first_usable_sessions(ts)
+    assert list(got) == [cal.first_usable_session(t) for t in ts]
