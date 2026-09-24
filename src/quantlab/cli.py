@@ -157,6 +157,46 @@ def cmd_resume(args) -> int:
     return 0
 
 
+def cmd_run_daily(args) -> int:
+    ctx = _ctx(args)
+    from quantlab.pipeline.daily import DailyPipeline
+    res = DailyPipeline(ctx, synthetic=_data_flag(ctx, args.data)).run(args.as_of, resume_run_id=args.resume)
+    _print({"run_id": res.run_id, "as_of": res.as_of, "system_state": res.system_state, "steps": res.steps,
+            "errors": res.errors, "report": res.report_path})
+    return 1 if res.errors else 0
+
+
+def cmd_replay(args) -> int:
+    ctx = _ctx(args)
+    from quantlab.pipeline.daily import replay
+    results = replay(ctx, args.start, args.end, synthetic=_data_flag(ctx, args.data))
+    _print({"sessions": len(results), "failed": [r.as_of for r in results if r.errors],
+            "last_state": results[-1].system_state if results else None,
+            "orders": ctx.db.fetchone("SELECT COUNT(*) AS n FROM orders WHERE book='BOT'")["n"],
+            "closed_trades": ctx.db.fetchone("SELECT COUNT(*) AS n FROM trades WHERE book='BOT' AND status='CLOSED'")["n"]})
+    return 0
+
+
+def cmd_strategy(args) -> int:
+    """Show strategy stages/status, evaluate promotion evidence, or change stage/status (logged)."""
+    ctx = _ctx(args)
+    from quantlab.research.promotion import PromotionManager
+    from quantlab.strategies.registry import build_strategies, register_strategies
+    register_strategies(ctx.db, build_strategies(ctx.config, include_disabled=True))
+    pm = PromotionManager(ctx.db, ctx.config)
+    if args.action == "list":
+        _print(ctx.db.fetchall("SELECT strategy_id, version, family, status, stage FROM strategies ORDER BY strategy_id"))
+        return 0
+    ver = args.version or ctx.config.get(f"strategies.{args.id}.version")
+    if args.action == "evaluate":
+        _print(pm.evaluate(args.id, ver).to_dict())
+    elif args.action == "promote":
+        _print(pm.transition(args.id, ver, args.to_stage, args.reason, args.actor, override_reason=args.override))
+    elif args.action == "status":
+        _print({"changed": pm.set_status(args.id, ver, args.to_status, args.reason, actor=args.actor)})
+    return 0
+
+
 def cmd_demo(args) -> int:
     """Offline end-to-end run on SYNTHETIC data (planted momentum edge by default)."""
     ctx = _ctx(args)
@@ -223,6 +263,23 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("resume", help="resume after human review (actor must be human[:name])")
     s.add_argument("--reason", required=True), s.add_argument("--actor", required=True)
     s.set_defaults(fn=cmd_resume)
+
+    s = sub.add_parser("run-daily", help="run the daily PAPER pipeline for one session (default: latest)")
+    s.add_argument("--as-of"), s.add_argument("--resume", help="run_id of a failed run to resume")
+    s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
+    s.set_defaults(fn=cmd_run_daily)
+
+    s = sub.add_parser("replay", help="run the daily PAPER pipeline over past sessions (forward simulation)")
+    s.add_argument("--start", required=True), s.add_argument("--end", required=True)
+    s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
+    s.set_defaults(fn=cmd_replay)
+
+    s = sub.add_parser("strategy", help="list / evaluate / promote / set status (all changes logged)")
+    s.add_argument("action", choices=["list", "evaluate", "promote", "status"])
+    s.add_argument("--id"), s.add_argument("--version"), s.add_argument("--to-stage"), s.add_argument("--to-status")
+    s.add_argument("--reason", default=""), s.add_argument("--actor", default="human")
+    s.add_argument("--override", help="human override reason when evidence requirements are unmet (logged)")
+    s.set_defaults(fn=cmd_strategy)
 
     s = sub.add_parser("demo", help="offline end-to-end demo on SYNTHETIC data")
     s.add_argument("--n-stocks", type=int, default=120), s.add_argument("--seed", type=int, default=42)
