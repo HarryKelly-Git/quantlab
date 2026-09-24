@@ -13,6 +13,7 @@ from quantlab.strategies.extreme_reversal import ExtremeReversal
 from quantlab.strategies.mean_reversion import MeanReversion
 from quantlab.strategies.momentum_trend import MomentumTrend
 from quantlab.strategies.pead_ear import PeadEar
+from quantlab.strategies.quality_momentum import QualityMomentum
 from quantlab.strategies.relative_strength import RelativeStrength
 from quantlab.strategies.sector_rotation import SectorRotation
 
@@ -24,6 +25,7 @@ STRATEGY_CLASSES: dict[str, type[Strategy]] = {
     "extreme_reversal": ExtremeReversal,
     "sector_rotation": SectorRotation,
     "pead_ear": PeadEar,
+    "quality_momentum": QualityMomentum,
 }
 
 
