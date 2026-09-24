@@ -19,7 +19,7 @@ from ..conftest import ROOT
 
 REGISTRY = load_all_features()
 # Catalog groups not implemented yet (tracked in README "Status"); everything else must exist.
-PENDING_GROUPS = {"news"}
+PENDING_GROUPS: set[str] = set()
 PENDING_NAMES: set[str] = set()
 
 

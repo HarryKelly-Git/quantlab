@@ -103,31 +103,40 @@ def _asof_table(fs: FeatureSet) -> dict[str, pd.DataFrame]:
             return frames
         f["usable"] = fs.bundle.calendar.first_usable_sessions(f["available_at"])
         f = f.dropna(subset=["usable", "value"]).sort_values(["symbol", "usable", "available_at"], kind="mergesort")
-        pos = pd.Series(np.arange(len(p.dates)), index=p.dates)
-        for sym, g in f.groupby("symbol", sort=False):
+        T, sym_index = len(p.dates), {s: j for j, s in enumerate(p.symbols)}
+        out = {m: np.full((T, len(p.symbols)), np.nan) for m in (*METRICS, "fundamental_age")}
+        row_of = p.dates.get_indexer(pd.DatetimeIndex(f["usable"]))
+        syms, concepts = f["symbol"].to_numpy(), f["concept"].to_numpy()
+        fps = f["fiscal_period"].astype(str).str.upper().to_numpy()
+        pes, vals = pd.DatetimeIndex(f["period_end"]), f["value"].to_numpy(dtype="float64")
+        n = len(f)
+        i = 0
+        # plain-Python replay (vectorizing an as-of state machine obscures it); O(rows) per symbol
+        while i < n:
+            sym, j = syms[i], sym_index[syms[i]]
             flow: dict[str, dict] = {c: {} for c in FLOW}
             stock: dict[str, tuple] = {}
-            rows: dict[pd.Timestamp, dict[str, float]] = {}
-            for d, gd in g.groupby("usable", sort=True):
-                for r in gd.itertuples(index=False):
-                    pe = pd.Timestamp(r.period_end)
-                    if r.concept in FLOW:
-                        if str(r.fiscal_period).upper() == "Q":
-                            flow[r.concept][pe] = float(r.value)       # later filing overwrites (as-of)
+            updates: list[tuple[int, dict[str, float]]] = []
+            while i < n and syms[i] == sym:
+                r = row_of[i]
+                while i < n and syms[i] == sym and row_of[i] == r:
+                    c, pe = concepts[i], pes[i]
+                    if c in FLOW:
+                        if fps[i] == "Q":
+                            flow[c][pe] = vals[i]                     # later filing overwrites (as-of)
                     else:
-                        cur = stock.get(r.concept)
+                        cur = stock.get(c)
                         if cur is None or pe >= cur[0]:
-                            stock[r.concept] = (pe, float(r.value))
-                rows[pd.Timestamp(d)] = _metrics(flow, stock)
-            if not rows:
-                continue
-            upd = pd.DataFrame.from_dict(rows, orient="index").reindex(p.dates)
-            last_update = pd.Series(np.where(upd.notna().any(axis=1), pos.to_numpy(), np.nan), index=p.dates).ffill()
-            filled = upd.ffill()
-            for m in METRICS:
-                frames[m][sym] = filled[m].to_numpy()
-            frames["fundamental_age"][sym] = (pos - last_update).to_numpy()
-        return frames
+                            stock[c] = (pe, vals[i])
+                    i += 1
+                if r >= 0:
+                    updates.append((r, _metrics(flow, stock)))
+            for k, (r, met) in enumerate(updates):
+                end = updates[k + 1][0] if k + 1 < len(updates) else T
+                for m in METRICS:
+                    out[m][r:end, j] = met[m]
+                out["fundamental_age"][r:end, j] = np.arange(end - r, dtype="float64")
+        return {m: pd.DataFrame(a, index=p.dates, columns=p.symbols) for m, a in out.items()}
     return memo(fs, "fundamental_asof", build)  # type: ignore[return-value]
 
 
