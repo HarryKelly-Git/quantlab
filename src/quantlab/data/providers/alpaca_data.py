@@ -108,12 +108,10 @@ class AlpacaDataProvider(PriceProvider, CorporateActionProvider, NewsProvider):
         self.config = config
         self.key_env = config.get("providers.alpaca.key_id_env", "ALPACA_PAPER_KEY_ID")
         self.secret_env = config.get("providers.alpaca.secret_env", "ALPACA_PAPER_SECRET_KEY")
-        self._key = get_secret(self.key_env)
-        self._secret = get_secret(self.secret_env)
-        if not self._key or not self._secret:
-            raise ProviderNotConfigured(
-                f"Alpaca market data needs environment variables {self.key_env} and {self.secret_env}"
-            )
+        # Credentials are looked up lazily in ``_auth()`` (called by every fetch), NEVER here, so
+        # that ``AlpacaDataProvider(config)`` always succeeds -- e.g. the provider registry builds
+        # one instance per configured kind up front, before any fetch is attempted, and must not
+        # require keys to exist yet. ProviderNotConfigured is raised only when a fetch runs.
         self.base_url = str(config.get("providers.alpaca.data_base_url", "https://data.alpaca.markets")).rstrip("/")
         if not self.base_url.startswith("https://"):
             raise ProviderNotConfigured("providers.alpaca.data_base_url must be an https URL")
@@ -144,8 +142,16 @@ class AlpacaDataProvider(PriceProvider, CorporateActionProvider, NewsProvider):
 
     # ------------------------------------------------------------------------------------------
     def _auth(self) -> dict[str, str]:
-        # Built per request and handed straight to the HTTP client; never logged or stored elsewhere.
-        return {"APCA-API-KEY-ID": self._key.reveal(), "APCA-API-SECRET-KEY": self._secret.reveal(),
+        # Re-read on every call (never cached on self) so credentials set after construction are
+        # picked up, and so the ProviderNotConfigured check happens at fetch time, not at
+        # construction time. Built per request and handed straight to the HTTP client; never
+        # logged or stored elsewhere.
+        key, secret = get_secret(self.key_env), get_secret(self.secret_env)
+        if not key or not secret:
+            raise ProviderNotConfigured(
+                f"Alpaca market data needs environment variables {self.key_env} and {self.secret_env}"
+            )
+        return {"APCA-API-KEY-ID": key.reveal(), "APCA-API-SECRET-KEY": secret.reveal(),
                 "Accept": "application/json"}
 
     def last_final_session_date(self, now: pd.Timestamp | None = None) -> pd.Timestamp:

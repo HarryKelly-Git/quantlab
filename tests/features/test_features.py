@@ -19,8 +19,8 @@ from ..conftest import ROOT
 
 REGISTRY = load_all_features()
 # Catalog groups not implemented yet (tracked in README "Status"); everything else must exist.
-PENDING_GROUPS = {"fundamental", "news"}
-PENDING_NAMES = {"sue"}          # needs the fundamental as-of engine
+PENDING_GROUPS = {"news"}
+PENDING_NAMES: set[str] = set()
 
 
 def _catalog_names() -> dict[str, str]:
@@ -150,3 +150,23 @@ def test_days_since_earnings_counts_from_reaction(bundle):
     i = ds.index.get_loc(r["reaction_date"])
     assert ds.iat[i, ds.columns.get_loc(r["symbol"])] == 0
     assert ds.iat[i + 1, ds.columns.get_loc(r["symbol"])] == 1
+
+
+def test_restated_fundamental_visible_only_after_its_filing(bundle):
+    """As-of rule: a restatement changes the value only from the session it became usable."""
+    f = bundle.fundamentals
+    rs = f[f["accession"].str.contains("restate") & (f["concept"] == "Revenues")]
+    assert len(rs), "synthetic data should contain restated revenue"
+    r = rs.iloc[0]
+    sym = r["symbol"]
+    usable = bundle.calendar.first_usable_session(r["available_at"])
+    i = bundle.panel.dates.get_loc(usable)
+    before = FeatureSet(bundle.truncate(bundle.panel.dates[i - 1])).get("rev_growth_yoy")[sym].iloc[-1]
+    full = FeatureSet(bundle).get("rev_growth_yoy")[sym]
+    assert full.iloc[i - 1] == before or (np.isnan(full.iloc[i - 1]) and np.isnan(before))
+
+
+def test_fundamental_features_have_coverage(bundle):
+    fs = FeatureSet(bundle)
+    for n in ("rev_growth_yoy", "ni_margin", "roe", "leverage", "ep_ttm", "sue"):
+        assert fs.get(n).notna().to_numpy().sum() > 1000, n

@@ -23,6 +23,8 @@ from quantlab.logging_setup import get_logger, log_event
 log = get_logger(__name__)
 
 KINDS = ("reference", "bars", "corporate_actions", "events", "fundamentals", "news")
+# dataset kind -> config ``providers.<key>`` slot (the price provider is configured as "prices")
+PROVIDER_KEY = {"bars": "prices"}
 
 
 @dataclass
@@ -87,7 +89,7 @@ class IngestionService:
 
     def _run_kind(self, rep: IngestReport, kind: str, fetch, run_id: str | None, provider_name: str,
                   params: dict[str, Any], chunk_writer=None) -> pd.DataFrame | None:
-        prov = self.providers.get(kind)
+        prov = self.providers.get(PROVIDER_KEY.get(kind, kind))
         if prov is None:
             rep.outcomes[kind] = KindOutcome(kind, "skipped", detail="no provider configured (providers.%s)" % kind)
             return None
@@ -136,7 +138,6 @@ class IngestionService:
             symbols = self.select_symbols(ref)
 
         # bars in chunks: each chunk is its own immutable dataset
-        prov = self.providers.get("bars")
         bar_frames: list[pd.DataFrame] = []
         chunks = [symbols[i:i + bar_chunk] for i in range(0, len(symbols), bar_chunk)]
         for n, chunk in enumerate(chunks):
@@ -153,7 +154,6 @@ class IngestionService:
                     break
             if df is not None and not df.empty:
                 bar_frames.append(df)
-        del prov
 
         self._run_kind(rep, "corporate_actions", lambda p: p.get_corporate_actions(symbols, start, end), run_id,
                        "corporate_actions", params)
