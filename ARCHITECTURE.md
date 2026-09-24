@@ -68,10 +68,13 @@ tests/<subsystem>/test_*.py
 6. **`pit_status`** (`core.types.PitStatus`: PIT > PIT_CONSERVATIVE > ASSUMED_STATIC > UNKNOWN) is
    carried by every dataset row, feature spec and candidate. UNKNOWN is not usable in historical
    research by default (`HISTORICAL_RESEARCH_PIT`). Reports print the weakest status involved.
-7. **Fundamentals** use the earliest filing: for each (concept, period), take the value from the
-   earliest filing with `available_at <= cutoff`. Later restatements are invisible until they
-   were filed. Availability comes from the filing's acceptance time when known (PIT). Otherwise
-   it is assumed to be the next session's cutoff (PIT_CONSERVATIVE).
+7. **Fundamentals are as-of.** For each (symbol, concept, period), the value known at D is the
+   one from the most recently filed row with `available_at <= cutoff(D)`. A restatement becomes
+   visible only from its own filing. Never use XBRL `frame` or the frames API: they carry the
+   latest restated value. Periods are keyed by (start, end) duration, never by the filing's
+   fy/fp. Availability comes from the filing's acceptanceDateTime (join `accn` to submissions)
+   when known (PIT). Otherwise it is the cutoff of the session after `filed` (PIT_CONSERVATIVE).
+   XBRL numbers appear only when the 10-Q/10-K is filed, often days after the earnings release.
 8. **Current metadata** (security type, sector/SIC) is ASSUMED_STATIC and must be labeled that way.
 9. **LLM outputs are contaminated for history.** Models may know what happened after a
    historical date, so AI-filtered results are evaluated only with forward shadow/paper tests.
@@ -238,7 +241,10 @@ append-only. A correction is a new row with `supersedes_id`.
 ## 11. Database
 
 SQLite (WAL) at `project.db_path`. Migrations live in `src/quantlab/db/migrations/NNN_name.sql`.
-Core schema is `001_core.sql`. Reserved ranges for subsystem migrations: data 010-019,
+Core schema is `001_core.sql`. Shared cross-subsystem tables are in `002_shared_research.sql`:
+`backtest_trades` and `backtest_equity` (written by backtest/, read by decision/ and research/)
+and `symbol_quarantine` (written by data validation, honored by the universe). Reserved ranges
+for subsystem migrations: data 010-019,
 features/universe 020-029, strategies 030-039, backtest/validation/experiments 040-049,
 execution 050-059, ML 060-069, AI 070-079, decision/portfolio/risk 080-089,
 human/shadow/research/monitoring 090-099, pipeline/dashboard 100-109. Audit tables are append-only
