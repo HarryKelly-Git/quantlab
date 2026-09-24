@@ -1,0 +1,17 @@
+# secrets — NEVER commit
+.env
+.env.*
+!.env.example
+config/local.yaml
+
+# runtime state (databases, market data, logs, reports, model artifacts)
+var/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+build/
+dist/

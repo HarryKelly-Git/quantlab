@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantlab"
+version = "0.1.0"
+description = "US-equity quantitative research lab + autonomous PAPER trader + human paper-trading lab. No live money."
+requires-python = ">=3.11"
+dependencies = [
+  "numpy",
+  "pandas",
+  "scipy",
+  "scikit-learn",
+  "pyarrow",
+  "pyyaml",
+  "pydantic>=2",
+  "requests",
+  "fastapi",
+  "uvicorn",
+  "jinja2",
+  "python-multipart",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx"]
+
+[project.scripts]
+quantlab = "quantlab.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+quantlab = ["db/migrations/*.sql", "dashboard/templates/*.html", "dashboard/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+  "network: test performs real network calls (skipped unless QUANTLAB_NETWORK_TESTS=1)",
+  "slow: slow test",
+]
+filterwarnings = [
+  "ignore::DeprecationWarning:dateutil.*",
+]

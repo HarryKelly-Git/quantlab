@@ -1,0 +1,304 @@
+# QuantLab default configuration.
+# Every tunable parameter lives here (or in config/local.yaml, which overrides it and is git-ignored).
+# Secrets are NEVER stored in config — only the NAMES of environment variables that hold them.
+# The effective configuration is hashed and recorded with every run/experiment for reproducibility.
+
+project:
+  name: quantlab
+  market_timezone: America/New_York
+  var_dir: var                    # all runtime state lives under here (git-ignored)
+  db_path: var/quantlab.db
+  data_dir: var/data
+  log_dir: var/logs
+  report_dir: var/reports
+  model_dir: var/models
+  # Information cutoff for a session date D = D's regular close. Anything that became available
+  # after that instant is only usable for decisions on D+1 or later. Applied identically in
+  # backtests and in the live paper pipeline so research and forward results are comparable.
+  info_cutoff_local_time: "16:00"
+
+safety:
+  # Paper-only is enforced in code regardless of this flag. Listed here for visibility only.
+  paper_only: true
+  # The only broker endpoint the execution layer will ever talk to.
+  allowed_broker_base_urls:
+    - https://paper-api.alpaca.markets
+
+providers:
+  prices: alpaca                  # alpaca | synthetic
+  corporate_actions: alpaca       # alpaca | synthetic
+  reference: nasdaq_trader        # nasdaq_trader | synthetic
+  fundamentals: sec_edgar         # sec_edgar | none
+  events: sec_edgar               # sec_edgar | none
+  news: alpaca                    # alpaca | none
+  alpaca:
+    key_id_env: ALPACA_PAPER_KEY_ID
+    secret_env: ALPACA_PAPER_SECRET_KEY
+    data_base_url: https://data.alpaca.markets
+    trading_base_url: https://paper-api.alpaca.markets
+    # Free Basic plan: historical SIP allowed when `end` is >= 15 min old. BUT Alpaca docs say "Paper Only"
+    # accounts (e.g. non-US) are entitled to IEX data only (IEX ~2.5% of volume, history from 2020). The feed
+    # actually used is recorded on every dataset; IEX volume makes dollar-volume liquidity filters unreliable.
+    feed: sip
+    feed_fallback: iex            # used only if SIP is refused (403); dataset is flagged feed=iex
+    asof: "-"                     # pin symbol mapping for reproducibility ("-" = no rename mapping); see docs
+    max_requests_per_minute: 180
+  sec_edgar:
+    user_agent_env: QUANTLAB_SEC_USER_AGENT
+    max_requests_per_second: 8    # SEC fair-access limit is 10/s
+  nasdaq_trader:
+    nasdaq_listed_url: https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt
+    other_listed_url: https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt
+  http:
+    timeout_seconds: 30
+    max_retries: 4
+    backoff_seconds: 2.0
+
+history:
+  start_date: "2016-01-01"
+
+benchmarks:
+  market: SPY
+  # Sector SPDR ETFs used for sector context / relative strength (price data only => PIT-safe).
+  sectors:
+    XLB: Materials
+    XLC: Communication Services
+    XLE: Energy
+    XLF: Financials
+    XLI: Industrials
+    XLK: Information Technology
+    XLP: Consumer Staples
+    XLRE: Real Estate
+    XLU: Utilities
+    XLV: Health Care
+    XLY: Consumer Discretionary
+
+universe:
+  allowed_exchanges: [NYSE, NASDAQ, NYSE_AMERICAN, NYSE_ARCA, CBOE_BZX]
+  exclude_etfs: true
+  exclude_test_issues: true
+  exclude_preferred: true
+  exclude_warrants: true
+  exclude_rights: true
+  exclude_units: true
+  exclude_funds_trusts: true
+  # Level-based filters use RAW (unadjusted) prices so reverse splits cannot leak future info.
+  min_price: 5.0
+  min_median_dollar_volume: 5000000   # USD, over dollar_volume_window sessions
+  dollar_volume_window: 20
+  min_history_sessions: 260
+  max_symbols: null                   # optional cap (by liquidity) for fast research runs
+
+costs:
+  commission_per_share: 0.0
+  commission_min_per_order: 0.0
+  # Half-spread charged on every fill, by 20-day median dollar volume (USD). First matching tier wins.
+  half_spread_bps_tiers:
+    - [100000000, 2.0]
+    - [20000000, 5.0]
+    - [5000000, 10.0]
+    - [0, 25.0]
+  slippage_bps: 5.0
+  # Return assumed when a held security stops trading without a known exit price (delisting bias).
+  delisting_return: -0.30
+
+backtest:
+  initial_capital: 100000
+  execution: next_open            # signal at close D -> fill at open D+1
+  max_positions: 10
+  sizing: equal_risk              # equal_risk | equal_weight
+  risk_per_trade: 0.005           # fraction of equity lost if the stop is hit
+  max_position_weight: 0.10
+  same_bar_stop_and_target: stop_first   # conservative
+  allow_short: false
+
+validation:
+  in_sample:
+    start: "2016-01-01"
+    end: "2021-12-31"
+  walk_forward:
+    train_years: 3
+    test_months: 6
+    step_months: 6
+    embargo_sessions: 10
+  holdout:
+    # LOCKED. Backtests touching dates >= start are refused unless explicitly unlocked with a
+    # logged reason. Every unlock is recorded permanently and shown in reports.
+    start: "2025-01-01"
+  bootstrap:
+    n_resamples: 2000
+    block_length: 20
+    seed: 7
+  min_trades_for_conclusion: 100
+
+regime:
+  trend_ma_sessions: 200
+  momentum_sessions: 60
+  vol_window_sessions: 20
+  high_vol_annualized: 0.25
+  breadth_ma_sessions: 50
+
+strategies:
+  momentum_trend:
+    enabled: true
+    version: "1.0.0"
+    params: {lookback_long: 120, lookback_mid: 60, lookback_short: 20, skip_recent: 5, ma_filter: 50, min_score_pct: 0.90, hold_sessions: 40, stop_atr: 3.0}
+  mean_reversion:
+    enabled: true
+    version: "1.0.0"
+    params: {shock_sessions: 3, shock_z: -2.0, ma_sessions: 20, trend_ma: 200, extreme_z: -3.5, hold_sessions: 5, stop_atr: 2.5}
+  breakout:
+    enabled: true
+    version: "1.0.0"
+    params: {high_window: 55, contraction_window: 20, contraction_ratio: 0.75, volume_mult: 1.5, hold_sessions: 20, stop_atr: 2.0}
+  pead_ear:
+    enabled: true
+    version: "1.0.0"
+    params: {ear_window: 3, min_abs_ear_z: 1.5, min_rel_volume: 1.5, hold_sessions: 40, stop_atr: 3.0, max_days_after_event: 3}
+  relative_strength:
+    enabled: true
+    version: "1.0.0"
+    params: {lookback: 63, vs_market_min_pct: 0.80, require_sector_strength: true, hold_sessions: 30, stop_atr: 3.0}
+  quality_momentum:
+    enabled: true
+    version: "1.0.0"
+    params: {momentum_lookback: 126, skip_recent: 21, min_momentum_pct: 0.70, min_quality_pct: 0.70, hold_sessions: 60, stop_atr: 3.5}
+  news_shock:
+    enabled: false                # needs a news provider with PIT timestamps; research-only until then
+    version: "1.0.0"
+    params: {news_count_z: 2.5, min_abs_return_z: 2.0, hold_sessions: 10, stop_atr: 2.5}
+  extreme_reversal:
+    enabled: true
+    version: "1.0.0"
+    params: {extreme_return_z: -4.0, min_rel_volume: 2.0, require_no_event: false, hold_sessions: 5, stop_atr: 3.0}
+  sector_rotation:
+    enabled: true
+    version: "1.0.0"
+    params: {sector_lookback: 63, top_sectors: 3, stock_rank_pct: 0.80, hold_sessions: 40, stop_atr: 3.0}
+
+ml:
+  enabled: true
+  label_horizon_sessions: 10
+  target: positive_excess_return   # P(forward excess return vs SPY > 0)
+  models: [logistic, random_forest, hist_gradient_boosting]
+  min_train_rows: 5000
+  random_seed: 11
+  calibration: isotonic
+  purge_sessions: 10
+  embargo_sessions: 10
+
+ai:
+  enabled: false                  # AI layer runs only when true AND a provider key is present
+  active_provider: mock           # mock | anthropic | openai | google
+  # Compare providers on identical evidence packets (A/B). Empty = only active_provider.
+  comparison_providers: []
+  prompt_version: "1.0.0"
+  max_candidates_per_day: 10
+  daily_token_budget: 400000
+  max_output_tokens: 4000
+  # temperature is omitted by default: current Anthropic flagships reject temperature != 1.0 and OpenAI
+  # reasoning models reject it. LLM outputs are therefore NOT reproducible; every response is persisted.
+  temperature: null
+  # When the AI review is UNKNOWN (disabled, failed, over budget): "allow" = quantitative layers decide
+  # (AI is an optional filter), "block" = no trade without an AI verdict.
+  unknown_policy: allow
+  retry_limit: 2
+  timeout_seconds: 90
+  cache_enabled: true
+  providers:
+    anthropic:
+      api_key_env: ANTHROPIC_API_KEY
+      base_url: https://api.anthropic.com
+      anthropic_version: "2023-06-01"
+      models: {researcher: claude-sonnet-5, adversary: claude-sonnet-5, judge: claude-opus-5-5}
+    openai:
+      api_key_env: OPENAI_API_KEY
+      base_url: https://api.openai.com
+      models: {researcher: gpt-5.6-terra, adversary: gpt-5.6-terra, judge: gpt-6-astra}
+    google:
+      api_key_env: GOOGLE_API_KEY
+      base_url: https://generativelanguage.googleapis.com
+      models: {researcher: gemini-3.8-flash, adversary: gemini-3.8-flash, judge: gemini-3.8-flash}
+  # Model knowledge cutoffs (from provider docs, verified 2026-09-24). Any AI decision about a date BEFORE the
+  # model's cutoff is CONTAMINATED (the model may know the outcome) and is excluded from AI evaluation.
+  knowledge_cutoffs:
+    claude-opus-5-5: "2026-06-30"
+    claude-fable-5-1: "2026-06-30"
+    claude-sonnet-5: "2026-01-31"
+    claude-haiku-4-5-20251001: "2025-02-28"
+    gpt-6-astra: "2026-04-30"
+    gpt-5.6-terra: "2026-02-16"
+    gemini-3.8-flash: null        # not verified -> treated as UNKNOWN (contaminated until proven otherwise)
+    mock-v1: null
+  # USD per million tokens (input, output), verified 2026-09-24; used for cost tracking only.
+  pricing_per_mtok:
+    claude-opus-5-5: [4.0, 20.0]
+    claude-fable-5-1: [10.0, 50.0]
+    claude-sonnet-5: [2.0, 10.0]
+    claude-haiku-4-5-20251001: [1.0, 5.0]
+    gpt-6-astra: [10.0, 50.0]
+    gpt-5.6-terra: [2.0, 12.0]
+    gemini-3.8-flash: [0.75, 3.75]
+    mock-v1: [0.0, 0.0]
+    mock:
+      models: {researcher: mock-v1, adversary: mock-v1, judge: mock-v1}
+
+expected_value:
+  # EV uses empirically estimated win-rate/payoff from each strategy's validated history (shrunk
+  # toward a no-edge prior when samples are small). LLM confidence is NEVER converted into probability.
+  prior_trades: 50                # strength of the no-edge prior (pseudo-trades)
+  min_ev_bps_after_costs: 10
+
+no_trade:
+  max_annualized_vol: 1.20
+  min_median_dollar_volume: 5000000
+  earnings_blackout_sessions: 2   # avoid entering right before a known earnings date (when known)
+  max_model_disagreement: 0.35
+  min_strategy_trades_for_trust: 30
+  block_on_unknown_pit: true
+
+portfolio:
+  max_positions: 10
+  max_gross_exposure: 1.00
+  max_position_weight: 0.10
+  max_sector_weight: 0.30
+  max_pairwise_correlation: 0.85
+  correlation_window_sessions: 60
+  cash_buffer: 0.05
+  risk_per_trade: 0.005
+  max_open_risk: 0.04             # sum over positions of (entry - stop) * qty / equity
+
+risk:
+  max_drawdown_pause: 0.20        # bot book drawdown beyond this => SYSTEM_PAUSED
+  max_daily_orders: 20
+  max_order_notional: 15000
+  require_reconciliation: true
+
+paper:
+  bot:
+    broker: sim                   # sim | alpaca_paper
+    starting_cash: 100000
+  human:
+    broker: sim                   # human book is always simulated internally (same fill model as bot)
+    starting_cash: 100000
+
+monitoring:
+  max_data_staleness_sessions: 2
+  max_missing_bar_fraction: 0.02
+  llm_max_error_rate: 0.25
+
+promotion:
+  min_backtest_trades: 100
+  min_walk_forward_windows: 4
+  min_oos_sharpe: 0.40
+  max_deflated_sharpe_pvalue: 0.10
+  min_shadow_sessions: 60
+  min_paper_trades: 30
+
+logging:
+  level: INFO
+  json_file: true
+
+dashboard:
+  host: 127.0.0.1
+  port: 8765
