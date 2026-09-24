@@ -50,8 +50,9 @@ def test_scores_nan_outside_universe_and_plans_sane(sid, bundle, config):
 
 def test_registry_builds_and_registers_idempotently(config, db):
     strats = build_strategies(config)
-    assert [s.strategy_id for s in strats] == ["momentum_trend"]
-    assert register_strategies(db, strats) == 1
+    ids = [s.strategy_id for s in strats]
+    assert "momentum_trend" in ids and "mean_reversion" in ids
+    assert register_strategies(db, strats) == len(strats)
     assert register_strategies(db, strats) == 0
     row = db.fetchone("SELECT status, stage FROM strategies WHERE strategy_id='momentum_trend'")
     assert row == {"status": "SHADOW", "stage": "RESEARCH"}

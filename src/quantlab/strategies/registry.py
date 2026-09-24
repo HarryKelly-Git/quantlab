@@ -8,10 +8,20 @@ from __future__ import annotations
 from quantlab.config import Config
 from quantlab.db.database import Database, to_json, utcnow_iso
 from quantlab.strategies.base import Strategy
+from quantlab.strategies.breakout import Breakout
+from quantlab.strategies.extreme_reversal import ExtremeReversal
+from quantlab.strategies.mean_reversion import MeanReversion
 from quantlab.strategies.momentum_trend import MomentumTrend
+from quantlab.strategies.relative_strength import RelativeStrength
+from quantlab.strategies.sector_rotation import SectorRotation
 
 STRATEGY_CLASSES: dict[str, type[Strategy]] = {
     "momentum_trend": MomentumTrend,
+    "mean_reversion": MeanReversion,
+    "breakout": Breakout,
+    "relative_strength": RelativeStrength,
+    "extreme_reversal": ExtremeReversal,
+    "sector_rotation": SectorRotation,
 }
 
 
