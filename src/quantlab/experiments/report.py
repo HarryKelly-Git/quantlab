@@ -75,6 +75,23 @@ def render_backtest_markdown(exp: dict[str, Any]) -> str:
         f"- **Verdict: {inf.get('verdict')}**",
         "",
     ]
+    windows = m.get("windows") or []
+    if windows:
+        stab = m.get("stability") or {}
+        ds = m.get("data_status") or {}
+        lines += ["## Walk-forward windows (out-of-sample; fixed parameters, no search)", "",
+                  f"- Data status: **{ds.get('status', 'UNKNOWN')}** (providers {ds.get('providers')}, feeds {ds.get('feeds')})",
+                  f"- Survivorship: {ds.get('survivorship', 'UNKNOWN')}",
+                  f"- Windows positive: {stab.get('windows_positive')}/{stab.get('n_windows')}; beating SPY: "
+                  f"{stab.get('windows_beating_benchmark')}/{stab.get('n_windows')}; worst window {_pct(stab.get('worst_window_return'))}",
+                  "",
+                  "| # | train | test | OOS trades | OOS return | SPY | excess | IS return (reference) |",
+                  "|---|---|---|---|---|---|---|---|"]
+        for w in windows:
+            lines.append(f"| {w['index']} | {w['train_start']}..{w['train_end']} | {w['test_start']}..{w['test_end']} | "
+                         f"{w['oos_trades']} | {_pct(w['oos_return'])} | {_pct(w.get('benchmark_return'))} | "
+                         f"{_pct(w.get('excess_return'))} | {_pct(w.get('is_return'))} |")
+        lines.append("")
     ic = m.get("information_content") or []
     if ic:
         lines += ["## Signal information content (forward excess return of all signals, next-open entry)", "",

@@ -26,6 +26,7 @@ from quantlab.core.calendar import TradingCalendar, to_session
 from quantlab.data import schemas
 
 RAW_FIELDS = ("open", "high", "low", "close", "volume")
+SMALL_SPLIT_RATIO = 1.15      # |ratio| within +-15%: not confirmable from prices (stock dividends)
 DERIVED_FIELDS = ("ret", "tri", "aopen", "ahigh", "alow", "aclose", "dollar_volume", "split_ratio", "dividend")
 
 
@@ -108,6 +109,62 @@ def _effective_action_dates(close: pd.DataFrame, actions: pd.DataFrame) -> pd.Da
     return pd.concat(out, ignore_index=True).dropna(subset=["eff_date"])
 
 
+def reconcile_splits(open_: pd.DataFrame, close: pd.DataFrame, splits: pd.DataFrame) -> pd.DataFrame:
+    """Place each recorded split on the session where the RAW prices actually show it.
+
+    Vendors sometimes record a (typically micro-cap reverse) split a session before the bars show it,
+    or deliver bars that are already split-adjusted. Applying such a split blindly manufactures a fake
+    -75%/+1,600% return. Rule (point-in-time: never moves a split EARLIER than its recorded ex-date):
+      * candidates = the first two sessions >= ex_date on which the symbol traded;
+      * a split is CONFIRMED on the first candidate where raw open / previous raw close is consistent
+        with the ratio: |log(jump * ratio)| < |log(ratio)| / 2 (i.e. the jump is closer to the split
+        than to no split, allowing large genuine same-day moves);
+      * otherwise it is UNCONFIRMED and NOT applied (the raw series is continuous, so returns stay
+        correct); it is reported so the data audit can judge whether the problem is systemic;
+      * NOT_TESTABLE (not applied, cannot affect returns): the ex-date is on/before the symbol's first
+        bar, so there is no earlier price to compare against;
+      * small ratios (within +-15%, typically stock dividends) cannot be confirmed from prices, because
+        an ordinary daily move is as large, so they are applied as recorded on the ex-date
+        (APPLIED_SMALL_RATIO).
+    Exact duplicate records (same symbol, ex_date, ratio) are applied once.
+    Returns the splits with columns eff_date (NaT if unconfirmed) and split_status.
+    """
+    if splits.empty:
+        return splits.assign(eff_date=pd.Series(dtype="datetime64[ns]"), split_status=pd.Series(dtype="object"))
+    sp = splits.drop_duplicates(["symbol", "ex_date", "ratio"]).copy()
+    eff, status = [], []
+    for r in sp.itertuples():
+        if r.symbol not in close.columns or not np.isfinite(r.ratio) or r.ratio <= 0 or r.ratio == 1:
+            eff.append(pd.NaT), status.append("invalid")
+            continue
+        c = close[r.symbol]
+        traded = c.index[c.notna().to_numpy()]
+        i = int(traded.searchsorted(pd.Timestamp(r.ex_date), side="left"))
+        if i == 0 or i >= len(traded):
+            eff.append(pd.NaT), status.append("not_testable")
+            continue
+        if abs(np.log(r.ratio)) < np.log(SMALL_SPLIT_RATIO):
+            eff.append(traded[i]), status.append("applied_small_ratio")
+            continue
+        placed = None
+        for k in (i, i + 1):
+            if k <= 0 or k >= len(traded):
+                continue
+            s, prev = traded[k], traded[k - 1]
+            o = open_.at[s, r.symbol]
+            px = o if np.isfinite(o) and o > 0 else c[s]
+            jump = px / c[prev]
+            if np.isfinite(jump) and jump > 0 and abs(np.log(jump * r.ratio)) < abs(np.log(r.ratio)) / 2:
+                placed = s
+                break
+        eff.append(placed if placed is not None else pd.NaT)
+        status.append("confirmed_on_ex_date" if placed is not None and placed == (traded[i] if i < len(traded) else None)
+                      else ("confirmed_next_session" if placed is not None else "unconfirmed"))
+    sp["eff_date"] = eff
+    sp["split_status"] = status
+    return sp
+
+
 def build_panel(
     bars: pd.DataFrame,
     actions: pd.DataFrame | None = None,
@@ -130,8 +187,8 @@ def build_panel(
     if actions is not None and len(actions):
         acts = schemas.conform("corporate_actions", actions)
         acts = acts[acts["symbol"].isin(columns)]
-        acts = _effective_action_dates(close, acts)
-        splits = acts[acts["action_type"] == "split"]
+        splits = reconcile_splits(f["open"], close, acts[acts["action_type"] == "split"]).dropna(subset=["eff_date"])
+        acts = _effective_action_dates(close, acts[acts["action_type"] != "split"])
         for (d, s), r in splits.groupby(["eff_date", "symbol"])["ratio"].prod().items():
             if d in split_ratio.index and np.isfinite(r) and r > 0:
                 split_ratio.loc[d, s] *= r

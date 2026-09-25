@@ -125,7 +125,10 @@ class IngestionService:
 
     def ingest_all(self, start: date | str | None = None, end: date | str | None = None,
                    symbols: list[str] | None = None, run_id: str | None = None,
-                   bar_chunk: int = 200) -> IngestReport:
+                   bar_chunk: int = 200, kinds: tuple[str, ...] | None = None) -> IngestReport:
+        """``kinds`` restricts what is fetched (reference is always fetched when symbols must be
+        selected). Skipped kinds are reported as 'skipped', never as empty data."""
+        want = set(kinds or KINDS)
         start = pd.Timestamp(start or self.config.get("history.start_date")).date()
         end = pd.Timestamp(end or (datetime.now(timezone.utc) - timedelta(days=1)).date()).date()
         rep = IngestReport()
@@ -155,8 +158,11 @@ class IngestionService:
             if df is not None and not df.empty:
                 bar_frames.append(df)
 
-        self._run_kind(rep, "corporate_actions", lambda p: p.get_corporate_actions(symbols, start, end), run_id,
-                       "corporate_actions", params)
+        if "corporate_actions" in want:
+            self._run_kind(rep, "corporate_actions", lambda p: p.get_corporate_actions(symbols, start, end), run_id,
+                           "corporate_actions", params)
+        else:
+            rep.outcomes["corporate_actions"] = KindOutcome("corporate_actions", "skipped", detail="not requested")
         calendar = None
         mkt = self.config.get("benchmarks.market")
         if bar_frames:
@@ -171,9 +177,12 @@ class IngestionService:
                 ev["reaction_date"] = [calendar.reaction_session(t) for t in ev["event_time"]]
             return ev
 
-        self._run_kind(rep, "events", _events, run_id, "events", params)
-        self._run_kind(rep, "fundamentals", lambda p: p.get_fundamentals(symbols), run_id, "fundamentals", params)
-        self._run_kind(rep, "news", lambda p: p.get_news(symbols, start, end), run_id, "news", params)
+        for kind, fetch in (("events", _events), ("fundamentals", lambda p: p.get_fundamentals(symbols)),
+                            ("news", lambda p: p.get_news(symbols, start, end))):
+            if kind in want:
+                self._run_kind(rep, kind, fetch, run_id, kind, params)
+            else:
+                rep.outcomes[kind] = KindOutcome(kind, "skipped", detail="not requested")
         log_event(log, "ingest finished", **{k: v["status"] for k, v in rep.summary().items()})
         return rep
 

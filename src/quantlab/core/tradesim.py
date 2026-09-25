@@ -9,8 +9,10 @@ EXECUTION SEMANTICS (identical in backtest and live paper trading):
     the NEXT session's open. (No intraday-order assumptions; overnight gaps are paid in full.)
   * Time exit: after ``holding_sessions`` sessions held (entry session counts as 1), exit at the
     next open.
-  * If the symbol stops trading while the market continues -> DELISTED: exit value = last close x
-    (1 + delisting_return). If the data simply ends -> still OPEN (or END_OF_TEST when forced).
+  * A held symbol with no bar for ``costs.delisting_missing_sessions`` consecutive sessions (while
+    the market trades) is DELISTED on that session: exit value = last close x (1 + delisting_return).
+    Decided only from sessions already seen (no peeking for bars that may come back). If the data
+    ends before that -> still OPEN (or END_OF_TEST when forced).
   * All computations run in tri-scaled ("a") prices so splits/dividends during the hold are handled
     exactly; stop/target given in RAW price at D are converted using the ratio to the D close.
   * MFE/MAE use intraday highs/lows for analysis only (they never trigger exits).
@@ -112,13 +114,21 @@ def simulate_plan(
     one_way = costs.one_way_cost_frac(adv)
 
     hi_ex, lo_ex = 0.0, 0.0
-    held, last_valid = 0, ie
+    held, last_valid, missing = 0, ie, 0
     exit_i = exit_a = exit_raw = None
     reason: ExitReason | None = None
     pending_trigger = False
     for j in range(ie, n):
         if not np.isfinite(aclose[j]):
+            missing += 1
+            if missing >= costs.delisting_missing_sessions:
+                exit_i, reason = j, ExitReason.DELISTED
+                exit_a = aclose[last_valid] * (1 + costs.delisting_return)
+                exit_raw = close_raw[last_valid] * (1 + costs.delisting_return)
+                out.status = "delisted"
+                break
             continue
+        missing = 0
         last_valid = j
         held += 1
         if np.isfinite(ahigh[j]):
@@ -143,13 +153,7 @@ def simulate_plan(
             break
 
     if reason is None:
-        symbol_gone = last_valid < n - 1 and not np.isfinite(aclose[last_valid + 1:]).any()
-        if symbol_gone:
-            exit_i, reason = last_valid, ExitReason.DELISTED
-            exit_a = aclose[last_valid] * (1 + costs.delisting_return)
-            exit_raw = close_raw[last_valid] * (1 + costs.delisting_return)
-            out.status = "delisted"
-        elif force_close_at_end:
+        if force_close_at_end:
             exit_i, exit_a, exit_raw, reason = last_valid, aclose[last_valid], close_raw[last_valid], ExitReason.END_OF_TEST
         else:
             out.status = "open"

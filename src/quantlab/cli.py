@@ -53,7 +53,8 @@ def cmd_ingest(args) -> int:
                                                      momentum_edge=args.momentum_edge, pead_edge=args.pead_edge))
         else:
             syms = args.symbols.split(",") if args.symbols else None
-            rep = svc.ingest_all(args.start, args.end, syms, run_id=run_id)
+            kinds = tuple(args.kinds.split(",")) if args.kinds else None
+            rep = svc.ingest_all(args.start, args.end, syms, run_id=run_id, kinds=kinds)
         ctx.finish_run(run_id, "succeeded" if rep.ok else "failed")
         _print({"synthetic": rep.is_synthetic, "ok": rep.ok, "kinds": rep.summary()})
         return 0 if rep.ok else 2
@@ -197,6 +198,38 @@ def cmd_strategy(args) -> int:
     return 0
 
 
+def cmd_data_audit(args) -> int:
+    ctx = _ctx(args)
+    from dataclasses import asdict
+
+    from quantlab.data.audit import DEFAULT_SYMBOLS, run_data_audit
+    syms = args.symbols.split(",") if args.symbols else list(DEFAULT_SYMBOLS)
+    a = run_data_audit(ctx, syms, start=args.start, end=args.end)
+    _print({"audit_id": a.audit_id, "status": a.status, "reason": a.reason, "feed": a.feed,
+            "checks": [{"name": c.name, "status": c.status, "detail": c.detail} for c in a.checks]})
+    return 0 if a.status in ("SUITABLE_SMALL_SAMPLE_ONLY", "DATA_LIMITATION") else 2
+
+
+def cmd_walkforward(args) -> int:
+    ctx = _ctx(args)
+    from quantlab.experiments.report import write_report
+    from quantlab.validation.walkforward import run_walk_forward
+    if args.data == "real" and not ctx.store.dataset_ids("bars", synthetic=False):
+        print("NO REAL DATA: no real bar datasets are stored. Run `data-audit` / `ingest` with Alpaca PAPER keys "
+              "first. Synthetic data is never substituted for real evidence.", file=sys.stderr)
+        return 2
+    run = run_walk_forward(ctx, args.strategy, synthetic=(args.data == "synthetic"), notes=args.notes or "")
+    path = write_report(ctx.db, ctx.config, run.experiment_id)
+    m = run.result.metrics
+    _print({"experiment_id": run.experiment_id, "synthetic": run.is_synthetic, "windows": len(run.windows),
+            "oos_trades": m.get("n_trades"), "oos_return_net": m.get("total_return_net"),
+            "oos_return_gross": m.get("total_return_gross"), "expectancy": m.get("expectancy"),
+            "sharpe": m.get("sharpe"), "max_drawdown": m.get("max_drawdown"),
+            "benchmark_return": (m.get("benchmark") or {}).get("benchmark_total_return"),
+            "verdict": run.inference["verdict"], "stability": run.stability, "report": str(path)})
+    return 0
+
+
 def cmd_dashboard(args) -> int:
     import uvicorn
 
@@ -237,6 +270,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("ingest", help="ingest data from configured providers (or --synthetic)")
     s.add_argument("--synthetic", action="store_true", help="write the SYNTHETIC test world (never market evidence)")
     s.add_argument("--start"), s.add_argument("--end"), s.add_argument("--symbols", help="comma-separated")
+    s.add_argument("--kinds", help="comma-separated subset of reference,bars,corporate_actions,events,fundamentals,news")
     s.add_argument("--n-stocks", type=int, default=120), s.add_argument("--seed", type=int, default=42)
     s.add_argument("--momentum-edge", type=float, default=0.0), s.add_argument("--pead-edge", type=float, default=0.0)
     s.set_defaults(fn=cmd_ingest)
@@ -293,6 +327,18 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--reason", default=""), s.add_argument("--actor", default="human")
     s.add_argument("--override", help="human override reason when evidence requirements are unmet (logged)")
     s.set_defaults(fn=cmd_strategy)
+
+    s = sub.add_parser("data-audit", help="audit REAL data suitability on a small sample (needs PAPER keys + SEC UA)")
+    s.add_argument("--symbols", help="comma-separated (default SPY,XLK,AAPL,MSFT)")
+    s.add_argument("--start", default="2020-01-01"), s.add_argument("--end")
+    s.set_defaults(fn=cmd_data_audit)
+
+    s = sub.add_parser("walkforward", help="walk-forward OOS evaluation of one FIXED strategy")
+    s.add_argument("--strategy", required=True)
+    s.add_argument("--data", choices=["real", "synthetic"], required=True,
+                   help="explicit: synthetic results validate machinery only, never a strategy")
+    s.add_argument("--notes")
+    s.set_defaults(fn=cmd_walkforward)
 
     s = sub.add_parser("dashboard", help="serve the read-only dashboard on localhost")
     s.add_argument("--port", type=int), s.add_argument("--allow-remote", action="store_true")

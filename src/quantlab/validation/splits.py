@@ -71,6 +71,11 @@ def walk_forward_windows(calendar: TradingCalendar, config) -> list[WalkForwardW
     min_test = int(wf.get("min_test_sessions", 20))
     if train_years <= 0 or test_months <= 0 or step_months <= 0 or embargo < 0:
         raise ValueError("invalid walk_forward configuration")
+    if step_months < test_months:
+        # Overlapping test windows would chain capital from a later date into an earlier decision
+        # and count the same sessions/trades twice in the aggregate OOS statistics.
+        raise ValueError(f"walk_forward.step_months ({step_months}) must be >= test_months ({test_months}): "
+                         "overlapping out-of-sample windows are not allowed")
     if mode not in ("rolling", "anchored"):
         raise ValueError(f"walk_forward.mode must be rolling|anchored, got {mode!r}")
     hold = holdout_start(config)

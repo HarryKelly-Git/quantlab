@@ -16,9 +16,9 @@ Point-in-time rules (why the numbers can be trusted):
     in the panel AND both legs have closed. Anything else stays pending — nothing is extrapolated
     and no session beyond the panel's last date is ever touched (``as_of`` truncates first).
   * Once written a row is never updated (DB triggers); rerunning ``update`` is a no-op.
-  * A symbol that stops printing is only declared DELISTED after ``shadow.delisting_grace_sessions``
-    sessions of absence, so a one-day data gap at the panel's edge cannot be frozen forever as a
-    -30% delisting.
+  * A symbol that stops printing is only declared DELISTED after ``execution.delisting_missing_sessions``
+    consecutive sessions of absence (enforced by core.tradesim itself, booked on that session), so a
+    one-day data gap at the panel's edge cannot be frozen forever as a -30% delisting.
   * A symbol missing from the panel entirely is SKIPPED (maybe a partial panel), never marked
     ``no_data``; ``no_data`` is reserved for "the panel covers it and there was nothing to trade".
   * Synthetic and real data never mix: the panel's provenance decides which opportunities it may
@@ -82,7 +82,7 @@ class ShadowOutcomeTracker:
         self.costs = CostModel.from_config(config)
         self.benchmark: str = str(config.get("benchmarks.market", "SPY"))
         self.default_horizon = int(config.get("shadow.default_horizon_sessions", 20))
-        self.delisting_grace = int(config.get("shadow.delisting_grace_sessions", 5))
+        self.delisting_grace = self.costs.delisting_missing_sessions   # single shared rule (tradesim)
         self.last_stats: dict[str, int] = {}
 
     # -- selection ---------------------------------------------------------------------------
@@ -169,13 +169,6 @@ class ShadowOutcomeTracker:
         if ho.status not in ("complete", "delisted"):
             ev.reason = "buy-and-hold leg still open (missing bars inside the window)"
             return ev
-        for leg in (po, ho):
-            if leg.status == "delisted":
-                absent = (n - 1) - dates.get_loc(pd.Timestamp(leg.exit_date))
-                if absent < self.delisting_grace:
-                    ev.reason = f"symbol absent for {absent} sessions (< grace {self.delisting_grace}); waiting"
-                    return ev
-
         measured_at = utcnow_iso()
         ev.status, ev.reason = po.status, "matured"
         ev.plan_outcome, ev.hold_outcome = po, ho

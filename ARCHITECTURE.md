@@ -214,6 +214,13 @@ append-only. A correction is a new row with `supersedes_id`.
 
 ## 9. Research validity
 
+* Walk-forward (`validation/walkforward.py`): for each window the out-of-sample backtest runs on
+  `bundle.truncate(test_end)`. Nothing after the window exists for the engine or the features.
+  Positions close at test_end, capital chains across windows, and SPY is chained over the same
+  sessions. OOS trades are stored as `oos:<k>` segments, which the EV statistics prefer. Train
+  windows only produce an in-sample reference (nothing is fitted; parameters are fixed).
+* Data quarantines are dated. A symbol with a data problem found at session X is excluded from X
+  onward, never retroactively; retroactive exclusion would be look-ahead.
 * Data splits: `validation.in_sample`, then walk-forward windows with an embargo, then a
   **locked holdout** (`validation.holdout.start`). Any backtest touching the holdout raises
   `HoldoutLockedError` unless it is unlocked with a reason. Every unlock is written to

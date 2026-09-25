@@ -31,7 +31,7 @@ from quantlab.core.types import (
     AIDecision, AIReview, Book, CheckResult, FinalDecision, RejectStage, StrategyStatus, SystemState,
 )
 from quantlab.data.panel import DataBundle
-from quantlab.data.validation import DataValidator, quarantined_symbols
+from quantlab.data.validation import DataValidator, quarantine_map
 from quantlab.db.database import to_json, utcnow_iso
 from quantlab.decision.expected_value import EVEngine
 from quantlab.decision.final import FinalDecisionEngine, persist_decision
@@ -168,7 +168,7 @@ class DailyPipeline:
         v = DataValidator(self.cfg, self.db)
         rep = v.check_bundle(st["view"], expected_last_session=st["as_of"])
         v.record(rep, run_id=run_id)
-        st["quarantine"] = quarantined_symbols(self.db) | set(rep.quarantined)
+        st["quarantine"] = quarantine_map(self.db, rep)
         if not rep.ok:
             self.killswitch.pause("critical data validation failure: " + "; ".join(c.name for c in rep.critical_failures),
                                   trigger="data_validation", details={"run_id": run_id})
@@ -200,7 +200,7 @@ class DailyPipeline:
     def _research(self, run_id, st) -> dict:
         view, d = st["view"], st["as_of"]
         if "quarantine" not in st:
-            st["quarantine"] = quarantined_symbols(self.db)
+            st["quarantine"] = quarantine_map(self.db)
         uni = UniverseEngine(self.cfg)
         u = uni.membership(view, exclude=st["quarantine"])
         uni.snapshot(view, d, db=self.db, run_id=run_id, exclude=st["quarantine"])
@@ -248,7 +248,8 @@ class DailyPipeline:
             ev = ev_eng.estimate(c, stats, c.risk.get("adv20"))
             ntc = NoTradeContext.build(c, panel=view.panel, features=c.features, as_of=d.date(), stats=stats,
                                        regime=st["regime"]["label"], same_day_candidates=cands,
-                                       quarantined=c.symbol in st["quarantine"])
+                                       quarantined=c.symbol in st["quarantine"] and
+                                       (st["quarantine"][c.symbol] is None or st["quarantine"][c.symbol] <= d))
             nt = nt_eng.evaluate(c, ntc)
             ai = AIReview(candidate_id=c.candidate_id, enabled=ai_enabled, decision=AIDecision.UNKNOWN)
             pre.append({"c": c, "stats": stats, "ev": ev, "nt": nt, "ai": ai})

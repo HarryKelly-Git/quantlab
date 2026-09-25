@@ -156,6 +156,20 @@ def conservative_available_at(filed: Any, calendar: TradingCalendar | None) -> p
     return pd.Timestamp(datetime.combine(nxt.date(), time(16, 0))).tz_localize(NY).tz_convert("UTC")
 
 
+def _dedupe_drop_conflicts(df: pd.DataFrame, key_cols: list[str], what: str) -> tuple[pd.DataFrame, int]:
+    """Drop exact duplicates; for keys whose rows DISAGREE (real XBRL: one filing reporting the same
+    concept/period twice with different values) drop ALL rows of that key: the value is ambiguous,
+    so it becomes UNKNOWN instead of a silently picked number or a whole-batch failure."""
+    exact = df.drop_duplicates(list(df.columns))
+    dup = exact.duplicated(key_cols, keep=False)
+    n_conflicts = int(exact.loc[dup, key_cols].drop_duplicates().shape[0]) if bool(dup.any()) else 0
+    if n_conflicts:
+        sample = exact.loc[dup, key_cols].head(3).to_dict("records")
+        log_event(log, f"sec_edgar: ambiguous {what} dropped (UNKNOWN)", level=30, conflicting_keys=n_conflicts,
+                  sample=str(sample)[:500])
+    return exact.loc[~dup].reset_index(drop=True), n_conflicts
+
+
 def _dedupe_or_raise(df: pd.DataFrame, key_cols: list[str], what: str) -> pd.DataFrame:
     """Drop exact-duplicate rows; raise if two rows share a key but disagree (never pick silently)."""
     exact = df.drop_duplicates(list(df.columns))
@@ -322,7 +336,7 @@ class SecEdgarProvider(FundamentalsProvider, EventProvider):
         if not all_rows:
             return schemas.empty("fundamentals")
         df = pd.DataFrame(all_rows)
-        df = _dedupe_or_raise(df, schemas.FUNDAMENTALS_KEY, "fundamentals")
+        df, self.last_ambiguous_facts = _dedupe_drop_conflicts(df, schemas.FUNDAMENTALS_KEY, "fundamentals")
         out = schemas.conform("fundamentals", df)
         out.attrs.update(unmapped_symbols=unmapped)
         return out

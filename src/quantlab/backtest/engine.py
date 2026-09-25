@@ -8,10 +8,10 @@ SEMANTICS (identical to :func:`quantlab.core.tradesim.simulate_plan`, tested aga
   * Stops/targets are compared with each held session's CLOSE in tri-scaled ("a") prices — the RAW
     stop at D is converted with aclose[D]/close[D] — and the exit fills at the next open. Time exit
     after ``plan.holding_sessions`` held sessions (the entry session counts as 1).
-  * A symbol that stops trading inside the backtest window while a position is open is DELISTED:
-    exit value = last close x (1 + costs.delisting_return), still charged the sell cost. Detecting
-    "stopped trading" looks ahead only within [start, end] (a halt that spans ``end`` is treated
-    as a delisting — conservative), never past ``end``.
+  * A held symbol with no bar for ``costs.delisting_missing_sessions`` consecutive sessions is
+    DELISTED on that session: exit value = last close x (1 + costs.delisting_return), still charged
+    the sell cost. Decided only from sessions already seen; a gap still open at ``end`` is closed as
+    END_OF_TEST at the last close (no haircut, no peeking).
   * Positions still open at ``end`` are closed at the ``end`` close (END_OF_TEST), sell cost
     charged, so every reported number is net of the full round trip.
 
@@ -298,11 +298,6 @@ class BacktestEngine:
             S[sid] = arr
         fs_ = self._feature_set(fs) if S else None
 
-        # last session with a bar inside the window, per symbol (delisting detection, never past end)
-        win_valid = valid_close[: i1 + 1]
-        any_valid = win_valid.any(axis=0)
-        last_valid_win = np.where(any_valid, i1 - np.argmax(win_valid[::-1], axis=0), -1)
-
         pf = Portfolio(self.initial_capital, self.costs, self.fractional)
         pending: list[_PendingEntry] = []
         trades: list[dict[str, Any]] = []
@@ -350,10 +345,11 @@ class BacktestEngine:
                     lot.last_close, lot.last_valid = float(c), i
                     if lot.pending_exit is None:
                         self._on_close(A, lot, i)
-                elif i > last_valid_win[lot.col]:
+                elif i - lot.last_valid >= self.costs.delisting_missing_sessions:
                     diag["delistings"] += 1
                     lv = lot.last_valid
-                    trades.append(self._close(pf, lot, lv, lot.last_close * (1 + dr),
+                    # booked on THIS session (when the rule fires), valued at the last close x (1+dr)
+                    trades.append(self._close(pf, lot, i, lot.last_close * (1 + dr),
                                               A["aclose"][lv, lot.col] * (1 + dr), ExitReason.DELISTED.value, dates, i))
             # (5) end of test: liquidate at the close
             if i == i1:

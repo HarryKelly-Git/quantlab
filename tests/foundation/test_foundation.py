@@ -188,3 +188,52 @@ def test_first_usable_sessions_vectorized_matches_scalar():
     ts = pd.Series(pd.to_datetime(["2024-01-10 15:59", "2024-01-10 16:01", "2024-01-12 23:00"]).tz_localize("America/New_York"))
     got = cal.first_usable_sessions(ts)
     assert list(got) == [cal.first_usable_session(t) for t in ts]
+
+
+# --- split reconciliation (real-data finding: vendor split dates / pre-adjusted bars) -----------
+def _split_case(closes, ex_idx, ratio, dup=False):
+    dates = pd.bdate_range("2024-01-01", periods=len(closes))
+    bars = pd.DataFrame([{"symbol": "AAA", "date": d, "open": c, "high": c * 1.01, "low": c * 0.99, "close": c,
+                          "volume": 1e6, "vwap": c, "trade_count": np.nan, "provider": "test",
+                          "retrieved_at": pd.Timestamp("2025-01-01", tz="UTC")} for d, c in zip(dates, closes)])
+    rec = {"symbol": "AAA", "ex_date": dates[ex_idx], "action_type": "split", "ratio": ratio, "amount": np.nan,
+           "declared_date": dates[0], "available_at": pd.Timestamp("2024-01-01 21:00", tz="UTC"), "pit_status": "PIT",
+           "source_id": "s1", "provider": "test", "retrieved_at": pd.Timestamp("2025-01-01", tz="UTC")}
+    acts = pd.DataFrame([rec] + ([{**rec, "source_id": "s2"}] if dup else []))
+    cal = TradingCalendar.from_dates(dates)
+    return bars, acts, cal
+
+
+def test_split_confirmed_on_ex_date_and_applied_once():
+    bars, acts, cal = _split_case([10, 10, 10, 5, 5, 5], 3, 2.0, dup=True)
+    p = build_panel(bars, acts, calendar=cal)
+    assert p.ret["AAA"].iloc[3] == pytest.approx(0.0)        # duplicate record NOT applied twice
+
+
+def test_split_recorded_a_session_early_is_placed_where_prices_show_it():
+    bars, acts, cal = _split_case([10, 10, 10, 10, 40, 40], 3, 0.25)            # vendor ex_date one session early
+    p = build_panel(bars, acts, calendar=cal)
+    assert p.ret["AAA"].iloc[3] == pytest.approx(0.0) and p.ret["AAA"].iloc[4] == pytest.approx(0.0)
+    # point-in-time: truncating at the recorded ex_date gives the same value there (no split applied yet)
+    trunc = build_panel(bars[bars["date"] <= cal.sessions[3]], acts, calendar=TradingCalendar.from_dates(cal.sessions[:4]))
+    assert trunc.ret["AAA"].iloc[3] == pytest.approx(p.ret["AAA"].iloc[3])
+
+
+def test_split_absent_from_raw_bars_is_not_applied():
+    from quantlab.data.panel import reconcile_splits
+    bars, acts, cal = _split_case([10, 10, 10, 10.1, 10.2, 10.3], 3, 0.25)       # bars already adjusted
+    p = build_panel(bars, acts, calendar=cal)
+    assert p.ret["AAA"].iloc[3] == pytest.approx(0.01)          # no manufactured -75% crash
+    rec = reconcile_splits(p.open, p.close, acts)
+    assert list(rec["split_status"]) == ["unconfirmed"]
+
+
+def test_small_ratio_stock_dividend_applied_and_first_bar_split_not_testable():
+    from quantlab.data.panel import reconcile_splits
+    px = 10 / 1.03                                                          # 3% stock dividend: 1.03 new per old
+    bars, acts, cal = _split_case([10, 10, 10, px, px, px], 3, 1.03)
+    p = build_panel(bars, acts, calendar=cal)
+    assert p.ret["AAA"].iloc[3] == pytest.approx(0.0, abs=1e-12)          # applied as recorded -> neutral
+    bars2, acts2, cal2 = _split_case([10, 10, 10, 10], 0, 0.25)              # split on the first bar
+    p2 = build_panel(bars2, acts2, calendar=cal2)
+    assert list(reconcile_splits(p2.open, p2.close, acts2)["split_status"]) == ["not_testable"]

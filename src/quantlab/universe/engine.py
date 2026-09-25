@@ -22,6 +22,15 @@ from quantlab.data.panel import DataBundle
 
 UNIVERSE_PIT_STATUS = PitStatus.ASSUMED_STATIC
 
+
+def normalize_exclude(exclude) -> dict[str, pd.Timestamp | None]:
+    """set -> excluded for all history; dict -> excluded from the given session on (None = all)."""
+    if not exclude:
+        return {}
+    if isinstance(exclude, dict):
+        return {k: (pd.Timestamp(v) if v is not None else None) for k, v in exclude.items()}
+    return {k: None for k in exclude}
+
 _TYPE_FLAGS = {
     "ETF": "exclude_etfs",
     "FUND": "exclude_funds_trusts",
@@ -65,9 +74,10 @@ class UniverseEngine:
         self.rules = UniverseRules.from_config(config)
 
     # -- static (reference-based) eligibility -----------------------------------------------------
-    def static_reasons(self, bundle: DataBundle, exclude: set[str] | None = None) -> pd.Series:
+    def static_reasons(self, bundle: DataBundle, exclude=None) -> pd.Series:
         """symbol -> reason it can NEVER be in the universe ('' when statically eligible)."""
         r = self.rules
+        exclude = {k for k, v in normalize_exclude(exclude).items() if v is None}
         benchmarks = {bundle.market_symbol, *bundle.sector_etfs.keys()}
         ref = bundle.reference
         if not ref.empty:
@@ -110,8 +120,8 @@ class UniverseEngine:
             "_mdv": mdv,  # carried for the max_symbols cap
         }
 
-    def membership(self, bundle: DataBundle, exclude: set[str] | None = None) -> pd.DataFrame:
-        """Boolean (sessions x symbols) universe mask."""
+    def membership(self, bundle: DataBundle, exclude=None) -> pd.DataFrame:
+        """Boolean (sessions x symbols) universe mask. Dated exclusions apply from their session on."""
         static_ok = self.static_reasons(bundle, exclude) == ""
         masks = self._dynamic_masks(bundle)
         mdv = masks.pop("_mdv")
@@ -120,12 +130,15 @@ class UniverseEngine:
             member &= m.fillna(False)
         member &= pd.DataFrame(np.broadcast_to(static_ok.reindex(member.columns).fillna(False).to_numpy(), member.shape),
                                index=member.index, columns=member.columns)
+        for sym, since in normalize_exclude(exclude).items():
+            if since is not None and sym in member.columns:
+                member.loc[member.index >= since, sym] = False
         if self.rules.max_symbols:
             rank = mdv.where(member).rank(axis=1, ascending=False, method="first")
             member &= rank <= self.rules.max_symbols
         return member
 
-    def explain(self, bundle: DataBundle, as_of, exclude: set[str] | None = None) -> pd.DataFrame:
+    def explain(self, bundle: DataBundle, as_of, exclude=None) -> pd.DataFrame:
         """One row per symbol: included flag and the first failing rule (human-readable)."""
         d = pd.Timestamp(as_of)
         static = self.static_reasons(bundle, exclude)
@@ -140,6 +153,9 @@ class UniverseEngine:
                     if not bool(m.at[d, sym]):
                         reason = name
                         break
+            since = normalize_exclude(exclude).get(sym)
+            if not reason and since is not None and d >= since:
+                reason = f"data quarantine from {since.date()}"
             if not reason and not member_row[sym]:
                 reason = f"outside top {self.rules.max_symbols} by liquidity"
             rows.append({"symbol": sym, "included": bool(member_row[sym]), "reason": reason or "included"})
@@ -159,7 +175,7 @@ class UniverseEngine:
                 "note": "Coverage of delisted securities is provider-dependent; results may be survivorship-biased."}
 
     def snapshot(self, bundle: DataBundle, as_of, db=None, run_id: str | None = None,
-                 exclude: set[str] | None = None) -> pd.DataFrame:
+                 exclude=None) -> pd.DataFrame:
         """explain() for one session, optionally persisted to universe_snapshots."""
         df = self.explain(bundle, as_of, exclude)
         if db is not None:

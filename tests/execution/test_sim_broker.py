@@ -105,8 +105,9 @@ def test_sell_rejected_when_no_position_no_short_selling():
 
 
 def test_split_adjusts_held_position_qty_and_avg_cost():
-    prices = {d: 100.0 for d in DATES}
-    # 2-for-1 split effective on DATES[3].
+    # 2-for-1 split effective on DATES[3]: RAW prices halve on the ex-date (as real unadjusted bars do;
+    # a split the raw prices do not show is deliberately not applied, see data.panel.reconcile_splits).
+    prices = {d: (100.0 if i < 3 else 50.0) for i, d in enumerate(DATES)}
     panel = build(_bars(prices) + _bars({d: 400.0 for d in DATES}, "SPY"),
                  action_rows=[{"symbol": "AAA", "ex_date": DATES[3], "action_type": "split", "ratio": 2.0}])
     broker = make_broker(cost_model(one_way_bps=0.0))

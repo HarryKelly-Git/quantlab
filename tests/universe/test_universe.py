@@ -55,3 +55,16 @@ def test_max_symbols_cap(bundle, config):
 def test_survivorship_status_reports_partial(bundle, config):
     s = UniverseEngine(config).survivorship_status(bundle)
     assert s["status"] in {"PARTIAL", "UNKNOWN"} and s["symbols_ending_before_panel_end"] >= 1
+
+
+def test_dated_quarantine_applies_only_from_its_session(bundle, config):
+    """A data problem found at date X must not remove the symbol's history before X (look-ahead)."""
+    eng = UniverseEngine(config)
+    base = eng.membership(bundle)
+    sym = base.iloc[-1][base.iloc[-1]].index[0]
+    since = bundle.panel.dates[-100]
+    m = eng.membership(bundle, exclude={sym: since})
+    assert not m.loc[since:, sym].any()
+    pd.testing.assert_series_equal(m.loc[:since, sym].iloc[:-1], base.loc[:since, sym].iloc[:-1])
+    assert eng.explain(bundle, bundle.panel.dates[-1], exclude={sym: since}).set_index("symbol").at[sym, "reason"] \
+        .startswith("data quarantine from")

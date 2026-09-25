@@ -161,7 +161,8 @@ def test_exit_without_position_raises(db):
 
 
 def test_split_adjusts_position_and_is_idempotent(db):
-    panel = build(_bars({d: 100.0 for d in DATES}) + _bars({d: 400.0 for d in DATES}, "SPY"),
+    # RAW prices halve on the 2-for-1 ex-date (a split the raw bars do not show is not applied).
+    panel = build(_bars({d: (100.0 if i < 3 else 50.0) for i, d in enumerate(DATES)}) + _bars({d: 400.0 for d in DATES}, "SPY"),
                  action_rows=[{"symbol": "AAA", "ex_date": DATES[3], "action_type": "split", "ratio": 2.0}])
     broker = SimBroker(Book.BOT, zero_cost_model(), starting_cash=100_000.0)
     ledger = Ledger(db, Book.BOT, starting_cash=100_000.0)

@@ -352,3 +352,21 @@ def test_get_company_meta(fake_clock, monkeypatch):
     assert meta.iloc[0]["sic"] == "3571"
     assert meta.iloc[0]["pit_status"] == "ASSUMED_STATIC"
     assert meta.iloc[0]["exchanges"] == "Nasdaq"
+
+
+
+def test_conflicting_duplicate_facts_become_unknown_not_a_failure():
+    """Real XBRL can report one concept/period twice in the same filing with different values: those
+    facts are dropped (UNKNOWN) and counted; everything else is kept."""
+    import pandas as pd
+    from quantlab.data.providers.sec_edgar import _dedupe_drop_conflicts
+    base = {"cik": "1", "concept": "Revenues", "unit": "USD", "period_start": "2019-06-30", "accession": "a1"}
+    df = pd.DataFrame([
+        {**base, "period_end": "2019-09-28", "value": 100.0},
+        {**base, "period_end": "2019-09-28", "value": 101.0},      # conflict -> both dropped
+        {**base, "period_end": "2019-12-28", "value": 200.0},
+        {**base, "period_end": "2019-12-28", "value": 200.0},      # exact duplicate -> kept once
+    ])
+    out, n = _dedupe_drop_conflicts(df, ["cik", "concept", "unit", "period_start", "period_end", "accession"], "fundamentals")
+    assert n == 1
+    assert list(out["value"]) == [200.0]

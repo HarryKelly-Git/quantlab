@@ -16,7 +16,7 @@ import pandas as pd
 from quantlab.backtest.engine import BacktestEngine, BacktestResult, save_to_db
 from quantlab.context import AppContext
 from quantlab.core.types import PitStatus
-from quantlab.data.validation import DataValidator, ValidationReport, quarantined_symbols
+from quantlab.data.validation import DataValidator, ValidationReport, quarantine_map
 from quantlab.experiments.registry import ExperimentRegistry
 from quantlab.features.base import FeatureSet
 from quantlab.logging_setup import get_logger, log_event
@@ -113,7 +113,7 @@ def run_strategy_backtest(ctx: AppContext, strategy_ids: list[str] | None = None
         validator.record(vrep, run_id=exp_id)
         if not vrep.ok:
             raise DataValidationError("; ".join(f"{c.name}: {c.reason}" for c in vrep.critical_failures))
-        exclude = quarantined_symbols(db) | set(vrep.quarantined)
+        exclude = quarantine_map(db, vrep)
         uni_engine = UniverseEngine(cfg)
         universe = uni_engine.membership(bundle, exclude=exclude)
         fs = FeatureSet(bundle, universe=universe)

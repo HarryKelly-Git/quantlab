@@ -8,12 +8,12 @@ The system is built to find out whether any edge exists. It is allowed to conclu
 Contracts are in [ARCHITECTURE.md](ARCHITECTURE.md). Verified external-API facts are in
 [docs/EXTERNAL-SERVICES.md](docs/EXTERNAL-SERVICES.md).
 
-## Status (2026-09-25)
+## Status (2026-09-25, updated after the walk-forward work)
 
 | area | state |
 |---|---|
 | Data: store, PIT panel, validation, ingest | working + tested |
-| Providers: Alpaca (bars / corporate actions / news), SEC EDGAR (8-K timing, fundamentals), Nasdaq Trader (reference) | implemented + tested with fake HTTP. **Not yet run against real APIs** (needs keys, see below) |
+| Providers: Alpaca (bars / corporate actions / news), SEC EDGAR (8-K timing, fundamentals), Nasdaq Trader (reference) | working against the REAL APIs (2026-09-25). SIP feed confirmed. Spin-offs are NOT applied (Alpaca spin_off records unmapped): parent returns show a false drop on spin dates |
 | Features: price, volume, relative, market, event (EAR), fundamental (as-of), news counts | working. Every feature passes a truncation (look-ahead) test |
 | Universe, regime | working + tested |
 | Strategies (9): momentum_trend, mean_reversion, breakout, relative_strength, extreme_reversal, sector_rotation, pead_ear, quality_momentum, news_shock (disabled) | working + look-ahead tested |
@@ -24,7 +24,18 @@ Contracts are in [ARCHITECTURE.md](ARCHITECTURE.md). Verified external-API facts
 | Dashboard (read-only, localhost) | working + tested |
 | ML (`quantlab/ml/`), AI layer (`quantlab/ai/`), research ledger, health / LLM monitors | **partial, untested, NOT wired in**. Do not rely on them |
 | Human paper lab, counterfactual engine, human-vs-bot comparison | **not implemented** |
-| Walk-forward runner, ML/AI-filtered baselines | **not implemented** |
+| Walk-forward OOS runner | working + tested, including a corrupt-the-future no-look-ahead test. First real run: `momentum_trend` on ~5,240 currently listed stocks, 4 OOS windows 2023-2024: **NOT_SIGNIFICANT** (see below) |
+| Real-data audit (`data-audit`) | working. SPY/XLK/AAPL/MSFT 2020-01-02..2026-09-24: **SUITABLE_SMALL_SAMPLE_ONLY**. SIP feed (median SPY volume 70.9M shares/day), 0 missing NYSE sessions, splits and dividends verified, SEC 8-K timing PIT |
+| ML/AI-filtered baselines | **not implemented** |
+
+## Latest research result (real data, 2026-09-25)
+
+`momentum_trend` v1.0.0 (fixed parameters, no search), walk-forward OOS 2023-01-18..2024-12-31, 4 windows:
+155 trades, net +4.9% (gross +5.8%), expectancy -1.0% per trade (95% CI -5.9%..+3.5%), Sharpe 0.29,
+max drawdown -11.0%, average exposure 27%. SPY over the same windows returned +48.1%; the strategy beat it
+in 1 of 4 windows. The top 5 trades account for 274% of P&L. **Verdict: NOT_SIGNIFICANT.** No evidence of edge.
+Caveats: the universe comes from a current listings snapshot (survivorship-biased, which flatters long-only results),
+spin-offs are not applied, and window-end forced exits account for 26% of trades.
 
 ## Setup
 
@@ -47,6 +58,8 @@ reliable.
 .venv\Scripts\python -m quantlab.cli ingest --synthetic      # or: ingest --start 2020-01-01 (real providers)
 .venv\Scripts\python -m quantlab.cli validate
 .venv\Scripts\python -m quantlab.cli backtest --strategy momentum_trend
+.venv\Scripts\python -m quantlab.cli data-audit                # REAL data check: SPY,XLK,AAPL,MSFT from 2020
+.venv\Scripts\python -m quantlab.cli walkforward --strategy momentum_trend --data real
 .venv\Scripts\python -m quantlab.cli run-daily               # one paper-pipeline session (latest)
 .venv\Scripts\python -m quantlab.cli replay --start 2019-10-01 --end 2019-12-20
 .venv\Scripts\python -m quantlab.cli strategy list|evaluate|promote|status ...

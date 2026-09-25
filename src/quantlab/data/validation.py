@@ -20,14 +20,22 @@ from quantlab.logging_setup import get_logger, log_event
 log = get_logger(__name__)
 
 # Split ratios that raw prices can jump by when a split is missing from the corporate actions.
+# (3:2 / 2:3 are excluded: +-33..50% genuine gaps are common in small caps and were almost all false
+# positives on real data.)
 _SPLIT_RATIOS = np.array([2, 3, 4, 5, 8, 10, 15, 20, 25, 30, 50, 1 / 2, 1 / 3, 1 / 4, 1 / 5, 1 / 8, 1 / 10,
-                          1 / 15, 1 / 20, 1 / 25, 1 / 30, 1 / 50, 3 / 2, 2 / 3])
+                          1 / 15, 1 / 20, 1 / 25, 1 / 30, 1 / 50])
+# A missing split shifts SHARE volume inversely to the price jump while dollar volume stays similar;
+# confirmed over this many sessions after the jump. The quarantine starts on the confirmation session.
+_CONFIRM_SESSIONS = 5
 
 
 @dataclass
 class ValidationReport:
     checks: list[CheckResult] = field(default_factory=list)
     quarantined: dict[str, str] = field(default_factory=dict)   # symbol -> reason
+    # symbol -> first session of the problem. A quarantine applies FROM that session only: excluding
+    # a symbol's earlier history because of a later data problem would be look-ahead.
+    quarantine_from: dict[str, pd.Timestamp] = field(default_factory=dict)
 
     @property
     def critical_failures(self) -> list[CheckResult]:
@@ -117,10 +125,21 @@ class DataValidator:
         big = np.abs(np.log(np.where(np.isfinite(r) & (r > 0), r, 1.0))) > np.log(1.4)
         suspect = near & big
         suspects: dict[str, str] = {}
+        vol = p.volume.to_numpy()
+        n = len(p.dates)
         for i, j in zip(*np.nonzero(suspect)):
             sym = p.symbols[j]
-            if sym not in suspects:
-                suspects[sym] = f"overnight raw ratio {r[i, j]:.3f} on {p.dates[i].date()} looks like an unrecorded split"
+            if sym in suspects or i + _CONFIRM_SESSIONS >= n:
+                continue           # cannot be confirmed yet with data up to the last session
+            before = np.nanmedian(vol[max(0, i - 20):i, j]) if i > 0 else np.nan
+            after = np.nanmedian(vol[i + 1:i + 1 + _CONFIRM_SESSIONS, j])
+            if not (np.isfinite(before) and np.isfinite(after) and before > 0 and after > 0):
+                continue
+            # share volume should move by ~1/raw_ratio (e.g. x2 after an unrecorded 2:1 split)
+            if abs(np.log((after / before) * r[i, j])) < np.log(1.6):
+                suspects[sym] = (f"overnight raw ratio {r[i, j]:.3f} on {p.dates[i].date()} with share volume x"
+                                 f"{after / before:.2f}: looks like an unrecorded split")
+                rep.quarantine_from[sym] = p.dates[i + _CONFIRM_SESSIONS]
         rep.quarantined.update(suspects)
         rep.checks.append(CheckResult("unexplained_split_jumps", not suspects, CheckSeverity.WARNING,
                                       f"{len(suspects)} symbols quarantined" if suspects else "",
@@ -156,11 +175,35 @@ class DataValidator:
                              "symbol": s, "session_date": None, "detail": c.reason, "created_at": now})
         self.db.insert_many("data_quality_issues", rows)
         self.db.insert_many("symbol_quarantine", [
-            {"symbol": s, "check_name": "unexplained_split_jumps", "reason": why, "from_date": None, "to_date": None,
-             "run_id": run_id, "created_at": now} for s, why in report.quarantined.items()])
+            {"symbol": s, "check_name": "unexplained_split_jumps", "reason": why,
+             "from_date": str(report.quarantine_from[s].date()) if s in report.quarantine_from else None,
+             "to_date": None, "run_id": run_id, "created_at": now} for s, why in report.quarantined.items()])
         if report.critical_failures:
             log_event(log, "data validation CRITICAL failures", level=40,
                       checks=[c.name for c in report.critical_failures])
+
+
+def quarantine_map(db: Database, report: ValidationReport | None = None) -> dict[str, pd.Timestamp | None]:
+    """Active quarantines as symbol -> first excluded session (None = whole history, e.g. manual).
+
+    Combines the persisted table (latest row per symbol; a row with to_date ends it) with an
+    in-memory validation report. When both exist the EARLIER start wins (more conservative).
+    """
+    out: dict[str, pd.Timestamp | None] = {}
+    for r in db.fetchall("SELECT symbol, from_date, to_date FROM symbol_quarantine ORDER BY id"):
+        if r["to_date"] is None:
+            out[r["symbol"]] = pd.Timestamp(r["from_date"]) if r["from_date"] else None
+        else:
+            out.pop(r["symbol"], None)
+    if report is not None:
+        for sym in report.quarantined:
+            new = report.quarantine_from.get(sym)
+            if sym in out:
+                old = out[sym]
+                out[sym] = None if old is None or new is None else min(old, new)
+            else:
+                out[sym] = new
+    return out
 
 
 def quarantined_symbols(db: Database) -> set[str]:

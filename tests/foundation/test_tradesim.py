@@ -63,12 +63,26 @@ def test_split_during_hold_is_neutral():
     assert out.gross_ret == pytest.approx(0.0, abs=1e-12)
 
 
-def test_delisting_applies_haircut():
-    bars, cal = _bars({"AAA": [10, 10, 10, None, None, None], "SPY": [100] * 6})
+def test_delisting_applies_haircut_after_missing_sessions():
+    # last bar at session 2; the rule fires after 5 consecutive missing sessions (session 7)
+    bars, cal = _bars({"AAA": [10, 10, 10] + [None] * 7, "SPY": [100] * 10})
     p = build_panel(bars, calendar=cal)
-    out = simulate_plan(p, "AAA", cal.sessions[0], TradePlan(holding_sessions=10), ZERO_COST)
+    out = simulate_plan(p, "AAA", cal.sessions[0], TradePlan(holding_sessions=20), ZERO_COST)
     assert out.status == "delisted" and out.exit_reason == "DELISTED"
     assert out.gross_ret == pytest.approx(-0.3)
+    assert out.exit_date == cal.sessions[7]          # booked when it became knowable, not at the last bar
+
+
+def test_short_gap_is_not_a_delisting():
+    # 3 missing sessions then the symbol trades again: no delisting, the position is still held
+    bars, cal = _bars({"AAA": [10, 10, 10, None, None, None, 11, 12], "SPY": [100] * 8})
+    p = build_panel(bars, calendar=cal)
+    out = simulate_plan(p, "AAA", cal.sessions[0], TradePlan(holding_sessions=20), ZERO_COST)
+    assert out.status == "open" and out.exit_reason is None
+    gap_at_end, cal2 = _bars({"AAA": [10, 10, 10, None, None], "SPY": [100] * 5})
+    out2 = simulate_plan(build_panel(gap_at_end, calendar=cal2), "AAA", cal2.sessions[0], TradePlan(holding_sessions=20),
+                         ZERO_COST, force_close_at_end=True)
+    assert out2.exit_reason == "END_OF_TEST" and out2.gross_ret == pytest.approx(0.0)   # no haircut from a data gap
 
 
 def test_open_when_data_ends():
