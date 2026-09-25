@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% from "_macros.html" import table %}{% block title %}strategies{% endblock %}{% block body %}
+<h2>Strategies</h2><p class="muted">Only ACTIVE strategies at stage PAPER or PROMOTED may place paper orders. Promotion requires evidence.</p>{{ table(rows) }}
+<h2>Experiments</h2>{{ table(exps, ["experiment_id","name","created_at","uses_synthetic_data","status","conclusion"], {"experiment_id": "/experiments/"}) }}
+<h2>Status and stage changes</h2>{{ table(log) }}{% endblock %}

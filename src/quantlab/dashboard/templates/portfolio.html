@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% from "_macros.html" import table %}{% block title %}{{ book }} book{% endblock %}{% block body %}
+<h2>{{ book }} paper book</h2>{{ spark | safe }}
+{% if last %}{{ table([last]) }}{% endif %}
+<h3>Open positions</h3>{{ table(open_trades, ["trade_id","symbol","qty","entry_date","entry_price","stop_price","target_price","planned_exit_date","strategy_id"], {"trade_id": "/trade/"}) }}
+<h3>Closed trades (latest 50)</h3>{{ table(closed, ["trade_id","symbol","entry_date","exit_date","exit_reason","net_pnl","ret","holding_sessions","strategy_id"], {"trade_id": "/trade/"}) }}
+{% endblock %}

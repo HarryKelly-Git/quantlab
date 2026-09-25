@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% from "_macros.html" import table %}{% block title %}system{% endblock %}{% block body %}
+<h2>Kill switch</h2>
+<form class="inline" method="post" action="/system/pause"><input name="reason" placeholder="reason" required><input name="actor" value="human"><button>Pause (SYSTEM_PAUSED)</button></form>
+<form class="inline" method="post" action="/system/resume"><input name="reason" placeholder="review notes" required><input name="actor" placeholder="human:yourname" required><button>Resume after human review</button></form>
+{{ table(state_log) }}
+<h2>Runs</h2>{{ table(runs) }}<h2>Health checks</h2>{{ table(health) }}<h2>Data-quality issues</h2>{{ table(issues) }}<h2>Datasets</h2>{{ table(datasets) }}
+{% endblock %}

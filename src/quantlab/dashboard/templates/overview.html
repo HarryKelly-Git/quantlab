@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% from "_macros.html" import table %}{% block title %}overview{% endblock %}{% block body %}
+{% if synthetic %}<div class="banner">Stored bars are SYNTHETIC test data, not market evidence.</div>{% endif %}
+<h2>Latest pipeline run</h2>
+{% if run %}<p>{{ run.run_id }}, as of <strong>{{ run.as_of_date }}</strong>, status <strong>{{ run.status }}</strong>, commit {{ (run.git_commit or "")[:10] }}{% if run.error %}, error: {{ run.error }}{% endif %}.
+<a href="/reports/{{ run.run_id }}">Daily report</a></p>{{ table(steps) }}{% else %}<p class="muted">No pipeline run yet (quantlab run-daily).</p>{% endif %}
+<h2>Market regime (model output)</h2>{% if regime %}{{ table([regime]) }}{% else %}<p class="muted">unknown</p>{% endif %}
+<h2>Paper books (internal ledger)</h2>{{ table([books.BOT, books.HUMAN] | select | list, ["book","as_of_date","equity","cash","gross_exposure","positions_count","drawdown"]) }}
+<h2>Record counts</h2>{{ table([counts]) }}
+{% endblock %}

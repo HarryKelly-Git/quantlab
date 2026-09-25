@@ -1,0 +1,3 @@
+{% extends "base.html" %}{% from "_macros.html" import table %}{% block title %}shadow{% endblock %}{% block body %}
+<h2>Shadow book by rejection stage</h2><p class="muted">What happened to the opportunities we did and did not trade. Small samples prove nothing.</p>{{ table(summary) }}
+<h2>Recent opportunities</h2>{{ table(rows) }}{% endblock %}

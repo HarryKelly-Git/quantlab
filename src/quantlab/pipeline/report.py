@@ -40,7 +40,6 @@ def render_daily_report(ctx: AppContext, run_id: str, st: dict[str, Any]) -> str
 
     # OPPORTUNITIES / DECISIONS
     decisions = st.get("decisions") or []
-    trades = [x for x in decisions if x["outcome"].decision.value == "TRADE"]
     lines += ["## Top opportunities (MODEL_OUTPUT; score = strategy ranking, not a probability)", ""]
     cands = sorted(st.get("candidates") or [], key=lambda c: -c.score)[:15]
     if cands:
@@ -56,9 +55,10 @@ def render_daily_report(ctx: AppContext, run_id: str, st: dict[str, Any]) -> str
     lines.append("")
 
     # BOT ACTIONS
-    lines += ["## Bot paper actions", ""]
-    orders = db.fetchall("SELECT symbol, side, qty, purpose, status FROM orders WHERE book='BOT' AND created_at >= ? "
-                         "ORDER BY created_at", (utcnow_iso()[:10],))
+    lines += ["## Bot paper actions decided this session (fill at the next open)", ""]
+    orders = db.fetchall("SELECT o.symbol, o.side, o.qty, o.purpose, o.status FROM orders o JOIN order_intents i "
+                         "ON i.order_id = o.order_id WHERE o.book='BOT' AND i.session_date=? ORDER BY o.created_at",
+                         (str(d.date()),))
     lines += [f"- {o['purpose']} {o['side']} {o['qty']:g} {o['symbol']} — {o['status']}" for o in orders] or ["- No new paper orders."]
     lines += [f"- Decisions: {dict(Counter(x['outcome'].decision.value for x in decisions))}", ""]
 
@@ -77,7 +77,7 @@ def render_daily_report(ctx: AppContext, run_id: str, st: dict[str, Any]) -> str
     mtm = st.get("mtm") or {}
     lines += ["## Bot book (FACT: internal paper ledger)", "",
               f"- Equity {_money(mtm.get('equity'))}, cash {_money(mtm.get('cash'))}, gross exposure "
-              f"{_money(mtm.get('gross_exposure'))}, drawdown {_pct(mtm.get('drawdown'))}, open positions {mtm.get('positions_count', 0)}"]
+              f"{_pct(mtm.get('gross_exposure'))} of equity, drawdown {_pct(mtm.get('drawdown'))}, open positions {mtm.get('positions_count', 0)}"]
     for t in db.fetchall("SELECT symbol, qty, entry_date, entry_price, stop_price, strategy_id FROM trades "
                          "WHERE book='BOT' AND status='OPEN' ORDER BY entry_date"):
         lines.append(f"  - {t['symbol']} {t['qty']:g} @ {t['entry_price'] or 0:.2f} since {t['entry_date']} "

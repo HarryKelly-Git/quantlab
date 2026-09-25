@@ -1,0 +1,7 @@
+{% macro table(rows, cols=None, links=None) -%}
+{% if rows %}{% set cols = cols or (rows[0].keys() | list) %}
+<table><thead><tr>{% for c in cols %}<th>{{ c }}</th>{% endfor %}</tr></thead><tbody>
+{% for r in rows %}<tr>{% for c in cols %}<td>{% set v = r[c] %}{% if links and c in links and v %}<a href="{{ links[c] ~ v }}">{{ v }}</a>{% elif v is float %}{{ "%.4g"|format(v) }}{% else %}{{ v if v is not none else "" }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table>
+{% else %}<p class="muted">none</p>{% endif %}
+{%- endmacro %}

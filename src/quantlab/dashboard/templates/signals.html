@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% from "_macros.html" import table %}{% block title %}signals{% endblock %}{% block body %}
+<h2>Candidates and bot decisions: {{ run.as_of_date if run else "no run" }}</h2>
+<p class="muted">The score is a strategy ranking, not a probability. Every candidate is recorded, whether traded or not.</p>
+{{ table(rows, ["symbol","strategy_id","score","entry_ref_price","stop_price","holding_sessions","pit_status","decision","reject_stage","reasons"]) }}
+<h2>Recent paper orders</h2>{{ table(orders) }}
+{% endblock %}

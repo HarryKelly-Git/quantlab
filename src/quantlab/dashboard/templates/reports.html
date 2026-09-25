@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% from "_macros.html" import table %}{% block title %}reports{% endblock %}{% block body %}
+<h2>Reports</h2>{{ table(rows, ["as_of_date","kind","run_id","created_at"], {"run_id": "/reports/"}) }}{% endblock %}

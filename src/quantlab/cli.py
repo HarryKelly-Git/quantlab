@@ -197,6 +197,19 @@ def cmd_strategy(args) -> int:
     return 0
 
 
+def cmd_dashboard(args) -> int:
+    import uvicorn
+
+    from quantlab.dashboard.app import create_app
+    ctx = _ctx(args)
+    host = ctx.config.get("dashboard.host", "127.0.0.1")
+    if host not in ("127.0.0.1", "localhost") and not args.allow_remote:
+        print("refusing to bind the dashboard to a non-local address without --allow-remote", file=sys.stderr)
+        return 2
+    uvicorn.run(create_app(ctx), host=host, port=args.port or int(ctx.config.get("dashboard.port", 8765)))
+    return 0
+
+
 def cmd_demo(args) -> int:
     """Offline end-to-end run on SYNTHETIC data (planted momentum edge by default)."""
     ctx = _ctx(args)
@@ -280,6 +293,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--reason", default=""), s.add_argument("--actor", default="human")
     s.add_argument("--override", help="human override reason when evidence requirements are unmet (logged)")
     s.set_defaults(fn=cmd_strategy)
+
+    s = sub.add_parser("dashboard", help="serve the read-only dashboard on localhost")
+    s.add_argument("--port", type=int), s.add_argument("--allow-remote", action="store_true")
+    s.set_defaults(fn=cmd_dashboard)
 
     s = sub.add_parser("demo", help="offline end-to-end demo on SYNTHETIC data")
     s.add_argument("--n-stocks", type=int, default=120), s.add_argument("--seed", type=int, default=42)

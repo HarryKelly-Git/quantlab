@@ -93,3 +93,21 @@ def test_resume_does_not_duplicate_candidates(world):
     res2 = DailyPipeline(world, synthetic=True).run(d, resume_run_id=res.run_id)
     assert not res2.errors
     assert world.db.fetchone("SELECT COUNT(*) AS n FROM candidates")["n"] == n1
+
+
+def test_daily_order_count_is_per_session_not_wall_clock(world):
+    """Replaying many sessions in one wall-clock day must not accumulate the daily order limit."""
+    from quantlab.pipeline.daily import DailyPipeline as P
+    _activate(world)
+    pipe = P(world, synthetic=True)
+    dates = pipe.full_bundle().panel.dates
+    world.db.insert("order_intents", {"order_id": "o-old", "book": "BOT", "session_date": str(dates[-40].date()),
+                                      "purpose": "entry", "intent_json": "{}", "created_at": "2026-01-01T00:00:00+00:00"})
+    # 1 intent on an OLD session must not count against today's session
+    n = world.db.fetchone("SELECT COUNT(*) AS n FROM order_intents WHERE book='BOT' AND session_date=?",
+                          (str(dates[-20].date()),))["n"]
+    assert n == 0
+    res = pipe.run(dates[-20])
+    assert not res.errors
+    report = open(res.report_path, encoding="utf-8").read()
+    assert "decided this session" in report and "of equity" in report

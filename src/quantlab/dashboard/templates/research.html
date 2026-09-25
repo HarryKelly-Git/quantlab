@@ -1,0 +1,3 @@
+{% extends "base.html" %}{% from "_macros.html" import table %}{% block title %}research{% endblock %}{% block body %}
+<h2>Hypotheses</h2>{{ table(hyps) }}<h2>Research ledger</h2>{{ table(ledger) }}<h2>Human notes</h2>{{ table(notes) }}
+<h2>Locked-holdout accesses</h2>{{ table(holdout) }}{% endblock %}

@@ -260,8 +260,9 @@ class DailyPipeline:
         by_cand = {i.candidate_id: i for i in intents}
         rej_by = {r.candidate_id: r for r in rejections}
         mtm = st.get("mtm") or {}
-        daily_orders = self.db.fetchone("SELECT COUNT(*) AS n FROM orders WHERE book=? AND created_at >= ?",
-                                        (self.book, utcnow_iso()[:10]))["n"]
+        # orders decided for THIS session (not wall-clock today: replays run many sessions in one day)
+        daily_orders = self.db.fetchone("SELECT COUNT(*) AS n FROM order_intents WHERE book=? AND session_date=?",
+                                        (self.book, str(d.date())))["n"]
         shadow = ShadowBook(self.db)
         decisions, counts = [], {"TRADE": 0, "NO_TRADE": 0, "WATCH": 0, "UNKNOWN": 0}
         for x in pre:
