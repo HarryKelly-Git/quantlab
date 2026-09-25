@@ -344,7 +344,7 @@ class PaperRunner:
         try:
             self.start()
         except RunnerRefused as exc:
-            self.shutdown(f"refused: {exc}", status="REFUSED")
+            self.shutdown(str(exc), status="REFUSED")
             raise
         except Exception as exc:
             self.shutdown(f"startup failed: {type(exc).__name__}: {exc}", status="CRASHED")
@@ -613,8 +613,7 @@ class PaperRunner:
                 raise
             except Exception as exc:
                 self._critical(name, exc)
-        if not self._use_hb_thread:
-            self._heartbeat()
+        self._heartbeat()      # detail (job, broker snapshot, plan); the thread only keeps liveness fresh
         return None
 
     def _critical(self, where: str, exc: Exception) -> None:
@@ -828,9 +827,10 @@ class PaperRunner:
         try:
             while not self._hb_stop.wait(self.heartbeat_seconds):
                 try:
+                    state = getattr(self.stream, "state", None) or self.stream_state   # live even mid-pipeline
                     db.execute("UPDATE paper_runner_sessions SET last_heartbeat_at=?, phase=?, stream_status=? "
                                "WHERE session_id=? AND status='RUNNING'",
-                               (utcnow_iso(), self.phase[:500], self.stream_state, self.session_id))
+                               (utcnow_iso(), self.phase[:500], state, self.session_id))
                 except Exception as exc:   # pragma: no cover - heartbeat must never crash the runner
                     log_event(log, "heartbeat write failed", error=repr(exc))
         finally:
@@ -957,6 +957,117 @@ def connectivity_order_test(ctx: AppContext, symbol: str = "SPY", *, broker: Any
                                           f"{out['submitted_status']}, final {out['final_status']}, "
                                           f"{len(events)} stream event(s)", "details_json": to_json(out)})
     return out
+
+
+def round_trip_order_test(ctx: AppContext, symbol: str = "SPY", qty: float = 1, *, broker: Any = None,
+                          stream_factory=None, env: dict[str, str] | None = None,
+                          wait_seconds: float = 60.0) -> dict[str, Any]:
+    """Prove that orders FILL and that a position can be SOLD on the PAPER account: market BUY
+    ``qty`` (DAY), wait for the fill on the trade_updates stream, market SELL the same quantity,
+    wait for that fill, and check the position is flat again. Needs regular market hours.
+
+    Not a strategy trade and never written to a ledger. Because it moves the broker's cash by the
+    round-trip spread, it is refused once the BOT book is bound to the Alpaca paper account (the
+    ledger would no longer reconcile) and while SYSTEM_PAUSED."""
+    from quantlab.core.types import Side
+    from quantlab.execution.broker import OrderRequest
+
+    if book_binding(ctx.db, BOOK) == BROKER_NAME:
+        raise RunnerRefused("round-trip test refused: the BOT ledger is already bound to this paper account and the "
+                            "test's cash change would break reconciliation")
+    if broker is None:
+        from quantlab.execution.alpaca_paper import AlpacaPaperBroker
+        broker = AlpacaPaperBroker(ctx.config)
+    pre = run_preflight(ctx.config, ctx.db, broker, env=env)
+    if not pre.ok:
+        raise RunnerRefused(f"paper preflight failed: {pre.reason}")
+    if KillSwitch(ctx.db).is_paused():
+        raise RunnerRefused("SYSTEM_PAUSED: the round-trip test places paper orders and is refused while paused")
+    if any(p["symbol"] == symbol for p in pre.positions):
+        raise RunnerRefused(f"the paper account already holds {symbol}; the test needs a flat position")
+    clock = broker.clock()
+    if not clock.get("is_open"):
+        raise RunnerRefused(f"market closed (next open {clock.get('next_open')}): market orders would not fill now")
+
+    q: queue.Queue = queue.Queue()
+    on_event = lambda data: q.put(("update", data))          # noqa: E731
+    on_state = lambda s, d: q.put(("state", s, d))           # noqa: E731
+    if stream_factory is not None:
+        stream = stream_factory(on_event, on_state)
+    else:
+        from quantlab.execution.trade_stream import TradeUpdateStream
+        stream = TradeUpdateStream(broker.stream_url(), broker.stream_auth_message, on_event, on_state)
+    base = new_id("o")[2:14]
+    legs = {"buy": f"{TEST_ORDER_PREFIX}{base}-b", "sell": f"{TEST_ORDER_PREFIX}{base}-s"}
+    states: list[str] = []
+    events: list[dict[str, Any]] = []
+
+    def pump(until: Callable[[], bool], seconds: float) -> None:
+        end = _time.monotonic() + seconds
+        while not until() and _time.monotonic() < end:
+            try:
+                item = q.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if item[0] == "state":
+                states.append(item[1])
+                continue
+            data = item[1]
+            bo = broker.parse_order(data.get("order") or {})
+            if bo.client_order_id not in legs.values():
+                continue
+            events.append({"leg": "buy" if bo.client_order_id == legs["buy"] else "sell", "event": data.get("event"),
+                           "status": bo.status.value, "price": data.get("price"), "qty": data.get("qty"),
+                           "filled_qty": bo.filled_qty, "at": data.get("timestamp")})
+            ctx.db.insert("broker_order_updates", {
+                "session_id": None, "received_at": utcnow_iso(), "source": "test", "event": data.get("event", "?"),
+                "order_id": None, "client_order_id": bo.client_order_id, "broker_order_id": bo.broker_order_id,
+                "execution_id": data.get("execution_id"), "status": bo.status.value,
+                "event_qty": float(data["qty"]) if data.get("qty") else None,
+                "event_price": float(data["price"]) if data.get("price") else None, "filled_qty": bo.filled_qty,
+                "filled_avg_price": bo.filled_avg_price, "event_at": data.get("timestamp"),
+                "raw_json": to_json(data)}, or_ignore=True)
+
+    def done(leg: str) -> bool:
+        return any(e["leg"] == leg and e["status"] in ("filled", "rejected", "canceled", "expired") for e in events)
+
+    stream.start()
+    result: dict[str, Any] = {"symbol": symbol, "qty": qty, "client_order_ids": legs}
+    try:
+        pump(lambda: "connected" in states or "unauthorized" in states, wait_seconds)
+        if "connected" not in states:
+            raise RunnerRefused(f"trade_updates stream did not connect (states: {states})")
+        for leg, side in (("buy", Side.BUY), ("sell", Side.SELL)):
+            sub = broker.submit_order(OrderRequest(client_order_id=legs[leg], symbol=symbol, side=side, qty=qty,
+                                                   order_type="market", time_in_force="day"))
+            pump(lambda leg=leg: done(leg), wait_seconds)
+            final = broker.get_order_by_client_id(legs[leg])
+            result[leg] = {"submitted_status": sub.status.value, "broker_order_id": sub.broker_order_id,
+                           "final_status": final.status.value if final else None,
+                           "filled_qty": final.filled_qty if final else None,
+                           "filled_avg_price": final.filled_avg_price if final else None,
+                           "filled_at": final.filled_at if final else None,
+                           "fill_seen_on_stream": any(e["leg"] == leg and e["event"] in ("fill", "partial_fill")
+                                                      for e in events)}
+            if not final or final.status.value != "filled":
+                if final is not None and final.is_open:
+                    broker.cancel_order(legs[leg])
+                raise RunnerRefused(f"{leg} leg did not fill within {wait_seconds:.0f}s: {result[leg]}")
+    finally:
+        stream.stop()
+        after = [p for p in broker.positions() if p.symbol == symbol]
+        result["position_after"] = after[0].qty if after else 0.0
+        result["stream_states"] = states
+        result["stream_events"] = events
+        b, s = result.get("buy") or {}, result.get("sell") or {}
+        if b.get("filled_avg_price") and s.get("filled_avg_price"):
+            result["round_trip_pnl"] = round((s["filled_avg_price"] - b["filled_avg_price"]) * qty, 4)
+        ctx.db.insert("paper_runner_events", {
+            "session_id": None, "at": utcnow_iso(), "level": "INFO" if result["position_after"] == 0 else "ERROR",
+            "kind": "order_test", "message": f"round-trip test {symbol}: buy {b.get('final_status')} "
+            f"@ {b.get('filled_avg_price')}, sell {s.get('final_status')} @ {s.get('filled_avg_price')}, "
+            f"position after {result['position_after']:g}", "details_json": to_json(result)})
+    return result
 
 
 __all__ = ["MarketCalendar", "PaperRunner", "RunnerRefused", "SessionPlan", "connectivity_order_test",

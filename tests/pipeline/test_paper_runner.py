@@ -20,7 +20,8 @@ from quantlab.execution.service import PaperExecutionService
 from quantlab.monitoring.killswitch import KillSwitch
 from quantlab.pipeline.daily import DailyPipeline
 from quantlab.pipeline.runner import (
-    MarketCalendar, PaperRunner, RunnerRefused, order_window_reason, plan_session, request_stop, runner_status,
+    MarketCalendar, PaperRunner, RunnerRefused, order_window_reason, plan_session, request_stop, round_trip_order_test,
+    runner_status,
 )
 
 from .fake_alpaca import PAPER_ENV, FakeAlpacaBroker, FakeStream
@@ -413,3 +414,36 @@ def test_single_instance_clean_stop_and_restart(setup):
     b3.start()
     assert ctx.db.fetchone("SELECT status FROM paper_runner_sessions WHERE session_id=?", (b2.session_id,))["status"] == "CRASHED"
     b3.shutdown("test")
+
+
+# -- operator round-trip test (buy then sell; never a strategy order, never in the ledger) -------------
+def test_round_trip_test_buys_sells_and_ends_flat(ctx):
+    broker = FakeAlpacaBroker([])
+    broker.auto_fill_market = 100.0
+
+    def factory(on_event, on_state):
+        broker.listeners.append(on_event)
+        return FakeStream(on_event, on_state)
+    out = round_trip_order_test(ctx, "SPY", 2, broker=broker, stream_factory=factory, env=PAPER_ENV, wait_seconds=5)
+    assert out["buy"]["final_status"] == "filled" and out["sell"]["final_status"] == "filled"
+    assert out["buy"]["fill_seen_on_stream"] and out["sell"]["fill_seen_on_stream"]
+    assert out["position_after"] == 0.0 and broker.cash == pytest.approx(100_000.0)
+    assert all(c.startswith("qltest-") for c in out["client_order_ids"].values())
+    assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM orders")["n"] == 0            # never in the trading ledger
+    assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM broker_order_updates WHERE source='test'")["n"] >= 4
+
+
+def test_round_trip_test_refusals(ctx):
+    broker = FakeAlpacaBroker([])
+    broker.market_open = False
+    with pytest.raises(RunnerRefused, match="market closed"):
+        round_trip_order_test(ctx, broker=broker, stream_factory=FakeStream, env=PAPER_ENV)
+    broker.market_open = True
+    KillSwitch(ctx.db).pause("test", trigger="manual", actor="human:test")
+    with pytest.raises(RunnerRefused, match="SYSTEM_PAUSED"):
+        round_trip_order_test(ctx, broker=broker, stream_factory=FakeStream, env=PAPER_ENV)
+    KillSwitch(ctx.db).resume("test", "human:test")
+    bind_book(ctx.db, "BOT", "alpaca_paper")                     # once the runner owns the account...
+    with pytest.raises(RunnerRefused, match="bound"):
+        round_trip_order_test(ctx, broker=broker, stream_factory=FakeStream, env=PAPER_ENV)
+    assert broker.submits == []

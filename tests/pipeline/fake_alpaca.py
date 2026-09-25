@@ -33,6 +33,9 @@ class FakeAlpacaBroker(PaperBroker):
         self.reject_next = False
         self.crash_after_submit = False                # store the order, then raise (crash simulation)
         self.calls = 0
+        self.market_open = True
+        self.auto_fill_market: float | None = None     # fill market orders at this price on submit
+        self.listeners: list = []                      # trade_updates subscribers (see FakeStream)
 
     # -- helpers --------------------------------------------------------------------------------
     def _check(self) -> None:
@@ -69,6 +72,12 @@ class FakeAlpacaBroker(PaperBroker):
              "filled_qty": "0", "filled_avg_price": None, "submitted_at": "2000-01-01T00:00:00Z", "filled_at": None,
              "reject_reason": "insufficient buying power" if status == "rejected" else None}
         self.orders[request.client_order_id] = o
+        if status == "accepted" and request.order_type == "market" and self.auto_fill_market is not None:
+            for listener in list(self.listeners):
+                listener(self.event(request.client_order_id, "new", "2026-01-02T15:00:00Z", status="new"))
+            ev = self.fill(request.client_order_id, request.qty, self.auto_fill_market, "2026-01-02T15:00:01Z")
+            for listener in list(self.listeners):
+                listener(ev)
         if self.crash_after_submit:
             self.crash_after_submit = False
             raise RuntimeError("simulated crash after the broker accepted the order")
@@ -94,6 +103,10 @@ class FakeAlpacaBroker(PaperBroker):
 
     def is_available(self) -> bool:
         return self.available
+
+    def clock(self) -> dict[str, Any]:
+        self._check()
+        return {"timestamp": "t", "is_open": self.market_open, "next_open": "n", "next_close": "c"}
 
     def calendar(self, start: str, end: str) -> list[dict[str, Any]]:
         self._check()

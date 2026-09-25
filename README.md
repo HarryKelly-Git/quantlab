@@ -19,7 +19,8 @@ Contracts are in [ARCHITECTURE.md](ARCHITECTURE.md). Verified external-API facts
 | Strategies (9): momentum_trend, mean_reversion, breakout, relative_strength, extreme_reversal, sector_rotation, pead_ear, quality_momentum, news_shock (disabled) | working + look-ahead tested |
 | Backtester, metrics, bootstrap / PSR / deflated Sharpe, locked holdout, experiment registry, reports | working + tested. A planted edge is found; a null world is not significant |
 | Decision stack: EV (empirical, shrunk to a no-edge prior), no-trade rules, portfolio construction, risk chain, final decision | working + tested |
-| Paper execution: SimBroker, Alpaca **paper** broker, ledger, exits, journal, reconciliation | working + tested (Alpaca paper not yet exercised live) |
+| Paper execution: SimBroker, Alpaca **paper** broker, ledger, exits, journal, reconciliation | working + tested. Exercised against the REAL Alpaca paper account on 2026-09-25: a non-marketable order was submitted and cancelled; a market BUY then SELL of 1 SPY filled at 770.93 and 770.94, with every event seen on the `trade_updates` stream |
+| Alpaca PAPER runner (`paper start/status/stop`), `/live` dashboard | working against the REAL paper account (2026-09-25). Checked live: preflight, ledger bound and seeded from broker cash, Alpaca calendar, stream connected, reconciliation OK, first session processed (177 candidates, all rejected, 0 orders: NO PAPER-ELIGIBLE STRATEGY), clean stop and an idempotent restart. Not yet observed live: a strategy order filling at an open, because no strategy passes the gates |
 | Daily paper pipeline, replay, shadow book + outcomes, daily report, kill switch | working end to end on synthetic data |
 | Dashboard (read-only, localhost) | working + tested |
 | ML (`quantlab/ml/`), AI layer (`quantlab/ai/`), research ledger, health / LLM monitors | **partial, untested, NOT wired in**. Do not rely on them |
@@ -124,8 +125,11 @@ It is read-only. The only writes are pause/resume on `/system`.
 
 `paper order-test --confirm` places **one** non-marketable paper order: 1 share BUY limit at half
 the last close, cancelled immediately. It checks the order and websocket path against the real
-paper account. It is not a strategy order, never touches the ledger, and is refused while
-`SYSTEM_PAUSED`.
+paper account. `paper order-test --round-trip --confirm [--symbol SPY --qty 1]` does a market BUY
+then SELL that really fill, during market hours, and checks the position is flat afterwards.
+Neither is a strategy order or ever touches the ledger. Both are refused while `SYSTEM_PAUSED`.
+The round trip is also refused once the runner has bound the account, because its cash change would
+break reconciliation.
 
 Strategies start as SHADOW. They record every decision but place no orders. A strategy places
 paper orders only when it is ACTIVE at stage PAPER or PROMOTED **and** its validated history

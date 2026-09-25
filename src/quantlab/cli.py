@@ -276,10 +276,13 @@ def cmd_paper(args) -> int:
     if args.action == "order-test":
         if not args.confirm:
             print("order-test submits ONE non-marketable paper limit order (1 share at half the last close) and "
-                  "cancels it, to verify the order + trade_updates path. It is not a strategy order. "
-                  "Re-run with --confirm.", file=sys.stderr)
+                  "cancels it (or with --round-trip: a market BUY then SELL that fill), to verify the order + "
+                  "trade_updates path. It is not a strategy order. Re-run with --confirm.", file=sys.stderr)
             return 2
-        _print(rn.connectivity_order_test(ctx, args.symbol))
+        if args.round_trip:
+            _print(rn.round_trip_order_test(ctx, args.symbol, args.qty))
+        else:
+            _print(rn.connectivity_order_test(ctx, args.symbol))
         return 0
     # start (blocking)
     runner = rn.PaperRunner(ctx)
@@ -394,6 +397,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--reason", help="stop: reason recorded with the stop request")
     s.add_argument("--symbol", default="SPY", help="order-test: symbol (default SPY)")
     s.add_argument("--confirm", action="store_true", help="order-test: really submit (and cancel) the test order")
+    s.add_argument("--round-trip", action="store_true",
+                   help="order-test: market BUY then SELL (fills; market hours only; before the runner binds the account)")
+    s.add_argument("--qty", type=float, default=1, help="order-test --round-trip: shares (default 1)")
     s.set_defaults(fn=cmd_paper)
 
     s = sub.add_parser("dashboard", help="serve the read-only dashboard on localhost")
