@@ -1,5 +1,5 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QuantLab: {% block title %}{% endblock %}</title>
+<title>QuantLab: {% block title %}{% endblock %}</title>{% block head %}{% endblock %}
 <style>
 :root{--bg:#fbfbf9;--fg:#1d1d1b;--muted:#6b6b66;--line:#dedcd6;--ok:#1f7a4d;--bad:#b3261e;--accent:#2d5b8a}
 @media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#e8e6e1;--muted:#9a978f;--line:#34332f;--ok:#5fbf8a;--bad:#f08b83;--accent:#8ab4e0}}
@@ -16,9 +16,13 @@ pre{white-space:pre-wrap;border:1px solid var(--line);padding:12px}
 .banner{border:1px solid var(--bad);color:var(--bad);padding:8px 12px;margin:10px 0}
 form.inline{display:inline-flex;gap:6px;flex-wrap:wrap;margin:6px 0}
 input,button{font:inherit;padding:3px 6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:6px 0 14px}
+.kv{border:1px solid var(--line);padding:6px 10px}.kv b{display:block;font-size:12px;color:var(--muted);font-weight:600}
+.good{color:var(--ok)}.bad{color:var(--bad)}.warnbox{border:1px solid var(--bad);color:var(--bad);padding:8px 12px;margin:10px 0;font-weight:600}
+h2{margin:18px 0 6px;font-size:17px}
 </style></head><body>
 <header><strong>QuantLab</strong><span class="muted">PAPER ONLY</span>
-<a href="/">overview</a><a href="/signals">signals &amp; decisions</a><a href="/portfolio/bot">bot book</a><a href="/portfolio/human">human book</a>
+<a href="/live">live</a><a href="/">overview</a><a href="/signals">signals &amp; decisions</a><a href="/portfolio/bot">bot book</a><a href="/portfolio/human">human book</a>
 <a href="/strategies">strategies</a><a href="/shadow">shadow</a><a href="/reports">reports</a><a href="/research">research</a><a href="/system">system</a>
 <span class="state {{ state }}">{{ state }}</span></header>
 <main>{% if state != "ACTIVE" %}<div class="banner">SYSTEM PAUSED: {{ state_reason }}. No new paper orders until a human resumes.</div>{% endif %}

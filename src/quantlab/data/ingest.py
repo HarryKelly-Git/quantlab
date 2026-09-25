@@ -159,8 +159,16 @@ class IngestionService:
                 bar_frames.append(df)
 
         if "corporate_actions" in want:
-            self._run_kind(rep, "corporate_actions", lambda p: p.get_corporate_actions(symbols, start, end), run_id,
-                           "corporate_actions", params)
+            def _actions(p, syms=tuple(symbols)):
+                # a large symbol list is fetched market-wide and filtered: per-symbol chunking of the
+                # corporate-actions endpoint was measured at hours for the full universe vs ~2 minutes
+                if len(syms) <= int(self.config.get("providers.alpaca.market_wide_actions_above", 500)):
+                    return p.get_corporate_actions(list(syms), start, end)
+                df = p.get_corporate_actions(None, start, end)
+                keep = df[df["symbol"].isin(set(syms))].reset_index(drop=True)
+                keep.attrs.update(df.attrs)
+                return keep
+            self._run_kind(rep, "corporate_actions", _actions, run_id, "corporate_actions", params)
         else:
             rep.outcomes["corporate_actions"] = KindOutcome("corporate_actions", "skipped", detail="not requested")
         calendar = None

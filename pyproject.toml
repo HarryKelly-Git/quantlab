@@ -20,6 +20,7 @@ dependencies = [
   "uvicorn",
   "jinja2",
   "python-multipart",
+  "websockets>=13",          # Alpaca PAPER trade_updates stream (paper runner)
 ]
 
 [project.optional-dependencies]

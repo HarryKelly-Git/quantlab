@@ -212,6 +212,38 @@ broker state trips `SYSTEM_PAUSED`. The human book is always simulated internall
 fill model as the bot, so the human-vs-bot comparison is apples-to-apples. Human decisions are
 append-only. A correction is a new row with `supersedes_id`.
 
+A paper book is bound to ONE broker for the life of a database (`paper_book_bindings`, immutable):
+a BOT book seeded from the Alpaca paper account can never be advanced by the SimBroker, or vice
+versa. Order submission is idempotent: deterministic `client_order_id` (entry: candidate; exit:
+trade + decision session), the local row is written as `pending_submit` before the broker call,
+and a client id the broker already knows is adopted, never resubmitted. Fills are applied from the
+broker's cumulative `filled_qty` (positive deltas only), so replayed events and polls are harmless.
+Partial exits keep the trade open until the position is flat.
+
+### 8a. Alpaca PAPER runner (`pipeline/runner.py`, `quantlab paper start`)
+
+One long-lived process. Startup: preflight (`execution/preflight.py`: env `TRADING_MODE=PAPER` and
+`LIVE_TRADING=false` exactly, paper endpoint, credentials present, account ACTIVE/unblocked/USD;
+every attempt recorded in `paper_preflights`) -> single-instance session (`paper_runner_sessions`,
+heartbeat) -> book binding + cash seeding (refused unless the BOT book and the paper account are
+clean) -> market calendar (Alpaca `/v2/calendar`, cross-checked against the NYSE rules) ->
+reconciliation -> `trade_updates` websocket (`execution/trade_stream.py`).
+
+Schedule for decision session D (ET): from `paper.runner.process_after_et` (19:05; Alpaca rejects
+`opg` orders 09:28-19:00) the runner ingests D, reconciles, and runs the unchanged
+`DailyPipeline(D)` with an extra per-order guard: orders are `opg` market orders for D+1's opening
+auction and may only be submitted until `paper.runner.order_cutoff_et` (09:25) on D+1. A session
+processed later records its decisions but every order is refused ("execution window missed").
+One `paper_session_jobs` row per (book, D) holds the pipeline run_id; a restart resumes that run,
+so candidates and client ids are identical and nothing is resubmitted. Fills arrive on the stream
+(REST polling is the fallback) and are applied to the ledger, then reconciled.
+
+The runner pauses the system (and keeps monitoring) on: stale/invalid data, an unverifiable broker,
+a reconciliation mismatch, a broker order unknown to QuantLab, a pipeline failure, or any
+unexpected error. Strategy eligibility, EV, no-trade, portfolio and risk stay per-candidate gates
+in the decision chain. With no ACTIVE strategy at stage PAPER/PROMOTED the runner reports
+`NO PAPER-ELIGIBLE STRATEGY` and places no orders.
+
 ## 9. Research validity
 
 * Walk-forward (`validation/walkforward.py`): for each window the out-of-sample backtest runs on
@@ -241,7 +273,8 @@ append-only. A correction is a new row with `supersedes_id`.
 * `SYSTEM_PAUSED` (`monitoring/killswitch.py`) blocks all new paper orders. Positions stay visible,
   the reason is logged, and a human must resume it. Triggers: critical data/health failure, broker
   failure/unknown state, reconciliation mismatch, bot drawdown > `risk.max_drawdown_pause`,
-  model failure, corrupt state.
+  model failure, corrupt state, and (paper runner) stale data past the order deadline, broker
+  unverifiable, unknown broker order, pipeline failure, unexpected runner error.
 * Failures lead to UNKNOWN / NO TRADE / SYSTEM_PAUSED. The system never assumes success.
 * Secrets come only from env vars (`.env` is git-ignored) and are redacted from logs.
 

@@ -40,7 +40,7 @@ from quantlab.core.types import (
     CheckSeverity,
     ExpectedValue,
     RejectStage,
-    StrategyStatus,
+    StrategyStage, StrategyStatus,
     SystemState,
 )
 from quantlab.db.database import Database, to_json, utcnow_iso
@@ -99,6 +99,7 @@ class DecisionContext:
     sizing: SizedOrderIntent | None = None
     portfolio_rejection: PortfolioRejection | None = None
     strategy_status: StrategyStatus | None = None
+    strategy_stage: StrategyStage | None = None   # None = not supplied (stage not checked)
     system_state: SystemState = SystemState.ACTIVE
     broker_available: bool = True
     daily_order_count: int = 0
@@ -167,6 +168,12 @@ class RiskEngine:
         out.append(_check(n, ok, f"strategy status {ctx.strategy_status.value} "
                           + ("satisfies" if ok else "does not satisfy") + " the ACTIVE requirement for BOT trading",
                           status=ctx.strategy_status.value))
+        if ok and ctx.strategy_stage is not None:
+            tradable = ctx.strategy_stage in (StrategyStage.PAPER, StrategyStage.PROMOTED)
+            out.append(_check("risk.strategy_stage", tradable,
+                              f"strategy stage {ctx.strategy_stage.value} "
+                              + ("is" if tradable else "is not") + " PAPER/PROMOTED (paper-eligible)",
+                              stage=ctx.strategy_stage.value))
         return out
 
     # -- EV -------------------------------------------------------------------------------------

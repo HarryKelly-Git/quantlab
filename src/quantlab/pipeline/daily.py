@@ -28,7 +28,7 @@ import pandas as pd
 from quantlab.context import AppContext
 from quantlab.core.costs import CostModel
 from quantlab.core.types import (
-    AIDecision, AIReview, Book, CheckResult, FinalDecision, RejectStage, StrategyStatus, SystemState,
+    AIDecision, AIReview, Book, CheckResult, FinalDecision, RejectStage, StrategyStage, StrategyStatus, SystemState,
 )
 from quantlab.data.panel import DataBundle
 from quantlab.data.validation import DataValidator, quarantine_map
@@ -38,7 +38,7 @@ from quantlab.decision.final import FinalDecisionEngine, persist_decision
 from quantlab.decision.no_trade import NoTradeContext, NoTradeEngine
 from quantlab.decision.stats_provider import StrategyStatsProvider
 from quantlab.execution.exits import build_exit_engine
-from quantlab.execution.ledger import Ledger
+from quantlab.execution.ledger import Ledger, bind_book
 from quantlab.execution.service import PaperExecutionService
 from quantlab.execution.sim_broker import SimBroker
 from quantlab.features.base import FeatureSet
@@ -74,7 +74,7 @@ class PipelineResult:
 
 class DailyPipeline:
     def __init__(self, ctx: AppContext, synthetic: bool | None = None, broker=None, book: str = Book.BOT.value,
-                 bundle: DataBundle | None = None):
+                 bundle: DataBundle | None = None, order_guard=None):
         self.ctx = ctx
         self.cfg = ctx.config
         self.db = ctx.db
@@ -83,8 +83,11 @@ class DailyPipeline:
         self.costs = CostModel.from_config(self.cfg)
         self.broker = broker or SimBroker(book, self.costs, config=self.cfg, db=self.db,
                                           starting_cash=float(self.cfg.get(f"paper.{book.lower()}.starting_cash", 100000)))
-        self.ledger = Ledger(self.db, book, config=self.cfg)
+        bind_book(self.db, book, self.broker.name)      # a book never mixes sim and Alpaca-paper history
+        self.ledger = Ledger(self.db, book, config=self.cfg, broker_name=self.broker.name)
         self.exec = PaperExecutionService(self.db, self.cfg, book, self.broker, self.ledger)
+        # extra per-order gate from the paper runner (execution window, broker verified, reconciled)
+        self.exec.submission_guard = order_guard
         self.killswitch = KillSwitch(self.db)
         self._full_bundle = bundle
 
@@ -219,6 +222,10 @@ class DailyPipeline:
         row = self.db.fetchone("SELECT status FROM strategies WHERE strategy_id=? AND version=?", (sid, ver))
         return StrategyStatus(row["status"]) if row else None
 
+    def _strategy_stage(self, sid: str, ver: str) -> StrategyStage | None:
+        row = self.db.fetchone("SELECT stage FROM strategies WHERE strategy_id=? AND version=?", (sid, ver))
+        return StrategyStage(row["stage"]) if row else None
+
     def _book_state(self, st) -> BookState:
         led = self.ledger.state()
         p, d = st["view"].panel, st["as_of"]
@@ -265,13 +272,15 @@ class DailyPipeline:
         daily_orders = self.db.fetchone("SELECT COUNT(*) AS n FROM order_intents WHERE book=? AND session_date=?",
                                         (self.book, str(d.date())))["n"]
         shadow = ShadowBook(self.db)
+        broker_ok = self.broker.is_available()     # once per session, not once per candidate
         decisions, counts = [], {"TRADE": 0, "NO_TRADE": 0, "WATCH": 0, "UNKNOWN": 0}
         for x in pre:
             c = x["c"]
             rctx = DecisionContext(candidate=c, book=Book(self.book), no_trade_checks=x["nt"], ev=x["ev"],
                                    sizing=by_cand.get(c.candidate_id), portfolio_rejection=rej_by.get(c.candidate_id),
                                    strategy_status=self._strategy_status(c.strategy_id, c.strategy_version),
-                                   system_state=system_state, broker_available=self.broker.is_available(),
+                                   strategy_stage=self._strategy_stage(c.strategy_id, c.strategy_version),
+                                   system_state=system_state, broker_available=broker_ok,
                                    daily_order_count=int(daily_orders), book_drawdown=mtm.get("drawdown"), as_of=d.date())
             risk = risk_eng.run(rctx)
             outcome = final.decide(c, x["ai"], x["nt"], x["ev"], risk)

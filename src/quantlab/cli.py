@@ -243,6 +243,55 @@ def cmd_dashboard(args) -> int:
     return 0
 
 
+def cmd_paper(args) -> int:
+    """Alpaca PAPER runner: preflight | start | status | stop | order-test."""
+    ctx = _ctx(args)
+    from quantlab.pipeline import runner as rn
+    if args.action == "preflight":
+        from quantlab.execution.preflight import run_preflight
+        pre = run_preflight(ctx.config, ctx.db)
+        d = pre.to_dict()
+        d.pop("open_order_client_ids", None)
+        _print(d)
+        return 0 if pre.ok else 2
+    if args.action == "status":
+        from quantlab.monitoring.killswitch import KillSwitch
+        st = rn.runner_status(ctx.db, float(ctx.config.get("paper.runner.stale_heartbeat_seconds", 120)))
+        state, reason, _ = KillSwitch(ctx.db).state()
+        sess = st["session"] or {}
+        detail = sess.get("detail") or {}
+        elig = rn.paper_eligible_strategies(ctx.db)
+        _print({"runner": st["state"], "session_id": sess.get("session_id"), "started_at": sess.get("started_at"),
+                "heartbeat_age_seconds": st.get("heartbeat_age_seconds"), "phase": sess.get("phase"),
+                "stream": sess.get("stream_status"), "system_state": state.value, "system_reason": reason,
+                "paper_eligible_strategies": elig or "NO PAPER-ELIGIBLE STRATEGY",
+                "broker": detail.get("broker"), "plan": detail.get("plan"), "last_job": detail.get("last_job"),
+                "recent_events": ctx.db.fetchall("SELECT at, level, kind, message FROM paper_runner_events "
+                                                 "ORDER BY id DESC LIMIT 8")})
+        return 0
+    if args.action == "stop":
+        ids = rn.request_stop(ctx.db, args.reason or "operator stop (quantlab paper stop)")
+        print(f"stop requested for {ids}" if ids else "no RUNNING paper runner session")
+        return 0
+    if args.action == "order-test":
+        if not args.confirm:
+            print("order-test submits ONE non-marketable paper limit order (1 share at half the last close) and "
+                  "cancels it, to verify the order + trade_updates path. It is not a strategy order. "
+                  "Re-run with --confirm.", file=sys.stderr)
+            return 2
+        _print(rn.connectivity_order_test(ctx, args.symbol))
+        return 0
+    # start (blocking)
+    runner = rn.PaperRunner(ctx)
+    try:
+        reason = runner.run_forever()
+    except rn.RunnerRefused as exc:
+        print(f"PAPER RUNNER REFUSED TO START: {exc}", file=sys.stderr)
+        return 2
+    print(f"paper runner stopped: {reason}")
+    return 0
+
+
 def cmd_demo(args) -> int:
     """Offline end-to-end run on SYNTHETIC data (planted momentum edge by default)."""
     ctx = _ctx(args)
@@ -339,6 +388,13 @@ def build_parser() -> argparse.ArgumentParser:
                    help="explicit: synthetic results validate machinery only, never a strategy")
     s.add_argument("--notes")
     s.set_defaults(fn=cmd_walkforward)
+
+    s = sub.add_parser("paper", help="Alpaca PAPER runner: preflight | start | status | stop | order-test")
+    s.add_argument("action", choices=["preflight", "start", "status", "stop", "order-test"])
+    s.add_argument("--reason", help="stop: reason recorded with the stop request")
+    s.add_argument("--symbol", default="SPY", help="order-test: symbol (default SPY)")
+    s.add_argument("--confirm", action="store_true", help="order-test: really submit (and cancel) the test order")
+    s.set_defaults(fn=cmd_paper)
 
     s = sub.add_parser("dashboard", help="serve the read-only dashboard on localhost")
     s.add_argument("--port", type=int), s.add_argument("--allow-remote", action="store_true")

@@ -47,6 +47,10 @@ log = get_logger("execution.alpaca_paper")
 # used to build a URL we connect to.
 _LIVE_TRADING_BASE_URL = "https://api.alpaca.markets"  # noqa: forbidden-host-check
 
+# The paper trade_updates websocket (docs/EXTERNAL-SERVICES.md, Alpaca Trading API fact 29). Derived
+# from the paper REST host, never configured separately.
+PAPER_STREAM_URL = "wss://paper-api.alpaca.markets/stream"
+
 # Alpaca OrderStatus enum (docs/EXTERNAL-SERVICES.md fact 11) mapped to core.types.OrderStatus.
 # Anything not listed here (stopped, suspended, calculated, held, and any future/unknown value)
 # falls back to UNKNOWN -- never guessed.
@@ -287,6 +291,16 @@ class AlpacaPaperBroker(PaperBroker):
                                qty=request.qty, order_type=request.order_type,
                                time_in_force=request.time_in_force, limit_price=request.limit_price,
                                reason=f"submit outcome unknown after network error: {exc}")
+        except BrokerError as exc:
+            # Alpaca refuses a reused client_order_id (HTTP 422): the order already exists (e.g. it
+            # was submitted just before a crash). Return THAT order; never create a second one.
+            if "client_order_id" in str(exc).lower() and "unique" in str(exc).lower():
+                existing = self.get_order_by_client_id(request.client_order_id)
+                if existing is not None:
+                    log_event(log, "alpaca_paper: client_order_id already used; returning the existing order",
+                              client_order_id=request.client_order_id)
+                    return existing
+            raise
         return self._parse_order(raw)
 
     def get_order_by_client_id(self, client_order_id: str) -> BrokerOrder | None:
@@ -309,6 +323,35 @@ class AlpacaPaperBroker(PaperBroker):
             return existing
         self._request("DELETE", f"/v2/orders/{existing.broker_order_id}")
         return self.get_order_by_client_id(client_order_id)
+
+    # -- clock / calendar / stream ----------------------------------------------------------------
+    def clock(self) -> dict[str, Any]:
+        """GET /v2/clock: {timestamp, is_open, next_open, next_close} (broker's market clock)."""
+        self._require_configured()
+        raw = self._request("GET", "/v2/clock") or {}
+        return {"timestamp": raw.get("timestamp"), "is_open": bool(raw.get("is_open", False)),
+                "next_open": raw.get("next_open"), "next_close": raw.get("next_close")}
+
+    def calendar(self, start: str, end: str) -> list[dict[str, Any]]:
+        """GET /v2/calendar: [{date, open 'HH:MM', close 'HH:MM'}] in ET; early closes included."""
+        self._require_configured()
+        raw = self._request("GET", "/v2/calendar", params={"start": str(start), "end": str(end)}) or []
+        return [{"date": r.get("date"), "open": r.get("open"), "close": r.get("close")} for r in raw]
+
+    def stream_url(self) -> str:
+        """The PAPER trade_updates websocket. Checked against the paper REST host first."""
+        self._assert_paper_url()
+        return PAPER_STREAM_URL
+
+    def stream_auth_message(self) -> dict[str, str]:
+        """The websocket auth payload. Contains the secret: send it, never log or persist it."""
+        self._require_configured()
+        assert self._key is not None and self._secret is not None
+        return {"action": "auth", "key": self._key.reveal(), "secret": self._secret.reveal()}
+
+    def parse_order(self, raw: dict[str, Any]) -> BrokerOrder:
+        """Public wrapper: parse an Alpaca order object (e.g. the ``order`` of a trade update)."""
+        return self._parse_order(raw)
 
     # -- parsing ------------------------------------------------------------------------------
     def _parse_order(self, raw: dict[str, Any]) -> BrokerOrder:

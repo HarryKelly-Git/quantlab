@@ -36,6 +36,33 @@ log = get_logger("execution.ledger")
 _EPS = 1e-9
 
 
+class BookBindingError(RuntimeError):
+    """A paper book is bound to one broker (sim OR alpaca_paper) for the life of the database."""
+
+
+def book_binding(db: Database, book: str) -> str | None:
+    row = db.fetchone("SELECT broker FROM paper_book_bindings WHERE book=?", (paper_book(book),))
+    return row["broker"] if row else None
+
+
+def bind_book(db: Database, book: str, broker: str, details: dict[str, Any] | None = None) -> str:
+    """Bind ``book`` to ``broker`` on first use; refuse any other broker afterwards. A book seeded
+    from the Alpaca paper account must never be advanced by the simulated broker (or vice versa):
+    the ledger would stop matching the broker it is reconciled against."""
+    book = paper_book(book)
+    with db.transaction():
+        bound = book_binding(db, book)
+        if bound is None:
+            db.insert("paper_book_bindings", {"book": book, "broker": broker, "bound_at": utcnow_iso(),
+                                              "details_json": to_json(details or {})})
+            return broker
+    if bound != broker:
+        raise BookBindingError(
+            f"paper book {book} in this database is bound to broker {bound!r}; refusing {broker!r}. "
+            f"Use a separate database (project.db_path) for the other broker.")
+    return bound
+
+
 class LedgerError(RuntimeError):
     pass
 
@@ -60,6 +87,7 @@ class Ledger:
         *,
         config: Config | None = None,
         journal: TradeJournal | None = None,
+        broker_name: str | None = None,
     ):
         self.db = db
         self.book = paper_book(book)
@@ -69,6 +97,10 @@ class Ledger:
             return config.get(key, default) if config is not None else default
 
         self.credit_dividends = bool(cfg("execution.sim.credit_dividends", True))
+        if broker_name == "alpaca_paper":
+            # Alpaca paper does NOT simulate dividends (docs/EXTERNAL-SERVICES.md): crediting them
+            # here would make the ledger drift from the broker it is reconciled against.
+            self.credit_dividends = False
         if starting_cash is None:
             starting_cash = float(cfg(f"paper.{self.book.lower()}.starting_cash", 100000.0))
         if not (math.isfinite(starting_cash) and starting_cash >= 0):
@@ -233,9 +265,21 @@ class Ledger:
                 if trade_id is None:
                     raise LedgerError(f"exit order {order_id} has no linked trade_id")
                 self._apply_position_fill(symbol, side, qty, price, trade_id, s_str, filled_at)
-                self._close_trade(trade_id, qty=qty, price=price, commission=commission,
-                                  modeled_cost=modeled_cost, session_date=s_str, exit_reason=exit_reason,
-                                  held_sessions=held_sessions, mae=mae, mfe=mfe)
+                if self.get_position(symbol) is None:
+                    # position fully closed: close the trade on ALL its exit fills (a real broker
+                    # can fill an exit in several pieces, possibly across more than one order)
+                    agg = self.db.fetchone(
+                        "SELECT SUM(f.qty) AS q, SUM(f.qty * f.price) AS v, SUM(f.commission) AS c, "
+                        "SUM(f.modeled_cost) AS m FROM fills f JOIN orders o ON o.order_id = f.order_id "
+                        "WHERE o.trade_id=? AND o.purpose='exit' AND o.book=?", (trade_id, self.book))
+                    exit_qty = float(agg["q"])
+                    self._close_trade(trade_id, qty=exit_qty, price=float(agg["v"]) / exit_qty,
+                                      commission=float(agg["c"] or 0.0), modeled_cost=float(agg["m"] or 0.0),
+                                      session_date=s_str, exit_reason=exit_reason, held_sessions=held_sessions,
+                                      mae=mae, mfe=mfe)
+                else:
+                    self.journal.record_event(trade_id, "partial_exit_fill",
+                                              {"order_id": order_id, "qty": qty, "price": price})
             else:
                 raise LedgerError(f"order {order_id} has unknown purpose {purpose!r}")
 

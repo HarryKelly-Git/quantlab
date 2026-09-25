@@ -68,6 +68,65 @@ reliable.
 .venv\Scripts\python -m pytest                               # test suite (offline, synthetic data)
 ```
 
+## Alpaca PAPER runner (real-time paper trading)
+
+```
+.venv\Scripts\python -m quantlab.cli paper preflight   # check PAPER mode + account, no orders
+.venv\Scripts\python -m quantlab.cli paper start       # the persistent runner (foreground; Ctrl+C stops it cleanly)
+.venv\Scripts\python -m quantlab.cli paper status      # RUNNING / STALE / STOPPED, heartbeat, phase, last job
+.venv\Scripts\python -m quantlab.cli paper stop        # clean stop from another terminal
+.venv\Scripts\python -m quantlab.cli dashboard         # then open http://127.0.0.1:8765/live
+.venv\Scripts\python -m quantlab.cli paper order-test --confirm   # optional plumbing check, see below
+```
+
+Requirements: `.env` must contain `TRADING_MODE=PAPER` and `LIVE_TRADING=false` exactly (a missing or
+different value refuses to start; there is no live mode), plus the Alpaca **paper** keys. The paper
+account must be dedicated to QuantLab: no positions and no open orders that QuantLab did not
+create. On first start the BOT ledger is bound to the Alpaca paper account and seeded with its
+cash, so the BOT book in this database can no longer be driven by the simulated broker
+(`run-daily`/`replay`). Use a separate `project.db_path` for simulated replays.
+
+What it does:
+
+* **Startup.** Preflight, recorded in `paper_preflights`: environment, paper endpoint, account ACTIVE
+  and unblocked. Then a single-instance session with a heartbeat, the market calendar from Alpaca
+  (cross-checked with the NYSE rules), reconciliation, and the `trade_updates` websocket.
+* **After each close (D).** From 19:05 ET it ingests D's bars and corporate actions, reconciles, and
+  runs the existing daily pipeline: validation, fills and marks, exit rules, features, strategies,
+  candidates, EV/no-trade/portfolio/risk gates, then orders. Orders are `opg` market-on-open orders
+  for the next session's opening auction. Alpaca rejects `opg` orders between 09:28 and 19:00 ET.
+* **Missed deadline.** If D is processed after 09:25 ET on the next session (for example, the runner
+  was down), it still records candidates and decisions, but refuses every order ("execution window
+  missed").
+* **During the session.** Fills arrive on the stream and are applied to the ledger. REST polling is
+  the fallback. Everything is reconciled against the broker.
+* **Restarts.** A restart resumes the same pipeline run for D: same candidates, same deterministic
+  `client_order_id`s. Before submitting, the runner asks the broker whether it already has that id.
+  A restart or reconnect therefore cannot duplicate an order.
+* **Kill switch.** `SYSTEM_PAUSED` stays authoritative. The runner pauses trading on stale or invalid
+  data, an unverifiable broker, a reconciliation mismatch, an unknown broker order, a pipeline
+  failure or an unexpected error. It keeps running so orders and positions stay monitored. Resume
+  requires a human (`resume --actor human:you` or the dashboard's system page).
+* **No eligible strategy.** If no strategy is ACTIVE at stage PAPER/PROMOTED, the runner stays in
+  SHADOW, shows **NO PAPER-ELIGIBLE STRATEGY**, and places no orders.
+
+`/live` on the dashboard re-renders every 15 s. It shows:
+
+* **System:** runner state, heartbeat, session, stream, data freshness, last successful pipeline,
+  strategy status.
+* **Signals:** candidates with TRADE/REJECT, rejection stage and reason.
+* **Orders:** recent paper orders with broker ids and fill times/prices.
+* **Portfolio:** broker vs ledger cash/equity, positions, P/L.
+* **Performance:** paper equity curve vs SPY, expectancy, drawdown.
+* **Audit:** errors, kill-switch events, data-quality issues, a decision trace.
+
+It is read-only. The only writes are pause/resume on `/system`.
+
+`paper order-test --confirm` places **one** non-marketable paper order: 1 share BUY limit at half
+the last close, cancelled immediately. It checks the order and websocket path against the real
+paper account. It is not a strategy order, never touches the ledger, and is refused while
+`SYSTEM_PAUSED`.
+
 Strategies start as SHADOW. They record every decision but place no orders. A strategy places
 paper orders only when it is ACTIVE at stage PAPER or PROMOTED **and** its validated history
 passes the EV gate. Promotion needs evidence; a human override is possible but is logged

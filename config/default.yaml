@@ -276,8 +276,23 @@ risk:
 
 paper:
   bot:
-    broker: sim                   # sim | alpaca_paper
-    starting_cash: 100000
+    broker: sim                   # sim | alpaca_paper (run-daily/replay); `quantlab paper start` always uses alpaca_paper
+    starting_cash: 100000         # sim only: the Alpaca paper runner seeds the BOT ledger from the paper account's cash
+  # Persistent Alpaca PAPER runner (`quantlab paper start`). Also requires the environment variables
+  # TRADING_MODE=PAPER and LIVE_TRADING=false (checked at startup; there is no live mode).
+  runner:
+    process_after_et: "19:05"     # process session D from this time (>= 19:00: Alpaca rejects opg orders 09:28-19:00 ET)
+    order_cutoff_et: "09:25"      # last moment to submit orders for D+1's open (must be < 09:28 ET)
+    tick_seconds: 2
+    heartbeat_seconds: 10
+    account_poll_seconds: 60
+    order_poll_seconds: 60        # REST fallback to the trade_updates stream while orders are open
+    broker_fresh_seconds: 300     # the broker must have answered within this window before any order
+    broker_unverified_pause_seconds: 900
+    stale_heartbeat_seconds: 120  # a RUNNING session without a heartbeat for this long is presumed dead
+    data_retry_seconds: 900       # retry a session whose bars are not available yet
+    max_job_attempts: 3
+    ingest_lookback_days: 10
   human:
     broker: sim                   # human book is always simulated internally (same fill model as bot)
     starting_cash: 100000
@@ -302,3 +317,4 @@ logging:
 dashboard:
   host: 127.0.0.1
   port: 8765
+  live_refresh_seconds: 15        # /live re-renders itself server-side at this interval

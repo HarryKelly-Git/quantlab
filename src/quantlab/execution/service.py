@@ -3,17 +3,27 @@ broker order, and turns broker state back into ledger fills.
 
 Refuses (no order created, but the refusal is recorded in ``execution_refusals``) when
 ``system_state.state == 'SYSTEM_PAUSED'`` (read directly, ARCHITECTURE.md section 10) or when
-``risk.max_daily_orders`` / ``risk.max_order_notional`` would be breached. BOT and HUMAN books never
-mix: one service instance is bound to exactly one book, and every query it makes filters on it.
+``risk.max_daily_orders`` / ``risk.max_order_notional`` would be breached, or when the optional
+``submission_guard`` (set by the paper runner: execution window, broker verified, reconciliation
+ok) returns a reason. BOT and HUMAN books never mix: one service instance is bound to exactly one
+book, and every query it makes filters on it.
+
+Idempotency (restarts can never duplicate an order):
+  * client_order_id is deterministic (entry: the candidate/decision; exit: trade + decision session);
+  * an order that already exists locally is returned, not resubmitted;
+  * the local row is written as ``pending_submit`` BEFORE the broker call, and before submitting we
+    ask the broker whether that client_order_id already exists (a crash between the broker call and
+    the local update is adopted on restart, never resubmitted). Alpaca itself also rejects a reused
+    client_order_id.
 """
 from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from quantlab.config import Config
-from quantlab.core.calendar import to_session
+from quantlab.core.calendar import to_session, to_utc
 from quantlab.core.types import OrderStatus, Side, SystemState, TradePlan, new_id
 from quantlab.data.panel import Panel
 from quantlab.db.database import Database, from_json, to_json, utcnow_iso
@@ -25,6 +35,22 @@ from quantlab.logging_setup import get_logger, log_event
 log = get_logger("execution.service")
 
 _EPS = 1e-9
+_OPEN_LOCAL = (OrderStatus.PENDING_SUBMIT.value, OrderStatus.ACCEPTED.value, OrderStatus.NEW.value,
+               OrderStatus.PARTIALLY_FILLED.value, OrderStatus.UNKNOWN.value)
+# Status can only move forward. A late/replayed "accepted" event must never overwrite "filled".
+_STATUS_RANK = {OrderStatus.PENDING_SUBMIT: 0, OrderStatus.UNKNOWN: 0, OrderStatus.ACCEPTED: 1,
+                OrderStatus.NEW: 2, OrderStatus.PARTIALLY_FILLED: 3, OrderStatus.FILLED: 4,
+                OrderStatus.CANCELED: 4, OrderStatus.EXPIRED: 4, OrderStatus.REJECTED: 4}
+
+
+def _fill_session(filled_at: str | None) -> str | None:
+    """US/Eastern session date of a broker fill timestamp (Alpaca reports UTC)."""
+    if not filled_at:
+        return None
+    try:
+        return to_utc(filled_at).tz_convert("America/New_York").date().isoformat()
+    except (ValueError, TypeError):
+        return None
 
 
 class ExecutionError(RuntimeError):
@@ -78,6 +104,8 @@ class PaperExecutionService:
 
         self.max_daily_orders = int(cfg("risk.max_daily_orders", 20))
         self.max_order_notional = float(cfg("risk.max_order_notional", 15000.0))
+        # (purpose, symbol) -> refusal reason or None. Set by the paper runner; None = no extra gate.
+        self.submission_guard: Callable[[str, str], str | None] | None = None
 
     # ------------------------------------------------------------------------------------------
     # gates
@@ -170,18 +198,35 @@ class PaperExecutionService:
             row = self.db.fetchone("SELECT entry_ref_price FROM candidates WHERE candidate_id=?", (candidate_id,))
             ref_price = row["entry_ref_price"] if row else None
 
+        basis = candidate_id or decision_id or human_decision_id or (f"{symbol}:{signal_date}" if signal_date else None)
+        client_order_id = _client_order_id(self.book, "entry", basis) if basis else None
+        existing = self._local_order(client_order_id) if client_order_id else None
+        if existing is not None and existing["status"] != OrderStatus.PENDING_SUBMIT.value:
+            return self._summary(existing, duplicate=True)   # already submitted (e.g. resumed run)
+
         refusal = self._check_gates("entry", symbol, qty, candidate_id=candidate_id, decision_id=decision_id,
                                     human_decision_id=human_decision_id, trade_id=None, session_date=signal_date,
                                     ref_price=ref_price)
-        if refusal is not None:
-            return refusal
-        if signal_date is None:
+        if refusal is None and signal_date is None:
             raise ExecutionError(
                 "submit_entry: cannot determine the decision session (pass session_date, candidate_id, "
                 "human_decision_id, or a plan/dict with signal_date)")
+        if refusal is None:
+            refusal = self._duplicate_entry_refusal(symbol, qty, signal_date, client_order_id, candidate_id,
+                                                    decision_id, human_decision_id)
+        if refusal is None:
+            refusal = self._guard_refusal("entry", symbol, qty, candidate_id=candidate_id, decision_id=decision_id,
+                                          human_decision_id=human_decision_id, trade_id=None,
+                                          session_date=signal_date)
+        if refusal is not None:
+            if existing is not None:
+                self._abandon_pending(existing, refusal["reason"])
+            return refusal
 
-        basis = candidate_id or decision_id or human_decision_id or f"{symbol}:{signal_date}"
-        client_order_id = _client_order_id(self.book, "entry", basis)
+        request = OrderRequest(client_order_id=client_order_id, symbol=symbol, side=Side.BUY, qty=qty,
+                               order_type="market", time_in_force="opg", decision_session=signal_date)
+        if existing is not None:
+            return self._send(existing["order_id"], request, purpose="entry")
         order_id = new_id("order")
         now = utcnow_iso()
         self.db.insert("order_intents", {
@@ -192,25 +237,11 @@ class PaperExecutionService:
                                     "strategy_version": strategy_version, "plan": plan, "journal": journal}),
             "created_at": now,
         })
-        request = OrderRequest(client_order_id=client_order_id, symbol=symbol, side=Side.BUY, qty=qty,
-                               order_type="market", time_in_force="opg", decision_session=signal_date)
-        broker_order = self.broker.submit_order(request)
-        self.db.insert("orders", {
-            "order_id": order_id, "client_order_id": client_order_id, "book": self.book, "broker": self.broker.name,
-            "candidate_id": candidate_id, "decision_id": decision_id, "human_decision_id": human_decision_id,
-            "trade_id": None, "purpose": "entry", "symbol": symbol, "side": Side.BUY.value, "qty": qty,
-            "order_type": "market", "time_in_force": "opg", "limit_price": None, "created_at": now,
-            "submitted_at": now, "status": broker_order.status.value, "broker_order_id": broker_order.broker_order_id,
-            "filled_qty": broker_order.filled_qty, "filled_avg_price": broker_order.filled_avg_price,
-            "last_update_at": now, "raw_json": to_json(broker_order.raw),
-        })
-        self.db.insert("order_events", {"order_id": order_id, "event": "submitted",
-                                        "status": broker_order.status.value, "at": now,
-                                        "raw_json": to_json({"reason": broker_order.reason})})
+        self._insert_pending(order_id, request, purpose="entry", candidate_id=candidate_id, decision_id=decision_id,
+                             human_decision_id=human_decision_id, trade_id=None, now=now)
         # strategy_id/version are stashed on the trade only once the trade is opened at fill time
         # (see Ledger.apply_fill); keep them retrievable via the order_intents snapshot above.
-        return {"refused": False, "order_id": order_id, "client_order_id": client_order_id, "symbol": symbol,
-                "qty": qty, "status": broker_order.status.value, "session_date": signal_date}
+        return self._send(order_id, request, purpose="entry")
 
     def submit_exit(self, trade_id: str, reason: str, *, detail: dict[str, Any] | None = None,
                    session_date: str | None = None) -> dict[str, Any]:
@@ -225,15 +256,44 @@ class PaperExecutionService:
 
         decision_session = to_session(session_date).date().isoformat() if session_date is not None else (
             getattr(self.broker, "last_session", None) or trade["entry_date"])
-        refusal = self._check_gates("exit", trade["symbol"], trade["qty"], candidate_id=trade["candidate_id"],
+        # one exit order per (trade, decision session): a retry the next session gets a new id
+        client_order_id = _client_order_id(self.book, "exit", f"{trade_id}|{decision_session}")
+        existing = self._local_order(client_order_id)
+        if existing is not None and existing["status"] != OrderStatus.PENDING_SUBMIT.value:
+            return self._summary(existing, duplicate=True)
+        side = Side.SELL if trade["direction"] == "LONG" else Side.BUY
+        # after a partial exit only the remaining position is sold
+        pos = self.ledger.get_position(trade["symbol"])
+        qty = float(trade["qty"]) if pos is None else min(float(trade["qty"]), float(pos["qty"]))
+
+        refusal = self._check_gates("exit", trade["symbol"], qty, candidate_id=trade["candidate_id"],
                                     decision_id=trade["decision_id"], human_decision_id=trade["human_decision_id"],
                                     trade_id=trade_id, session_date=decision_session, ref_price=None)
+        if refusal is None:
+            pending = self.db.fetchone(
+                f"SELECT order_id FROM orders WHERE book=? AND trade_id=? AND purpose='exit' AND client_order_id<>? "
+                f"AND status IN ({','.join('?' * len(_OPEN_LOCAL))})",
+                (self.book, trade_id, client_order_id, *_OPEN_LOCAL))
+            if pending is not None:
+                refusal = self._refuse("exit", trade["symbol"], qty,
+                                       f"an exit order for trade {trade_id} is still open ({pending['order_id']})",
+                                       candidate_id=trade["candidate_id"], decision_id=trade["decision_id"],
+                                       human_decision_id=trade["human_decision_id"], trade_id=trade_id,
+                                       session_date=decision_session)
+        if refusal is None:
+            refusal = self._guard_refusal("exit", trade["symbol"], qty, candidate_id=trade["candidate_id"],
+                                          decision_id=trade["decision_id"],
+                                          human_decision_id=trade["human_decision_id"], trade_id=trade_id,
+                                          session_date=decision_session)
         if refusal is not None:
+            if existing is not None:
+                self._abandon_pending(existing, refusal["reason"])
             return refusal
 
-        side = Side.SELL if trade["direction"] == "LONG" else Side.BUY
-        qty = float(trade["qty"])
-        client_order_id = _client_order_id(self.book, "exit", trade_id)
+        request = OrderRequest(client_order_id=client_order_id, symbol=trade["symbol"], side=side, qty=qty,
+                               order_type="market", time_in_force="opg", decision_session=decision_session)
+        if existing is not None:
+            return self._send(existing["order_id"], request, purpose="exit", trade_id=trade_id)
         order_id = new_id("order")
         now = utcnow_iso()
         self.db.insert("order_intents", {
@@ -241,26 +301,111 @@ class PaperExecutionService:
             "intent_json": to_json({"trade_id": trade_id, "reason": reason, **(detail or {})}),
             "created_at": now,
         })
-        request = OrderRequest(client_order_id=client_order_id, symbol=trade["symbol"], side=side, qty=qty,
-                               order_type="market", time_in_force="opg", decision_session=decision_session)
-        broker_order = self.broker.submit_order(request)
-        self.db.insert("orders", {
-            "order_id": order_id, "client_order_id": client_order_id, "book": self.book, "broker": self.broker.name,
-            "candidate_id": trade["candidate_id"], "decision_id": trade["decision_id"],
-            "human_decision_id": trade["human_decision_id"], "trade_id": trade_id, "purpose": "exit",
-            "symbol": trade["symbol"], "side": side.value, "qty": qty, "order_type": "market",
-            "time_in_force": "opg", "limit_price": None, "created_at": now, "submitted_at": now,
-            "status": broker_order.status.value, "broker_order_id": broker_order.broker_order_id,
-            "filled_qty": broker_order.filled_qty, "filled_avg_price": broker_order.filled_avg_price,
-            "last_update_at": now, "raw_json": to_json(broker_order.raw),
-        })
-        self.db.insert("order_events", {"order_id": order_id, "event": "submitted",
-                                        "status": broker_order.status.value, "at": now,
-                                        "raw_json": to_json({"reason": broker_order.reason})})
+        self._insert_pending(order_id, request, purpose="exit", candidate_id=trade["candidate_id"],
+                             decision_id=trade["decision_id"], human_decision_id=trade["human_decision_id"],
+                             trade_id=trade_id, now=now)
         self.journal.record_event(trade_id, "exit_submitted", {"order_id": order_id, "reason": reason})
-        return {"refused": False, "order_id": order_id, "client_order_id": client_order_id, "trade_id": trade_id,
-                "symbol": trade["symbol"], "qty": qty, "status": broker_order.status.value,
-                "session_date": decision_session}
+        return self._send(order_id, request, purpose="exit", trade_id=trade_id)
+
+    # ------------------------------------------------------------------------------------------
+    # submission internals (idempotent)
+    # ------------------------------------------------------------------------------------------
+    def _local_order(self, client_order_id: str) -> dict[str, Any] | None:
+        return self.db.fetchone("SELECT * FROM orders WHERE client_order_id=? AND book=?",
+                                (client_order_id, self.book))
+
+    def _summary(self, row: dict[str, Any], *, duplicate: bool = False) -> dict[str, Any]:
+        intent = self.db.fetchone("SELECT session_date FROM order_intents WHERE order_id=?", (row["order_id"],))
+        out = {"refused": False, "order_id": row["order_id"], "client_order_id": row["client_order_id"],
+               "symbol": row["symbol"], "qty": row["qty"], "status": row["status"],
+               "broker_order_id": row["broker_order_id"], "session_date": intent["session_date"] if intent else None}
+        if row["trade_id"] and row["purpose"] == "exit":
+            out["trade_id"] = row["trade_id"]
+        if duplicate:
+            out["duplicate"] = True
+        return out
+
+    def _duplicate_entry_refusal(self, symbol: str, qty: float, signal_date: str, client_order_id: str | None,
+                                 candidate_id, decision_id, human_decision_id) -> dict[str, Any] | None:
+        """A second (different) entry order for the same symbol decided on the same session is a bug
+        or a second process: refuse it."""
+        row = self.db.fetchone(
+            "SELECT o.order_id FROM orders o JOIN order_intents i ON i.order_id = o.order_id "
+            "WHERE o.book=? AND o.symbol=? AND o.purpose='entry' AND i.session_date=? AND o.client_order_id<>? "
+            "AND o.status NOT IN (?,?,?)",
+            (self.book, symbol, signal_date, client_order_id or "", OrderStatus.REJECTED.value,
+             OrderStatus.CANCELED.value, OrderStatus.EXPIRED.value))
+        if row is None:
+            return None
+        return self._refuse("entry", symbol, qty, f"duplicate entry: order {row['order_id']} for {symbol} "
+                            f"decided at {signal_date} already exists", candidate_id=candidate_id,
+                            decision_id=decision_id, human_decision_id=human_decision_id, trade_id=None,
+                            session_date=signal_date)
+
+    def _guard_refusal(self, purpose: str, symbol: str, qty: float, **ids: Any) -> dict[str, Any] | None:
+        if self.submission_guard is None:
+            return None
+        reason = self.submission_guard(purpose, symbol)
+        return None if reason is None else self._refuse(purpose, symbol, qty, reason, **ids)
+
+    def _insert_pending(self, order_id: str, request: OrderRequest, *, purpose: str, candidate_id, decision_id,
+                        human_decision_id, trade_id, now: str) -> None:
+        self.db.insert("orders", {
+            "order_id": order_id, "client_order_id": request.client_order_id, "book": self.book,
+            "broker": self.broker.name, "candidate_id": candidate_id, "decision_id": decision_id,
+            "human_decision_id": human_decision_id, "trade_id": trade_id, "purpose": purpose,
+            "symbol": request.symbol, "side": request.side.value, "qty": request.qty,
+            "order_type": request.order_type, "time_in_force": request.time_in_force,
+            "limit_price": request.limit_price, "created_at": now, "submitted_at": None,
+            "status": OrderStatus.PENDING_SUBMIT.value, "broker_order_id": None, "filled_qty": 0.0,
+            "filled_avg_price": None, "last_update_at": now, "raw_json": to_json({}),
+        })
+
+    def _abandon_pending(self, row: dict[str, Any], reason: str) -> None:
+        """A pending_submit row whose (re)submission is now refused: it never reached the broker
+        (checked by client_order_id), so it is closed as canceled with the refusal reason."""
+        try:
+            at_broker = self.broker.get_order_by_client_id(row["client_order_id"])
+        except BrokerError:
+            at_broker = None
+            self.ledger.record_order_status(row["order_id"], OrderStatus.UNKNOWN,
+                                            f"pending_submit and broker unreachable: {reason}")
+            return
+        if at_broker is not None:
+            self._adopt(row["order_id"], at_broker, "adopted")
+            return
+        self.ledger.record_order_status(row["order_id"], OrderStatus.CANCELED, f"not submitted: {reason}")
+
+    def _send(self, order_id: str, request: OrderRequest, *, purpose: str, trade_id: str | None = None) -> dict[str, Any]:
+        """Submit a pending_submit order exactly once. A client_order_id the broker already knows is
+        adopted (a crash happened after the broker accepted it), never sent twice."""
+        try:
+            prior = self.broker.get_order_by_client_id(request.client_order_id)
+        except BrokerError as exc:
+            self.ledger.record_order_status(order_id, OrderStatus.UNKNOWN,
+                                            f"could not check the broker before submitting: {exc}")
+            return self._summary(self._order_row(order_id))
+        if prior is not None:
+            self._adopt(order_id, prior, "adopted")
+        else:
+            self._adopt(order_id, self.broker.submit_order(request), "submitted")
+        return self._summary(self._order_row(order_id))
+
+    def _order_row(self, order_id: str) -> dict[str, Any]:
+        return self.db.fetchone("SELECT * FROM orders WHERE order_id=? AND book=?", (order_id, self.book))
+
+    def _adopt(self, order_id: str, bo, event: str) -> None:
+        """Record the broker's acknowledgement on the local row. Fills are NOT copied here: sync /
+        trade updates apply them to the ledger from the cumulative filled_qty (delta > 0 only)."""
+        now = utcnow_iso()
+        status = bo.status if bo.filled_qty <= _EPS else OrderStatus.ACCEPTED
+        self.db.execute(
+            "UPDATE orders SET status=?, broker_order_id=COALESCE(?, broker_order_id), submitted_at=COALESCE(submitted_at, ?), "
+            "last_update_at=?, raw_json=? WHERE order_id=? AND book=?",
+            (status.value, bo.broker_order_id, bo.submitted_at or now, now, to_json(bo.raw), order_id, self.book))
+        self.db.insert("order_events", {"order_id": order_id, "event": event, "status": bo.status.value, "at": now,
+                                        "raw_json": to_json({"reason": bo.reason,
+                                                             "broker_order_id": bo.broker_order_id})})
 
     # ------------------------------------------------------------------------------------------
     # sync (broker -> ledger)
@@ -276,8 +421,8 @@ class PaperExecutionService:
         seen = {bo.client_order_id for bo in changed}
 
         open_local = self.db.fetchall(
-            "SELECT order_id, client_order_id, status, filled_qty FROM orders WHERE book=? AND status IN (?,?,?)",
-            (self.book, OrderStatus.ACCEPTED.value, OrderStatus.NEW.value, OrderStatus.PARTIALLY_FILLED.value))
+            f"SELECT order_id, client_order_id, status, filled_qty FROM orders WHERE book=? "
+            f"AND status IN ({','.join('?' * len(_OPEN_LOCAL))})", (self.book, *_OPEN_LOCAL))
         for row in open_local:
             if row["client_order_id"] in seen:
                 continue
@@ -288,12 +433,19 @@ class PaperExecutionService:
                           client_order_id=row["client_order_id"], error=str(exc))
                 continue
             if bo is None:
-                continue
+                continue   # pending_submit never reached the broker: left for the (resumed) submitter
             if bo.status.value != row["status"] or bo.filled_qty > float(row["filled_qty"] or 0.0) + _EPS:
                 changed.append(bo)
 
         for bo in changed:
             self._apply_broker_order(bo, s_str, result)
+        return result
+
+    def apply_broker_order(self, bo, session_date: Any) -> SyncResult:
+        """Apply one broker view of an order (e.g. from a trade_updates event). Idempotent."""
+        s_str = to_session(session_date).date().isoformat()
+        result = SyncResult(session_date=s_str, book=self.book)
+        self._apply_broker_order(bo, s_str, result)
         return result
 
     def _apply_broker_order(self, bo, s_str: str, result: SyncResult) -> None:
@@ -305,6 +457,8 @@ class PaperExecutionService:
             return
         order_id = row["order_id"]
         prev_filled = float(row["filled_qty"] or 0.0)
+        if bo.broker_order_id and not row["broker_order_id"]:
+            self.db.execute("UPDATE orders SET broker_order_id=? WHERE order_id=?", (bo.broker_order_id, order_id))
 
         if bo.status is OrderStatus.UNKNOWN:
             self.ledger.record_order_status(order_id, OrderStatus.UNKNOWN, bo.reason)
@@ -315,6 +469,11 @@ class PaperExecutionService:
         delta = bo.filled_qty - prev_filled
         if delta > _EPS:
             fill_price = bo.filled_avg_price if bo.filled_avg_price is not None else row["limit_price"]
+            prev_avg = row["filled_avg_price"]
+            if prev_filled > _EPS and prev_avg is not None and bo.filled_avg_price is not None:
+                # the broker reports a cumulative average: price THIS increment only
+                inc = (bo.filled_avg_price * bo.filled_qty - float(prev_avg) * prev_filled) / delta
+                fill_price = inc if inc > 0 else bo.filled_avg_price
             intent = self.db.fetchone("SELECT session_date, intent_json FROM order_intents WHERE order_id=?",
                                       (order_id,))
             intent_data = from_json(intent["intent_json"], {}) if intent else {}
@@ -322,7 +481,8 @@ class PaperExecutionService:
             exit_reason = intent_data.get("reason") if row["purpose"] == "exit" else None
             broker_fill_id = bo.raw.get("id") if isinstance(bo.raw, dict) else None
             fr = self.ledger.apply_fill(
-                order_id=order_id, qty=delta, price=fill_price, session_date=bo.fill_session or s_str,
+                order_id=order_id, qty=delta, price=fill_price,
+                session_date=bo.fill_session or _fill_session(bo.filled_at) or s_str,
                 commission=bo.commission, modeled_cost=bo.modeled_cost, filled_at=bo.filled_at,
                 broker_fill_id=broker_fill_id, source=self.broker.name,
                 direction=intent_data.get("direction", "LONG"), signal_date=signal_date,
@@ -345,3 +505,11 @@ class PaperExecutionService:
         elif bo.status is OrderStatus.CANCELED and row["status"] != OrderStatus.CANCELED.value:
             self.ledger.record_order_status(order_id, OrderStatus.CANCELED, bo.reason)
             result.canceled.append({"order_id": order_id, "reason": bo.reason})
+        elif bo.status in (OrderStatus.ACCEPTED, OrderStatus.NEW) and delta <= _EPS:
+            # acknowledgement progress (accepted -> new); never move a status backwards
+            try:
+                cur = OrderStatus(row["status"])
+            except ValueError:
+                cur = OrderStatus.UNKNOWN
+            if _STATUS_RANK[bo.status] > _STATUS_RANK[cur]:
+                self.ledger.record_order_status(order_id, bo.status, None)

@@ -3,15 +3,24 @@
 Pages read the audit database. The only writes are the kill switch: pause, and resume, which
 requires a declared human actor and a reason. There is no order entry and no live-trading
 control anywhere.
+
+``/live`` is the paper-runner view: it re-renders server-side every ``dashboard.live_refresh_seconds``
+(a meta refresh, no JavaScript framework) from the runner's heartbeat row and the audit tables.
+``/api/live`` returns the same data as JSON.
 """
 from __future__ import annotations
 
 import html
+import json
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from quantlab.context import AppContext
@@ -31,6 +40,181 @@ def _spark(values: list[float], width: int = 520, height: int = 80) -> str:
     return (f'<svg viewBox="0 0 {width} {height}" width="{width}" height="{height}" role="img" aria-label="equity curve">'
             f'<polyline fill="none" stroke="currentColor" stroke-width="1.5" points="{pts}"/></svg>'
             f'<div class="muted">min {lo:,.0f} · max {hi:,.0f} · last {vals[-1]:,.0f}</div>')
+
+
+_OPEN_ORDER = ("pending_submit", "accepted", "new", "partially_filled", "unknown")
+
+
+def _age_seconds(ts: str | None, now: datetime) -> float | None:
+    if not ts:
+        return None
+    try:
+        return (pd.Timestamp(now) - pd.Timestamp(ts)).total_seconds()
+    except (ValueError, TypeError):
+        return None
+
+
+class _BenchCache:
+    """SPY closes for the performance comparison, read with a parquet row filter (cheap) and cached."""
+
+    def __init__(self, ttl: float = 300.0):
+        self.ttl, self.at, self.key, self.series = ttl, 0.0, None, None
+
+    def closes(self, ctx: AppContext, symbol: str) -> pd.Series | None:
+        ids = ctx.store.dataset_ids("bars", synthetic=False) or ctx.store.dataset_ids("bars", synthetic=True)
+        key = (symbol, tuple(ids))
+        if self.series is not None and self.key == key and time.monotonic() - self.at < self.ttl:
+            return self.series
+        frames = []
+        for dataset_id in ids:
+            row = ctx.db.fetchone("SELECT path FROM datasets WHERE dataset_id=?", (dataset_id,))
+            if row is None:
+                continue
+            try:
+                frames.append(pd.read_parquet(ctx.store.data_dir / row["path"], columns=["symbol", "date", "close"],
+                                              filters=[("symbol", "==", symbol)]))
+            except (OSError, ValueError, KeyError):
+                continue
+        frames = [f for f in frames if len(f)]
+        if not frames:
+            return None
+        df = pd.concat(frames).drop_duplicates("date", keep="last").sort_values("date")
+        self.series = pd.Series(df["close"].astype(float).to_numpy(),
+                                index=pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d").to_numpy())
+        self.key, self.at = key, time.monotonic()
+        return self.series
+
+
+def live_state(ctx: AppContext, bench: "_BenchCache | None" = None, now: datetime | None = None) -> dict[str, Any]:
+    """Everything the live page shows. Read-only."""
+    from quantlab.data.audit import expected_sessions
+    from quantlab.monitoring.killswitch import KillSwitch
+    db = ctx.db
+    now = now or datetime.now(timezone.utc)
+    stale_after = float(ctx.config.get("paper.runner.stale_heartbeat_seconds", 120))
+
+    # SYSTEM ------------------------------------------------------------------------------------
+    sess = db.fetchone("SELECT * FROM paper_runner_sessions ORDER BY started_at DESC LIMIT 1")
+    detail = from_json(sess["detail_json"], {}) if sess else {}
+    hb_age = _age_seconds(sess["last_heartbeat_at"], now) if sess else None
+    runner = "NEVER_STARTED" if sess is None else sess["status"]
+    if runner == "RUNNING" and (hb_age is None or hb_age > stale_after):
+        runner = "STALE (no heartbeat: process not running)"
+    state, reason, changed = KillSwitch(db).state()
+    strategies = db.fetchall("SELECT strategy_id, version, status, stage, updated_at FROM strategies ORDER BY strategy_id")
+    eligible = [r for r in strategies if r["status"] == "ACTIVE" and r["stage"] in ("PAPER", "PROMOTED")]
+    last_ok = db.fetchone("SELECT j.as_of_date, j.run_id, j.orders_allowed, j.reason, r.finished_at FROM paper_session_jobs j "
+                          "LEFT JOIN runs r ON r.run_id = j.run_id WHERE j.status='succeeded' ORDER BY j.as_of_date DESC LIMIT 1")
+    if last_ok is None:
+        last_ok = db.fetchone("SELECT as_of_date, run_id, finished_at FROM runs WHERE kind='pipeline' AND status='succeeded' "
+                              "ORDER BY finished_at DESC LIMIT 1")
+    jobs = db.fetchall("SELECT as_of_date, next_session, status, orders_allowed, attempts, reason, run_id, updated_at "
+                       "FROM paper_session_jobs ORDER BY as_of_date DESC LIMIT 5")
+    real = bool(db.fetchone("SELECT 1 FROM datasets WHERE kind='bars' AND is_synthetic=0 LIMIT 1"))
+    lb = db.fetchone("SELECT MAX(end_date) AS d FROM datasets WHERE kind='bars' AND is_synthetic=?", (0 if real else 1,))
+    latest_bar = str(lb["d"])[:10] if lb and lb["d"] else None
+    freshness: dict[str, Any] = {"latest_bar": latest_bar, "synthetic": not real, "missing_sessions": None,
+                                 "status": "UNKNOWN (no bars)"}
+    if latest_bar:
+        et = pd.Timestamp(now).tz_convert("America/New_York")
+        last_expected = et.normalize().tz_localize(None)
+        if et.hour < 16 or (et.hour == 16 and et.minute < 15):
+            last_expected -= pd.Timedelta(days=1)
+        behind = [d for d in expected_sessions(latest_bar, str(last_expected.date())) if d > pd.Timestamp(latest_bar)]
+        freshness.update(missing_sessions=len(behind),
+                         status="FRESH" if not behind else f"STALE ({len(behind)} session(s) behind)")
+    system = {"runner": runner, "session": sess, "heartbeat_age_seconds": hb_age, "detail": detail,
+              "system_state": state.value, "system_reason": reason, "system_changed": changed,
+              "last_pipeline": last_ok, "jobs": jobs, "freshness": freshness, "strategies": strategies,
+              "eligible": eligible, "no_paper_eligible": not eligible}
+
+    # SIGNALS (latest run that produced candidates) ------------------------------------------------
+    run = db.fetchone("SELECT run_id, as_of_date FROM candidates ORDER BY created_at DESC LIMIT 1")
+    signals = []
+    if run:
+        for r in db.fetchall(
+                "SELECT c.candidate_id, c.symbol, c.strategy_id, c.score, c.entry_ref_price, c.stop_price, c.features_json, "
+                "d.decision, d.reject_stage, d.reasons_json FROM candidates c LEFT JOIN decisions d ON d.candidate_id=c.candidate_id "
+                "WHERE c.run_id=? ORDER BY (d.decision='TRADE') DESC, c.score DESC LIMIT 60", (run["run_id"],)):
+            feats = from_json(r.pop("features_json"), {}) or {}
+            r["features"] = ", ".join(f"{k}={v:.3g}" if isinstance(v, float) else f"{k}={v}"
+                                      for k, v in list(feats.items())[:4])
+            r["reasons"] = "; ".join(from_json(r.pop("reasons_json"), []) or [])[:300]
+            signals.append(r)
+    stage_counts = db.fetchall("SELECT d.decision, d.reject_stage, COUNT(*) AS n FROM decisions d JOIN candidates c "
+                               "ON c.candidate_id=d.candidate_id WHERE c.run_id=? GROUP BY 1,2 ORDER BY n DESC",
+                               (run["run_id"],)) if run else []
+
+    # ORDERS ------------------------------------------------------------------------------------
+    orders = db.fetchall(
+        "SELECT o.created_at, o.symbol, o.side, o.qty, o.purpose, o.status, o.order_id, o.broker_order_id, o.submitted_at, "
+        "(SELECT MAX(f.filled_at) FROM fills f WHERE f.order_id=o.order_id) AS filled_at, o.filled_qty, o.filled_avg_price "
+        "FROM orders o WHERE o.book='BOT' ORDER BY o.created_at DESC LIMIT 30")
+    updates = db.fetchall("SELECT received_at, source, event, client_order_id, broker_order_id, status, filled_qty, "
+                          "filled_avg_price FROM broker_order_updates ORDER BY id DESC LIMIT 15")
+    refusals = db.fetchall("SELECT created_at, purpose, symbol, qty, reason FROM execution_refusals WHERE book='BOT' "
+                           "ORDER BY id DESC LIMIT 10")
+
+    # PORTFOLIO ---------------------------------------------------------------------------------
+    snaps = db.fetchall("SELECT as_of_date, equity, cash, gross_exposure, drawdown, positions_count FROM portfolio_snapshots "
+                        "WHERE book='BOT' ORDER BY as_of_date")
+    cash = db.fetchone("SELECT COALESCE(SUM(amount),0) AS c, COUNT(*) AS n FROM ledger_cash_events WHERE book='BOT'")
+    positions = db.fetchall("SELECT p.symbol, p.qty, p.avg_cost, p.trade_id, t.strategy_id, t.entry_date, t.stop_price "
+                            "FROM positions p LEFT JOIN trades t ON t.trade_id=p.trade_id WHERE p.book='BOT' ORDER BY p.symbol")
+    broker = detail.get("broker") or {}
+    bpos = {p["symbol"]: p for p in broker.get("positions") or []}
+    for p in positions:
+        b = bpos.get(p["symbol"]) or {}
+        p["current_price"] = b.get("current_price")
+        p["unrealized_pl"] = b.get("unrealized_pl")
+    realized = db.fetchone("SELECT COALESCE(SUM(net_pnl),0) AS pnl, COUNT(*) AS n, AVG(ret) AS expectancy, "
+                           "AVG(CASE WHEN net_pnl>0 THEN 1.0 ELSE 0.0 END) AS win_rate FROM trades "
+                           "WHERE book='BOT' AND status='CLOSED'")
+    unreal = sum(float(p["unrealized_pl"]) for p in positions if p.get("unrealized_pl") not in (None, ""))
+    ledger_syms = {x["symbol"] for x in positions}
+    portfolio = {"ledger_cash": cash["c"] if cash["n"] else None, "last_snapshot": snaps[-1] if snaps else None,
+                 "positions": positions, "broker": broker, "realized_pnl": realized["pnl"],
+                 "unrealized_pnl": unreal, "external_positions": [p for s_, p in bpos.items() if s_ not in ledger_syms]}
+
+    # PERFORMANCE -------------------------------------------------------------------------------
+    perf: dict[str, Any] = {"closed_trades": realized["n"], "expectancy": realized["expectancy"],
+                            "win_rate": realized["win_rate"], "equity_points": [s_["equity"] for s_ in snaps],
+                            "return": None, "max_drawdown": None, "spy_return": None, "first": None, "last": None}
+    if snaps:
+        eq = pd.Series([float(s_["equity"]) for s_ in snaps], index=[s_["as_of_date"] for s_ in snaps])
+        start_cash = db.fetchone("SELECT amount FROM ledger_cash_events WHERE book='BOT' AND kind='starting_cash' "
+                                 "ORDER BY id LIMIT 1")
+        base = float(start_cash["amount"]) if start_cash else float(eq.iloc[0])
+        perf.update({"first": eq.index[0], "last": eq.index[-1], "return": float(eq.iloc[-1] / base - 1.0),
+                     "max_drawdown": float((eq / eq.cummax() - 1.0).min())})
+        if len(snaps) >= 2:
+            spy = (bench or _BenchCache()).closes(ctx, ctx.config.get("benchmarks.market", "SPY"))
+            if spy is not None:
+                w = spy.loc[(spy.index >= eq.index[0]) & (spy.index <= eq.index[-1])]
+                if len(w) >= 2:
+                    perf["spy_return"] = float(w.iloc[-1] / w.iloc[0] - 1.0)
+
+    # AUDIT -------------------------------------------------------------------------------------
+    audit: dict[str, Any] = {
+        "errors": db.fetchall("SELECT at, level, kind, substr(message,1,400) AS message FROM paper_runner_events "
+                              "WHERE level IN ('ERROR','CRITICAL') ORDER BY id DESC LIMIT 10"),
+        "failed_steps": db.fetchall("SELECT run_id, step, finished_at, substr(error, -300) AS error FROM pipeline_steps "
+                                    "WHERE status='failed' ORDER BY finished_at DESC LIMIT 5"),
+        "data_quality": db.fetchall("SELECT created_at, check_name, severity, symbol, session_date, substr(detail,1,200) AS detail "
+                                    "FROM data_quality_issues ORDER BY id DESC LIMIT 10"),
+        "killswitch": db.fetchall("SELECT changed_at, state, trigger, changed_by, substr(reason,1,300) AS reason "
+                                  "FROM system_state_log ORDER BY id DESC LIMIT 10"),
+        "events": db.fetchall("SELECT at, level, kind, substr(message,1,300) AS message FROM paper_runner_events "
+                              "ORDER BY id DESC LIMIT 25"),
+        "trace": [], "trace_candidate": None,
+    }
+    if signals:
+        audit["trace_candidate"] = {k: signals[0][k] for k in ("candidate_id", "symbol", "strategy_id", "decision", "reject_stage")}
+        audit["trace"] = db.fetchall("SELECT check_name, passed, severity, substr(reason,1,200) AS reason FROM risk_checks "
+                                     "WHERE candidate_id=? ORDER BY id", (signals[0]["candidate_id"],))
+    return {"generated_at": now.isoformat(), "system": system, "signals": signals, "signal_run": run,
+            "stage_counts": stage_counts, "orders": orders, "order_updates": updates, "refusals": refusals,
+            "portfolio": portfolio, "performance": perf, "audit": audit}
 
 
 def create_app(ctx: AppContext | None = None) -> FastAPI:
@@ -62,6 +246,19 @@ def create_app(ctx: AppContext | None = None) -> FastAPI:
         return render(request, "overview.html", run=run, steps=steps,
                       regime=from_json(regime["metrics_json"], {}) if regime else None, books=books, counts=counts,
                       synthetic=bool(synthetic and synthetic["s"]))
+
+    bench = _BenchCache()
+
+    @app.get("/live", response_class=HTMLResponse)
+    def live(request: Request):
+        """Paper-runner live view (server-side auto-refresh). Read-only."""
+        data = live_state(ctx, bench)
+        return render(request, "live.html", d=data, refresh=int(ctx.config.get("dashboard.live_refresh_seconds", 15)),
+                      spark=_spark(data["performance"]["equity_points"]))
+
+    @app.get("/api/live")
+    def api_live():
+        return JSONResponse(json.loads(json.dumps(live_state(ctx, bench), default=str)))
 
     @app.get("/signals", response_class=HTMLResponse)
     def signals(request: Request):
