@@ -27,7 +27,7 @@ from quantlab.data.panel import DataBundle, Panel
 from quantlab.db.database import Database, from_json, to_json, utcnow_iso
 from quantlab.discovery.families import (
     AUX_FEATURES, CONTEXT, CONTEXT_FEATURES, FIRE, LABELS, POINTS, SCORED, SCORED_FEATURES, SOURCES, Triggers,
-    fire_context, pct_rank,
+    fire_context, fired_masks, pct_rank,
 )
 from quantlab.discovery.status import describe_strategy
 from quantlab.features.base import FeatureSet
@@ -96,6 +96,8 @@ class ScanResult:
     market_context: dict[str, Any]
     is_synthetic: bool
     dataset_ids: list[str] = field(default_factory=list)
+    not_scanned: dict[str, str] = field(default_factory=dict)   # symbol -> why it failed the basic filter
+    calendar: Any = None
 
 
 @dataclass
@@ -126,6 +128,22 @@ def _num(x: Any) -> float | None:
     return float(x) if _finite(x) else None
 
 
+def _levels(r: pd.Series, close: Any) -> dict[str, Any]:
+    """Raw-price reference levels at D for conditional next-session setups (derived from ratios at D,
+    so they are in D's raw price units). Missing inputs stay None (UNKNOWN)."""
+    c = _num(close)
+    if c is None:
+        return {}
+    def lvl(ratio_name: str) -> float | None:
+        v = _num(r.get(ratio_name))
+        return round(c / (1 + v), 4) if v is not None and v > -1 else None
+    atr = _num(r.get("atr14_pct"))
+    loc = _num(r.get("close_location"))
+    return {"close": round(c, 4), "atr": round(atr * c, 4) if atr is not None else None,
+            "ma20": lvl("dist_ma20"), "ma50": lvl("dist_ma50"), "high_55_prior": lvl("breakout_55"),
+            "close_location": loc}
+
+
 class DiscoveryEngine:
     def __init__(self, config: Config):
         self.config = config
@@ -134,6 +152,61 @@ class DiscoveryEngine:
     # ------------------------------------------------------------------------------------------
     # scan (pure, point-in-time)
     # ------------------------------------------------------------------------------------------
+    def core(self, panel: Panel, fs: FeatureSet, d, benches: set) -> dict[str, Any]:
+        """Scores and fired families at session ``d`` (shared by the live scan and the research
+        replay). ``fs`` may span sessions after ``d`` (features are causal by contract); everything
+        derived here reads only rows <= d."""
+        p = panel.truncate(d)
+        close = p.close.iloc[-1]
+        hist = p.history_length().iloc[-1]
+        adv20 = fs.get("adv20").loc[d]
+        basic = (close.notna() & (close >= self.s.min_price) & (adv20 >= self.s.min_median_dollar_volume)
+                 & (hist >= self.s.min_history_sessions) & ~close.index.isin(list(benches)))
+        syms = close.index[basic.fillna(False).to_numpy()]
+        scored_feats = [f for fam in SCORED for f, _ in SCORED_FEATURES[fam]]
+        need = list(dict.fromkeys(scored_feats + list(AUX_FEATURES)))
+        xs = fs.cross_section(d, need).loc[syms]
+        ac, ah, al = p.aclose, p.ahigh, p.alow
+
+        def _new_high(n: int) -> pd.Series:
+            w = ah.iloc[-(n + 1):-1]
+            full = (w.notna().sum() == n) & ac.iloc[-1].notna() if len(w) == n else pd.Series(False, index=ac.columns)
+            return (ac.iloc[-1] >= w.max()).astype(float).where(full).reindex(syms)
+        xs["new_high_20"] = _new_high(20)
+        xs["new_high_50"] = _new_high(50)
+        two = len(ac) >= 2
+        prev_c = ac.iloc[-2] if two else pd.Series(np.nan, index=ac.columns)
+        tr = pd.concat([ah.iloc[-1], prev_c], axis=1).max(axis=1) - pd.concat([al.iloc[-1], prev_c], axis=1).min(axis=1)
+        prev_d = p.dates[-2] if two else None
+        atr_prev = fs.get("atr14_pct").loc[prev_d] * prev_c if two else np.nan
+        xs["range_expansion"] = (tr / atr_prev).replace([np.inf, -np.inf], np.nan).reindex(syms)
+        xs["prev_contraction"] = (fs.get("range_contraction_20_60").loc[prev_d] if two
+                                  else pd.Series(np.nan, index=ac.columns)).reindex(syms)
+        rng = (ah.iloc[-1] - al.iloc[-1])
+        xs["close_location"] = ((ac.iloc[-1] - al.iloc[-1]) / rng.where(rng > 0)).reindex(syms)
+        xs["accel"] = xs["ret_20d"] - xs["ret_60d"] / 3.0
+
+        states = pd.DataFrame(index=syms)
+        for f in scored_feats:
+            lb = fs.registry.spec(f).lookback
+            states[f] = np.where(np.isfinite(xs[f].to_numpy(dtype=float)), VALID,
+                                 np.where(hist.reindex(syms).to_numpy() <= lb, UNKNOWN, INVALID))
+        pct = pd.DataFrame(index=syms)
+        for fam in SCORED:
+            for f, sign in SCORED_FEATURES[fam]:
+                pct[f] = pct_rank(xs[f] * sign)
+        comp = pd.DataFrame(index=syms)
+        for fam in SCORED:
+            comp[fam] = POINTS * pct[[f for f, _ in SCORED_FEATURES[fam]]].mean(axis=1, skipna=True)
+        n_known = comp.notna().sum(axis=1)
+        score = 100.0 * comp.sum(axis=1, min_count=1) / (POINTS * n_known.replace(0, np.nan))
+        pct_raw = pd.DataFrame({f: pct_rank(xs[f]) for f in scored_feats}, index=syms)
+        masks = fired_masks(xs, pct_raw, comp, self.s.triggers)
+        return {"syms": syms, "xs": xs, "states": states, "comp": comp, "score": score,
+                "coverage": n_known / len(SCORED), "pct_raw": pct_raw, "masks": masks, "close": close, "hist": hist,
+                "adv20": adv20, "p": p, "scored_feats": scored_feats,
+                "counts": {"bar_on_session": int(close.notna().sum()), "basic": int(len(syms))}}
+
     def scan(self, bundle: DataBundle, as_of, quarantine: dict | None = None) -> ScanResult:
         from quantlab.universe import UniverseEngine
 
@@ -142,99 +215,72 @@ class DiscoveryEngine:
         if len(view.panel.dates) == 0 or view.panel.dates[-1] != d:
             raise ValueError(f"{d.date()} is not a session in the data")
         tb = tail_bundle(view, self.s.lookback_sessions)
-        p = tb.panel
         fs = FeatureSet(tb, dtype="float32")        # ~6 MB per feature frame on the real universe
-        benches = {view.market_symbol, *view.sector_etfs}
-        close = p.close.iloc[-1]
-        hist = p.history_length().iloc[-1]
-        counts = {"full_universe": int(len(view.panel.symbols)), "bar_on_session": int(close.notna().sum())}
+        c = self.core(tb.panel, fs, d, {view.market_symbol, *view.sector_etfs})
+        syms, xs, states, comp, pct_raw, masks = c["syms"], c["xs"], c["states"], c["comp"], c["pct_raw"], c["masks"]
+        counts = {"full_universe": int(len(view.panel.symbols)), **c["counts"]}
 
-        adv20 = fs.get("adv20").iloc[-1]
-        basic = (close.notna() & (close >= self.s.min_price) & (adv20 >= self.s.min_median_dollar_volume)
-                 & (hist >= self.s.min_history_sessions) & ~close.index.isin(list(benches)))
-        syms = close.index[basic.fillna(False).to_numpy()]
-        counts["basic"] = int(len(syms))
-
-        scored_feats = [f for fam in SCORED for f, _ in SCORED_FEATURES[fam]]
-        need = list(dict.fromkeys(scored_feats + list(AUX_FEATURES)))
-        xs = fs.cross_section(d, need).loc[syms]
-        # derived, still only rows <= D
-        ac, ah, al = p.aclose, p.ahigh, p.alow
-        def _new_high(n: int) -> pd.Series:
-            w = ah.iloc[-(n + 1):-1]
-            full = (w.notna().sum() == n) & ac.iloc[-1].notna() if len(w) == n else pd.Series(False, index=ac.columns)
-            return (ac.iloc[-1] >= w.max()).astype(float).where(full).reindex(syms)
-        xs["new_high_20"] = _new_high(20)
-        xs["new_high_50"] = _new_high(50)
-        prev_c = ac.iloc[-2] if len(ac) >= 2 else pd.Series(np.nan, index=ac.columns)
-        tr = pd.concat([ah.iloc[-1], prev_c], axis=1).max(axis=1) - pd.concat([al.iloc[-1], prev_c], axis=1).min(axis=1)
-        atr_prev = fs.get("atr14_pct").iloc[-2] * prev_c if len(ac) >= 2 else np.nan
-        xs["range_expansion"] = (tr / atr_prev).replace([np.inf, -np.inf], np.nan).reindex(syms)
-        xs["prev_contraction"] = (fs.get("range_contraction_20_60").iloc[-2] if len(ac) >= 2
-                                  else pd.Series(np.nan, index=ac.columns)).reindex(syms)
-        rng = (ah.iloc[-1] - al.iloc[-1])
-        xs["close_location"] = ((ac.iloc[-1] - al.iloc[-1]) / rng.where(rng > 0)).reindex(syms)
-        xs["accel"] = xs["ret_20d"] - xs["ret_60d"] / 3.0
-
-        # feature states: VALID / UNKNOWN (too little history) / INVALID (data-quality issue)
-        states = pd.DataFrame(index=syms)
-        for f in scored_feats:
-            lb = fs.registry.spec(f).lookback
-            v = xs[f]
-            states[f] = np.where(np.isfinite(v.to_numpy(dtype=float)), VALID,
-                                 np.where(hist.reindex(syms).to_numpy() <= lb, UNKNOWN, INVALID))
-        pct = pd.DataFrame(index=syms)
-        for fam in SCORED:
-            for f, sign in SCORED_FEATURES[fam]:
-                pct[f] = pct_rank(xs[f] * sign)
-        comp = pd.DataFrame(index=syms)
-        for fam in SCORED:
-            cols = [f for f, _ in SCORED_FEATURES[fam]]
-            comp[fam] = POINTS * pct[cols].mean(axis=1, skipna=True)     # NaN when no sub-feature is valid
-        n_known = comp.notna().sum(axis=1)
-        score = 100.0 * comp.sum(axis=1, min_count=1) / (POINTS * n_known.replace(0, np.nan))
-        coverage = n_known / len(SCORED)
-
-        # families fired + reasons
+        # reason text + descriptive bias (firing itself comes from the vectorised masks)
         fired, reasons, bias = {}, {}, {}
-        pct_raw = pd.DataFrame({f: pct_rank(xs[f]) for f in scored_feats})   # unsigned ranks for reason text
         for s in syms:
             r, pr = xs.loc[s], pct_raw.loc[s]
-            fam_out = {}
+            fired[s] = [fam for fam in SCORED if masks.at[s, fam]]
+            reasons[s], votes = {}, collections.Counter()
             for fam in SCORED:
                 if pd.isna(comp.at[s, fam]):
                     continue
-                ok, why, b = FIRE[fam](r, pr, self.s.triggers)
-                fam_out[fam] = (ok, why, b)
-            fired[s] = [fam for fam, (ok, _, _) in fam_out.items() if ok]
-            reasons[s] = {fam: why for fam, (_, why, _) in fam_out.items() if why}
-            votes = collections.Counter(fam_out[f][2] for f in fired[s])
+                _, why, b = FIRE[fam](r, pr, self.s.triggers)
+                if why:
+                    reasons[s][fam] = why
+                if fam in fired[s]:
+                    votes[b] += 1
             bias[s] = ("NEUTRAL" if not votes or (votes["BULLISH"] == votes["BEARISH"])
                        else ("BULLISH" if votes["BULLISH"] > votes["BEARISH"] else "BEARISH"))
 
         context, ctx_cov = self._context(view, tb, fs, d, syms)
         uni = UniverseEngine(self.config).explain(view, d, exclude=quarantine).set_index("symbol")["reason"]
-
         table = pd.DataFrame(index=syms)
-        table["score"] = score
-        table["coverage"] = coverage
+        table["score"] = c["score"]
+        table["coverage"] = c["coverage"]
         for fam in SCORED:
             table[f"c_{fam}"] = comp[fam]
-        table["fired"] = pd.Series(fired)
-        table["reasons"] = pd.Series(reasons)
-        table["bias"] = pd.Series(bias)
-        table["context"] = pd.Series(context)
+        table["fired"] = pd.Series(fired, dtype=object)
+        table["reasons"] = pd.Series(reasons, dtype=object)
+        table["bias"] = pd.Series(bias, dtype=object)
+        table["context"] = pd.Series(context, dtype=object)
         table["universe_reason"] = uni.reindex(syms).fillna("no universe row")
-        table["close"] = close.reindex(syms)
-        table["adv20"] = adv20.reindex(syms)
-        table["history"] = hist.reindex(syms)
-        table["factors"] = pd.Series({s: self._factors(s, xs, states, pct_raw, d, fs) for s in syms})
-        table["invalid"] = pd.Series({s: [f for f in scored_feats if states.at[s, f] == INVALID] for s in syms})
-        table["unknown"] = pd.Series({s: [f for f in scored_feats if states.at[s, f] == UNKNOWN] for s in syms})
-
+        table["close"] = c["close"].reindex(syms)
+        table["adv20"] = c["adv20"].reindex(syms)
+        table["history"] = c["hist"].reindex(syms)
+        table["factors"] = pd.Series({s: self._factors(s, xs, states, pct_raw, d, fs) for s in syms}, dtype=object)
+        table["invalid"] = pd.Series({s: [f for f in c["scored_feats"] if states.at[s, f] == INVALID] for s in syms},
+                                     dtype=object)
+        table["unknown"] = pd.Series({s: [f for f in c["scored_feats"] if states.at[s, f] == UNKNOWN] for s in syms},
+                                     dtype=object)
+        table["levels"] = pd.Series({s: _levels(xs.loc[s], c["close"].get(s)) for s in syms}, dtype=object)
+        # why symbols outside the basic filter were not scanned (a strategy signal can still enter the pool)
+        p = c["p"]
+        not_scanned: dict[str, str] = {}
+        for s in view.panel.symbols:
+            if s in table.index:
+                continue
+            cl = c["close"].get(s)
+            if s in {view.market_symbol, *view.sector_etfs}:
+                not_scanned[s] = "benchmark ETF"
+            elif cl is None or not _finite(cl):
+                not_scanned[s] = "no bar on session"
+            elif cl < self.s.min_price:
+                not_scanned[s] = f"price < ${self.s.min_price:g}"
+            elif not _finite(c["adv20"].get(s)) or c["adv20"].get(s) < self.s.min_median_dollar_volume:
+                not_scanned[s] = f"median dollar volume < ${self.s.min_median_dollar_volume:,.0f}"
+            else:
+                not_scanned[s] = f"history < {self.s.min_history_sessions} sessions"
         cov_rows = self._coverage(counts, table, states, fs, ctx_cov, xs)
-        return ScanResult(d, table, counts, cov_rows, self._market_context(p, view), bool(view.is_synthetic),
-                          list(view.dataset_ids))
+        res = ScanResult(d, table, counts, cov_rows, self._market_context(p, view), bool(view.is_synthetic),
+                         list(view.dataset_ids))
+        res.not_scanned = not_scanned
+        res.calendar = view.calendar
+        return res
 
     def _factors(self, s: str, xs: pd.DataFrame, states: pd.DataFrame, pct: pd.DataFrame, d, fs) -> dict[str, Any]:
         out = {}
@@ -383,14 +429,29 @@ class DiscoveryEngine:
     # ------------------------------------------------------------------------------------------
     def assess(self, scan: ScanResult, links: dict[str, list[dict[str, Any]]] | None,
                strategies: dict[str, dict[str, Any]]) -> Assessment:
+        """MASTER CANDIDATE POOL = discovery setups UNION strategy signals. A strategy signal enters
+        the pool (and the unchanged validation chain decides it) whatever its discovery score:
+        discovery ranking never suppresses a strategy signal."""
         t = scan.table
-        discovered = t[t["fired"].map(len) > 0].copy()
-        discovered = discovered.sort_values("score", ascending=False, na_position="last")
-        discovered["rank"] = range(1, len(discovered) + 1)
-        high = (discovered["score"] >= self.s.high_rank_score) & (discovered["coverage"] >= self.s.min_score_coverage)
+        fired_syms = set(t.index[t["fired"].map(len) > 0])
+        linked = set(links or {})
+        rows = []
+        for sym in fired_syms | linked:
+            r = t.loc[sym].copy() if sym in t.index else self._unscanned_row(sym, scan)
+            r["origin"] = "BOTH" if (sym in fired_syms and sym in linked) else ("DISCOVERY" if sym in fired_syms
+                                                                                 else "STRATEGY")
+            rows.append((sym, r))
+        rows.sort(key=lambda x: (-(x[1]["score"]) if _finite(x[1]["score"]) else float("inf"), x[0]))
         cands: list[dict[str, Any]] = []
-        for s, r in discovered.iterrows():
-            cands.append(self._assess_one(s, r, bool(high.loc[s]), links, strategies))
+        for rank, (sym, r) in enumerate(rows, start=1):
+            r["rank"] = rank
+            high = bool(r["origin"] != "STRATEGY" and _finite(r["score"]) and r["score"] >= self.s.high_rank_score
+                        and _finite(r["coverage"]) and r["coverage"] >= self.s.min_score_coverage)
+            c = self._assess_one(sym, r, high, links, strategies)
+            c["origin"] = r["origin"]
+            c["scanned"] = bool(r.get("scanned", True))
+            c["levels"] = r.get("levels") if isinstance(r.get("levels"), dict) else {}
+            cands.append(c)
         # watchlist: top-N high-ranked setups that passed DATA and UNIVERSE validation
         wl = 0
         for c in cands:
@@ -401,8 +462,20 @@ class DiscoveryEngine:
                 c["on_watchlist"] = False
         for c in cands:
             c["status"] = self._status(c)
+            c["setup"] = setup_record(c)
         return Assessment(cands, self._funnel(scan, cands, links), self._blockers(cands),
                           self._near_misses(cands), self._diagnostics(scan, cands))
+
+    def _unscanned_row(self, sym: str, scan: ScanResult) -> pd.Series:
+        """A strategy signal on a symbol outside the discovery scan: no score (UNKNOWN), and the
+        reason it was not scanned. It still enters the pool."""
+        why = scan.not_scanned.get(sym, "not in the stored data for this session")
+        r = {"score": np.nan, "coverage": 0.0, **{f"c_{f}": np.nan for f in SCORED}, "fired": [], "reasons": {},
+             "bias": "NEUTRAL", "context": {f: {"state": UNKNOWN, "why": f"not in the discovery scan ({why})"}
+                                            for f in CONTEXT},
+             "universe_reason": f"not scanned: {why}", "close": np.nan, "adv20": np.nan, "history": np.nan,
+             "factors": {}, "invalid": [], "unknown": [], "levels": {}, "scanned": False, "not_scanned_reason": why}
+        return pd.Series(r, dtype=object)
 
     def _assess_one(self, s, r, high, links, strategies) -> dict[str, Any]:
         checks: list[dict[str, Any]] = []
@@ -412,13 +485,18 @@ class DiscoveryEngine:
 
         for fam in r["fired"]:
             check("DISCOVERY", fam, True, "; ".join(r["reasons"].get(fam, [])) or LABELS[fam])
-        inv = r["invalid"]
-        check("DATA", "feature_quality", not inv,
-              "all available features valid" if not inv else f"data-quality issue: {', '.join(inv)} not finite "
-              f"despite {int(r['history'])} sessions of history")
-        ur = str(r["universe_reason"])
-        check("UNIVERSE", "research_universe", ur == "included",
-              "passes the research universe (price, liquidity, history, security type)" if ur == "included" else ur)
+        inv = list(r["invalid"])
+        if r.get("scanned", True) is False:
+            # the decision chain already applied its own data/universe checks to this strategy signal
+            check("DISCOVERY", "discovery_scan", True, f"not in the discovery scan ({r.get('not_scanned_reason')}); "
+                  "entered the pool as a strategy signal")
+        else:
+            check("DATA", "feature_quality", not inv,
+                  "all available features valid" if not inv else f"data-quality issue: {', '.join(inv)} not finite "
+                  f"despite {int(r['history'])} sessions of history")
+            ur = str(r["universe_reason"])
+            check("UNIVERSE", "research_universe", ur == "included",
+                  "passes the research universe (price, liquidity, history, security type)" if ur == "included" else ur)
         lk = (links or {}).get(s, []) if links is not None else None
         if lk is None:
             check("STRATEGY_COVERAGE", "strategy_coverage", False, "no pipeline decisions for this session yet",
@@ -479,7 +557,7 @@ class DiscoveryEngine:
             "data_or_universe_failed": any(not c["passed"] and c["stage"] in ("DATA", "UNIVERSE") for c in checks),
             "checks": checks, "links": lk or [], "block_stage": block,
             "block_reason": (first["reason"] if first else None), "block_key": block_key,
-            "unknown_context": [f for f in CONTEXT if ctx[f]["state"] != "KNOWN"],
+            "unknown_context": [f for f in CONTEXT if (ctx.get(f) or {}).get("state") != "KNOWN"],
         }
 
     @staticmethod
@@ -504,15 +582,21 @@ class DiscoveryEngine:
         st = collections.Counter(c["status"] for c in cands)
         in_val = sum(1 for c in cands if any(x["stage"] == "STRATEGY_COVERAGE" and x["passed"] for x in c["checks"]))
         strat_syms = set(links or {})
-        disc_syms = {c["symbol"] for c in cands}
+        disc_syms = {c["symbol"] for c in cands if c.get("origin", "DISCOVERY") != "STRATEGY"}   # fired a family
         n_links = sum(len(v) for v in (links or {}).values())
         all_links = [x for v in (links or {}).values() for x in v]
         session_trade = sum(1 for x in all_links if x.get("decision") == "TRADE")
         session_orders = sum(1 for x in all_links if x.get("order_status") in PLACED_ORDER_STATUSES)
+        origin = collections.Counter(c.get("origin", "DISCOVERY") for c in cands)
         return {
             **scan.counts,
             "with_features": int((scan.table["coverage"] >= self.s.min_score_coverage).sum()),
-            "discovered": len(cands),
+            "discovered": origin.get("DISCOVERY", 0) + origin.get("BOTH", 0),     # at least one family fired
+            "strategy_signals": origin.get("STRATEGY", 0) + origin.get("BOTH", 0),
+            "both": origin.get("BOTH", 0), "discovery_only": origin.get("DISCOVERY", 0),
+            "strategy_only": origin.get("STRATEGY", 0),
+            "missed_discovery_signals": origin.get("STRATEGY", 0),   # strategy signals discovery did not select
+            "pool": len(cands),
             "high_ranked": sum(1 for c in cands if c["high_quality"]),
             "watchlist": sum(1 for c in cands if c["on_watchlist"]),
             "in_validation": in_val,
@@ -544,6 +628,7 @@ class DiscoveryEngine:
         for c in [x for x in cands if x["status"] != "TRADED"][: self.s.near_miss_count]:
             out.append({
                 "symbol": c["symbol"], "score": c["score"], "coverage": c["coverage"], "status": c["status"],
+                "origin": c.get("origin"),
                 "passed": [f"{LABELS[f]}" for f in c["fired"]] +
                           [x["name"] for x in c["checks"] if x["passed"] and x["stage"] != "DISCOVERY"],
                 "failed": [{"stage": x["stage"], "reason": x["reason"]} for x in c["checks"] if not x["passed"]],
@@ -607,6 +692,106 @@ class DiscoveryEngine:
 
 PLACED_ORDER_STATUSES = ("new", "accepted", "partially_filled", "filled")
 _STAGE_PROGRESS = ["DATA", "SIGNAL", "NO_TRADE", "STRATEGY", "EV", "PORTFOLIO", "RISK", "EXECUTION", "AI"]
+
+
+def next_session_info(d, calendar=None) -> dict[str, Any]:
+    """The exchange-calendar session AFTER decision session ``d`` and the information cutoff of ``d``
+    (its regular close). The stored bundle calendar ends at ``d``, so the forward date comes from the
+    rule-based NYSE calendar (holidays + special closures; validated against 2019-2024 counts)."""
+    from quantlab.data.audit import expected_sessions
+    d = to_session(d)
+    try:
+        nxt = [x for x in expected_sessions(str((d + pd.Timedelta(days=1)).date()),
+                                            str((d + pd.Timedelta(days=14)).date())) if x > d]
+    except Exception:       # pragma: no cover - defensive: calendar failure must be visible, not guessed
+        nxt = []
+    cutoff = calendar.cutoff(d) if calendar is not None else None
+    if cutoff is None:
+        from zoneinfo import ZoneInfo
+        cutoff = pd.Timestamp.combine(d.date(), pd.Timestamp("16:00").time()).tz_localize(ZoneInfo("America/New_York"))
+    return {"next_session": str(nxt[0].date()) if nxt else None,
+            "info_cutoff_at": pd.Timestamp(cutoff).tz_convert("UTC").isoformat(),
+            "calendar_source": "NYSE rules (data/audit.py)" if nxt else "MISSING"}
+
+
+def _setup_type(fired: list[str], links: list[dict[str, Any]]) -> str:
+    f = set(fired)
+    if not f and links:
+        return "Strategy signal (" + ", ".join(sorted({x["strategy_id"] for x in links})) + ")"
+    parts = []
+    if "breakout_compression" in f:
+        parts.append("Breakout")
+    if "momentum" in f:
+        parts.append("Momentum")
+    if "relative_strength" in f:
+        parts.append("Relative strength")
+    if "volume_activity" in f:
+        parts.append("Volume expansion" if parts else "Unusual activity")
+    if "mean_reversion" in f:
+        parts.append("Oversold (mean reversion)")
+    return " + ".join(parts) or "No family fired"
+
+
+def setup_record(c: dict[str, Any]) -> dict[str, Any]:
+    """A CONDITIONAL next-session setup. It never predicts a price: it states why the setup is
+    interesting, what would confirm or invalidate it (levels from D's data), what is missing, and
+    why it is or is not paper eligible. Confirmation always requires next-session price/volume."""
+    lv, fired = c.get("levels") or {}, list(c.get("fired") or [])
+    close, atr = lv.get("close"), lv.get("atr")
+    fmt = lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else "UNKNOWN"   # noqa: E731
+    confirm, invalidate = [], []
+    gap = (f"opens within 1 ATR ({fmt(atr)}) of today's close {fmt(close)}"
+           if atr and close else "opening gap within 1 ATR of today's close (ATR UNKNOWN)")
+    # Every condition must still be in the future at D: a level the close is already beyond is
+    # stated as something to reclaim, never as an invalidation that has in fact already happened.
+    hi55, ma50 = lv.get("high_55_prior"), lv.get("ma50")
+    if "breakout_compression" in fired:
+        if close is None or hi55 is None:
+            confirm.append("breaks out of the compressed range with relative volume >= 1.5 (55-day high UNKNOWN)")
+            invalidate.append("falls back into the compressed range")
+        elif close >= hi55:
+            confirm.append(f"holds above the prior 55-day high {fmt(hi55)} with relative volume >= 1.5")
+            invalidate.append(f"closes back below the breakout level {fmt(hi55)}")
+        else:
+            confirm.append(f"today's range expansion continues through the prior 55-day high {fmt(hi55)} "
+                           f"({(hi55 / close - 1):+.1%} from today's close) with relative volume >= 1.5")
+            invalidate.append("today's range expansion reverses back into the compressed range")
+    if "momentum" in fired or "relative_strength" in fired:
+        if close is None or ma50 is None:
+            confirm.append("keeps outperforming SPY (50-day average UNKNOWN)")
+            invalidate.append("starts underperforming SPY")
+        elif close >= ma50:
+            confirm.append(f"keeps outperforming SPY and holds above its 50-day average {fmt(ma50)}")
+            invalidate.append(f"closes below the 50-day average {fmt(ma50)}")
+        else:
+            confirm.append(f"keeps outperforming SPY and reclaims its 50-day average {fmt(ma50)} "
+                           f"(today's close {fmt(close)} is below it)")
+            invalidate.append(f"underperforms SPY while staying below its 50-day average {fmt(ma50)}")
+    if "volume_activity" in fired:
+        confirm.append("follow-through: relative volume stays >= 1.2 in the direction of today's move")
+        invalidate.append("reverses today's move on heavy volume")
+    if "mean_reversion" in fired:
+        confirm.append("stabilisation: closes up without making a new low")
+        invalidate.append(f"falls more than 1 ATR below today's close (below about {fmt(close - atr)})"
+                          if close and atr else "keeps falling to a new low (ATR UNKNOWN)")
+    if not fired and c.get("links"):
+        confirm.append("the strategy's own rule: next-open execution after a TRADE decision")
+    confirm.append(gap)
+    invalidate.append("a gap larger than 1 ATR, a trading halt, or a corporate action at the open")
+    missing = [f"{LABELS.get(f, f)}: UNKNOWN" for f in c.get("unknown_context", [])]
+    missing += [f"{f}: UNKNOWN (history)" for f in c.get("unknown_features", [])]
+    missing += [f"{f}: INVALID (data quality)" for f in c.get("invalid_features", [])]
+    missing.append("pre-market price: UNKNOWN (no pre-market data source configured)")
+    st = c.get("status")
+    paper = ("Paper eligible: TRADE decision from the unchanged gates; still needs the next-open execution window "
+             "and the confirmation above" if st in ("PAPER_ELIGIBLE", "TRADED")
+             else f"Not paper eligible: {c.get('block_reason') or 'no validated strategy covers this setup'}")
+    reasons = [x for f in fired for x in (c.get("reasons") or {}).get(f, [])][:4]
+    if c.get("links"):
+        reasons.append("signalled by " + ", ".join(sorted({x["strategy_id"] for x in c["links"]})))
+    return {"relevance": "NEXT_SESSION", "setup_type": _setup_type(fired, c.get("links") or []), "why": reasons,
+            "confirm": confirm, "invalidate": invalidate, "missing": missing, "paper": paper, "conditional": True,
+            "condition": "Requires next-session price/volume confirmation. Not an order.", "levels": lv}
 
 
 def _progress(link: dict[str, Any]) -> float:
@@ -693,6 +878,7 @@ def persist(db: Database, engine: DiscoveryEngine, scan: ScanResult, a: Assessme
         return disc_run
     now = utcnow_iso()
     d = str(scan.as_of.date())
+    ns = next_session_info(scan.as_of, scan.calendar)
     fams = {"coverage": scan.coverage, "market_context": scan.market_context,
             "fired": dict(collections.Counter(f for c in a.candidates for f in c["fired"]))}
     with db.transaction():
@@ -700,7 +886,9 @@ def persist(db: Database, engine: DiscoveryEngine, scan: ScanResult, a: Assessme
             "discovery_run_id": disc_run, "run_id": run_id, "as_of_date": d, "created_at": now,
             "is_synthetic": int(scan.is_synthetic), "funnel_json": to_json(a.funnel),
             "blockers_json": to_json({**a.blockers, "near_misses": a.near_misses}), "families_json": to_json(fams),
-            "config_json": to_json(engine.s.as_dict()), "dataset_ids_json": to_json(scan.dataset_ids)})
+            "config_json": to_json(engine.s.as_dict()), "dataset_ids_json": to_json(scan.dataset_ids),
+            "next_session": ns.get("next_session"), "info_cutoff_at": ns.get("info_cutoff_at"),
+            "calendar_source": ns.get("calendar_source")})
         db.insert_many("discovery_candidates", [{
             "discovery_id": f"{disc_run}:{c['symbol']}", "discovery_run_id": disc_run, "as_of_date": d,
             "symbol": c["symbol"], "discovery_score": c["score"],
@@ -713,6 +901,8 @@ def persist(db: Database, engine: DiscoveryEngine, scan: ScanResult, a: Assessme
             "high_quality": int(c["high_quality"]), "on_watchlist": int(c["on_watchlist"]),
             "block_stage": c["block_stage"], "block_reason": c["block_reason"], "checks_json": to_json(c["checks"]),
             "strategy_links_json": to_json(c["links"]), "is_synthetic": int(scan.is_synthetic), "created_at": now,
+            "origin": c.get("origin"), "relevance": "NEXT_SESSION", "next_session": ns.get("next_session"),
+            "info_cutoff_at": ns.get("info_cutoff_at"), "discovered_at": now, "setup_json": to_json(c.get("setup")),
         } for c in a.candidates])
         db.insert_many("discovery_diagnostics", [{
             "discovery_run_id": disc_run, "as_of_date": d, "level": x["level"], "code": x["code"],

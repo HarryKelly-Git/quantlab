@@ -1,87 +1,207 @@
 {% extends "base.html" %}{% from "_macros.html" import table %}
-{% block title %}market discovery{% endblock %}
+{% block title %}terminal{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="60">
+<style>
+:root{--panel:#ffffff;--soft:#f1f0ec;--warn:#8a5a00;--warn-bg:#faf1dc;--ok-bg:#e6f2ea;--bad-bg:#f9e6e3;--mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--panel:#1d1d1a;--soft:#232320;--warn:#dcaa4a;--warn-bg:#2e2718;--ok-bg:#1d2b23;--bad-bg:#352120}}
+main{max-width:1400px}
+.bar{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:8px 12px;margin:0 0 14px;background:var(--panel);border:1px solid var(--line);font-size:13px}
+.bar b{font-family:var(--mono);font-weight:600}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--muted)}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.warn{background:var(--warn)}
+.hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:14px}
+.card{background:var(--panel);border:1px solid var(--line);padding:14px 16px;display:grid;gap:8px;align-content:start}
+.card h3{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.big{font-size:22px;font-weight:650;letter-spacing:-.01em}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.stat div{border-top:2px solid var(--line);padding-top:6px}.stat b{display:block;font:600 20px/1.2 var(--mono)}
+.stat span{font-size:12px;color:var(--muted)}
+.steps{display:flex;flex-wrap:wrap;gap:4px;font-size:12px}
+.steps span{border:1px solid var(--line);padding:3px 7px;background:var(--soft)}.steps span.done{border-color:var(--ok);color:var(--ok)}
+.pill{display:inline-block;font:600 11px/1 var(--mono);padding:3px 6px;border:1px solid currentColor;white-space:nowrap}
+.pill.TRADED,.pill.PAPER_ELIGIBLE{color:var(--ok)}.pill.WATCH{color:var(--accent)}.pill.VALIDATION_PENDING{color:var(--warn)}
+.pill.REJECTED,.pill.INVALIDATED{color:var(--bad)}.pill.DISCOVERED,.pill.UNKNOWN{color:var(--muted)}
+.origin{font:600 10px/1 var(--mono);padding:3px 5px;background:var(--soft);border:1px solid var(--line)}
+.opps{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin:8px 0 16px}
+.opp{background:var(--panel);border:1px solid var(--line);padding:12px 14px;display:grid;gap:7px;align-content:start}
+.opp.lead{border-top:3px solid var(--accent)}
+.opp .head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.opp .tk{font:700 20px/1 var(--mono)}.opp .setup{font-weight:600}
+.score{display:flex;align-items:center;gap:8px;font:600 13px/1 var(--mono)}
+.meter{flex:1;height:6px;background:var(--soft);position:relative;min-width:90px}.meter i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)}
+.pts{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;font:11px/1.2 var(--mono);color:var(--muted)}
+.pts b{display:block;font-size:13px;color:var(--fg)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font:11px/1.2 var(--mono);padding:3px 6px;border:1px solid var(--line);background:var(--soft)}
+.chip.ok{color:var(--ok)}.chip.bad{color:var(--bad)}
+.kv2{display:grid;grid-template-columns:110px 1fr;gap:3px 10px;font-size:12.5px}.kv2 dt{color:var(--muted)}.kv2 dd{margin:0}
+.block{font-size:12.5px;border-left:3px solid var(--bad);padding:4px 8px;background:var(--bad-bg)}
+.block.ok{border-color:var(--ok);background:var(--ok-bg)}
+.cols2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.lst{margin:0;padding-left:18px;font-size:12.5px}.lst li{margin:2px 0}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin:6px 0 14px;font-size:12.5px}
+.legend div{border:1px dashed var(--line);padding:6px 9px}
+.funnel{display:flex;flex-wrap:wrap;gap:0;margin:6px 0 10px}
+.funnel div{flex:1 1 110px;padding:8px 10px;border:1px solid var(--line);margin:-1px 0 0 -1px;background:var(--panel)}
+.funnel b{display:block;font:600 18px/1.2 var(--mono)}.funnel span{font-size:11.5px;color:var(--muted)}
+.barrow{display:grid;grid-template-columns:minmax(150px,240px) 1fr 70px;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
+.barrow .track{height:10px;background:var(--soft);position:relative}.barrow .track i{position:absolute;left:0;top:0;bottom:0;background:var(--bad)}
+h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
+.small{font-size:12px}
+@media (max-width:560px){.kv2{grid-template-columns:1fr}.pts{grid-template-columns:repeat(3,1fr)}}
+</style>{% endblock %}
 {% block body %}
-{% set L = d.live or {} %}{% set S = L.system or {} %}{% set P = L.portfolio or {} %}
-{% if (d.run and d.run.is_synthetic) or (not d.run and synthetic) %}<div class="banner">SYNTHETIC data: discovery results are test output, not market evidence.</div>{% endif %}
-
-<h2>Market discovery{% if d.run %}: {{ d.run.as_of_date }}{% endif %}</h2>
+{% set M = d.market %}{% set N = d.next %}{% set L = d.live or {} %}{% set S = L.system or {} %}{% set F = d.funnel_raw %}
+{% if (d.run and d.run.is_synthetic) or (not d.run and synthetic) %}<div class="banner">SYNTHETIC data: test output, not market evidence.</div>{% endif %}
 {% if d.stale %}<div class="banner">Discovery is not current: {{ d.stale }}.</div>{% endif %}
-<p class="muted">Discovery asks what looks interesting in today's market. Validation (the unchanged gates below) asks whether a setup has enough evidence to permit a paper trade. The discovery score ranks setups (0-100); it is not a probability. <a href="/live">Paper runner</a> · <a href="/overview">pipeline overview</a></p>
-{% if not d.run %}
-<p class="muted">No discovery run yet. Run <code>quantlab discover</code> or let the daily pipeline run.</p>
-{% else %}
 
-<div class="grid">
-{% for s in d.funnel %}<div class="kv"><b>{{ s.label }}</b><span style="font-size:20px;font-variant-numeric:tabular-nums">{{ "{:,}".format(s.n) if s.n is not none else "?" }}</span><br><span class="muted" style="font-size:12px">{{ s.hint }}</span></div>{% endfor %}
+<div class="bar">
+  <span><span class="dot {{ 'ok' if M.status == 'OPEN' else 'warn' }}"></span>Market <b>{{ M.status }}</b></span>
+  <span>Last session <b>{{ M.last_completed_session or '?' }}</b></span>
+  <span>Next session <b>{{ M.next_session or 'UNKNOWN' }}</b></span>
+  <span><span class="dot {{ 'ok' if S.runner == 'RUNNING' else 'bad' }}"></span>Runner <b>{{ (S.runner or 'unknown').split(' ')[0] }}</b></span>
+  <span><span class="dot {{ 'ok' if (S.freshness or {}).status == 'FRESH' else 'bad' }}"></span>Data <b>{{ ((S.freshness or {}).status or 'unknown').split(' ')[0] }}</b>{% if (S.freshness or {}).latest_bar %} <span class="muted">to {{ S.freshness.latest_bar }}</span>{% endif %}</span>
+  <span><span class="dot {{ 'ok' if state == 'ACTIVE' else 'bad' }}"></span>Trading <b>{{ 'ACTIVE' if state == 'ACTIVE' else 'PAUSED' }}</b></span>
+  {% set crit = (N.alerts|selectattr('level','equalto','CRITICAL')|list) %}
+  <span><span class="dot {{ 'bad' if crit else ('warn' if N.alerts else 'ok') }}"></span>Health <b>{{ 'CRITICAL' if crit else ('WARN' if N.alerts else 'OK') }}</b></span>
+  <span class="muted small">{{ M.calendar_source }}</span>
 </div>
-<p class="muted">Status of the {{ d.funnel_raw.discovered }} setups: {% for k, v in d.status_counts.items() %}{{ k }} {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}{% if d.funnel_raw.strategy_symbols_not_discovered_count %} · {{ d.funnel_raw.strategy_symbols_not_discovered_count }} symbol(s) signalled by a strategy were not discovered{% endif %}</p>
 
-{% set F = d.funnel_raw %}
-{% if F.session_orders_placed or F.session_trade_decisions %}
-<div class="kv" style="margin:8px 0"><b>This session (all strategy candidates)</b>{{ F.session_trade_decisions or 0 }} TRADE decision(s), {{ F.session_orders_placed or 0 }} paper order(s) placed{% if (F.session_orders_placed or 0) > F.paper_trades %} ({{ F.session_orders_placed - F.paper_trades }} on symbols discovery did not flag){% endif %}.</div>
-{% endif %}
-{% if F.paper_eligible == 0 and not F.session_orders_placed %}
-<h2>Why no paper trades?</h2>
-{% if F.discovered == 0 %}
-<div class="warnbox">Discovery found 0 setups among {{ F.basic }} scanned symbols. Treat this as a data or feature health question first (see Discovery health below), not as proof that the market has no opportunities.</div>
-{% elif d.blockers.main == "VALIDATION_NOT_RUN" %}
-<div class="warnbox">{{ F.discovered }} market opportunities discovered. Validation has not run for this session yet, so none can be paper eligible.</div>
-{% else %}
-<div class="warnbox">{{ F.discovered }} market opportunities discovered ({{ F.high_ranked }} high-ranked, {{ F.watchlist }} on the watchlist). 0 are currently paper eligible.</div>
-<p>Opportunities exist; none has passed validation. Main blocker: <b>{{ d.blockers.main_text or "n/a" }}</b> ({{ (d.blockers.by_stage or {}).get(d.blockers.main, 0) }} of {{ F.discovered }} setups).</p>
-{% endif %}
-{% set rows = [] %}{% for k, v in (d.blockers.by_stage or {}).items() %}{% set _ = rows.append({"blocker": k, "setups": v, "high_ranked": (d.blockers.high_ranked_by_stage or {}).get(k, 0), "meaning": (d.blockers.descriptions or {}).get(k, "")}) %}{% endfor %}
-{{ table(rows|sort(attribute="setups", reverse=True), ["blocker","setups","high_ranked","meaning"]) }}
-{% endif %}
+<div class="hero">
+  <div class="card">
+    <h3>Current paper trade</h3>
+    {% if d.paper.open %}
+      {% for t in d.paper.open %}<div class="big">{{ t.symbol }} <span class="muted small">{{ t.qty }} sh since {{ t.entry_date }} @ {{ "%.2f"|format(t.entry_price) }}</span></div>
+      <div class="small">Strategy {{ t.strategy_id }} · stop {{ t.stop_price }} · planned exit {{ t.planned_exit_date }}</div>{% endfor %}
+    {% else %}
+      <div class="big">NO CURRENT PAPER TRADE</div>
+      {% if d.paper.working_orders %}<div class="small">{{ d.paper.working_orders|length }} working paper order(s).</div>{% endif %}
+      {% set mo = d.monitored %}
+      {% if mo %}
+      <div class="small"><b>Strongest candidate being monitored:</b> <span style="font-family:var(--mono);font-weight:700">{{ mo.symbol }}</span> · {{ mo.setup_type }} · score {{ "%.0f"|format(mo.score) if mo.score is number else "UNKNOWN" }} · <span class="pill {{ mo.status }}">{{ mo.status }}</span></div>
+      <div class="block">Why it is not eligible: {{ mo.block_reason or "no validated strategy covers it" }}</div>
+      <div class="small muted">A paper trade needs a strategy that has passed validation, a TRADE decision from the EV/risk gates and the next-open execution window. Nothing is forced.</div>
+      {% endif %}
+    {% endif %}
+    <div class="small muted">Closed paper trades: {{ d.paper.closed_n }} · realised P/L {{ "{:,.2f}".format(d.paper.realized) }}</div>
+  </div>
+  <div class="card">
+    <h3>Next trading session: {{ M.next_session or 'UNKNOWN' }}</h3>
+    {% if N.mismatch %}<div class="block">Setups below were prepared for {{ N.run.next_session }}, not {{ M.next_session }}: end-of-day scan missing.</div>{% endif %}
+    {% set C = N.counts %}
+    <div class="stat">
+      <div><b>{{ C.candidates if C else 0 }}</b><span>candidates</span></div>
+      <div><b>{{ C.high_ranked if C else 0 }}</b><span>high-ranked</span></div>
+      <div><b>{{ C.watchlist if C else 0 }}</b><span>watchlist{% if C and C.promoted_overnight %} (incl. {{ C.promoted_overnight }} promoted overnight){% endif %}</span></div>
+      <div><b>{{ C.validation_pending if C else 0 }}</b><span>validation pending</span></div>
+      <div><b>{{ C.paper_eligible if C else 0 }}</b><span>paper eligible</span></div>
+    </div>
+    <div class="small muted">From decision session {{ (N.run or {}).as_of_date or '?' }} · information cutoff {{ ((N.run or {}).info_cutoff_at or '?')[:16] }} UTC (the session close)</div>
+    <div class="steps">{% for s in N.pipeline %}<span class="{{ 'done' if s.at or (s.state and 'done' in s.state) else '' }}" title="{{ s.at or '' }}">{{ s.stage }}: {{ s.state }}</span>{% endfor %}</div>
+  </div>
+</div>
 
-{% if d.diagnostics %}<h3>Discovery health</h3>
-{{ table(d.diagnostics, ["level","code","message"]) }}{% endif %}
+<div class="legend">
+  <div><b>Current market opportunity</b><br>a setup in the last completed session's data. Descriptive, not a plan.</div>
+  <div><b>Next-session setup</b><br>the same setup as a conditional plan for {{ M.next_session or 'the next session' }}: it needs confirmation and can be invalidated.</div>
+  <div><b>Validated paper trade</b><br>only a TRADE decision from the unchanged gates plus a placed paper order.</div>
+</div>
 
-<h2>Top opportunities</h2>
-<p class="muted">Score 0-100 = cross-sectional ranking of the 5 price/volume families (20 points each), not a probability. UNKNOWN means the data is missing, not a low value.</p>
-<div style="overflow-x:auto"><table><thead><tr><th>Ticker</th><th>Score</th><th>Points (of 20)</th><th>Families fired</th><th>Key reasons</th><th>Data coverage</th><th>Status</th><th>Why not paper-traded</th></tr></thead><tbody>
-{% for c in d.top %}<tr>
-<td><b>{{ c.symbol }}</b></td>
-<td style="font-variant-numeric:tabular-nums">{{ "%.0f"|format(c.score) if c.score is not none else "UNKNOWN" }}</td>
-<td style="font-size:12px;white-space:nowrap">{% for p in c.points %}{{ p.label.split('/')[0].split(' ')[0] }} {{ "%.0f"|format(p.value) if p.value is not none else "UNKNOWN" }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
-<td style="white-space:normal">{{ c.families|join(", ") }}</td>
-<td style="white-space:normal;min-width:240px;font-size:12px">{{ c.reasons|join("; ") }}</td>
-<td style="white-space:normal;font-size:12px">{{ "%.0f"|format(c.coverage * 5) }}/5 scored families{% if c.unknown_context %}<br><span class="muted">UNKNOWN: {{ c.unknown_context|join(", ") }}</span>{% endif %}</td>
-<td>{{ c.status }}{% if c.on_watchlist %}<br><span class="muted">watchlist</span>{% endif %}</td>
-<td style="white-space:normal;min-width:220px;font-size:12px">{{ c.block_reason or "" }}</td>
-</tr>{% endfor %}
+{% macro opp_card(c, lead=false) %}
+<div class="opp{{ ' lead' if lead else '' }}">
+  <div class="head"><span class="tk">{{ c.symbol }}</span><span class="setup">{{ c.setup_type }}</span><span class="origin">{{ c.origin }}</span><span class="pill {{ c.status }}">{{ c.status }}</span></div>
+  <div class="score">Score {{ "%.0f"|format(c.score) if c.score is number else "UNKNOWN" }}<span class="meter"><i style="width:{{ c.score if c.score is number else 0 }}%"></i></span><span class="muted small">rank, not a probability</span></div>
+  <div class="pts">{% for p in c.points %}<div>{{ p.short }}<b>{{ "%.0f"|format(p.value) if p.value is number else "UNK" }}</b></div>{% endfor %}</div>
+  <div class="chips">{% if c.levels.close %}<span class="chip">last close {{ "%.2f"|format(c.levels.close) }}</span>{% endif %}{% for t in c.tech %}<span class="chip {{ t.tone }}">{{ t.k }} {{ t.v }}</span>{% endfor %}</div>
+  <ul class="lst">{% for r in c.reasons %}<li>{{ r }}</li>{% endfor %}</ul>
+  <dl class="kv2">
+    <dt>Catalyst</dt><dd>{{ c.catalyst.text }}</dd>
+    <dt>Data coverage</dt><dd>{{ "%.0f"|format((c.coverage or 0) * 5) }}/5 price families{% if c.unknown_context %}; UNKNOWN: {{ c.unknown_context|join(", ") }}{% endif %}</dd>
+    <dt>Strategy</dt><dd>{{ c.strategy }}</dd>
+    <dt>Evidence</dt><dd>{% if c.evidence %}{{ c.evidence.group }}: <b>{{ c.evidence.verdict }}</b> ({{ "{:,}".format(c.evidence.n_obs) }} historical setups{% if c.evidence.median_net_5d is number %}, 5d median net {{ "{:+.2%}".format(c.evidence.median_net_5d) }}{% endif %}{% if c.evidence.vs_baseline_5d is number %}, vs baseline {{ "{:+.2%}".format(c.evidence.vs_baseline_5d) }}{% endif %}){% else %}no research on this pattern yet{% endif %}</dd>
+  </dl>
+  <div class="block {{ 'ok' if c.status in ('PAPER_ELIGIBLE','TRADED') else '' }}">{{ 'Paper eligible: ' if c.status in ('PAPER_ELIGIBLE','TRADED') else 'Blocked: ' }}{{ c.block_reason or 'TRADE decision' }}</div>
+</div>
+{% endmacro %}
+
+{% macro next_setups() %}
+<h2>Next session setups{% if N.run %}: for {{ N.run.next_session }}{% endif %}</h2>
+{% if N.mismatch %}<div class="banner">STALE: {{ N.mismatch }}.</div>{% endif %}
+<p class="muted small">Conditional plans, not predictions and not orders. Each needs next-session price/volume confirmation; the pre-open recheck never uses the actual open.</p>
+{% if N.top %}<div class="opps">{% for t in N.top[:6] %}{% set su = t.setup or {} %}
+<div class="opp{{ ' lead' if loop.first else '' }}">
+  <div class="head"><span class="tk">{{ t.symbol }}</span><span class="setup">{{ su.setup_type }}</span><span class="origin">{{ t.origin }}</span><span class="pill {{ t.status }}">{{ t.status }}</span>{% if t.promoted_overnight %}<span class="chip ok">promoted overnight</span>{% endif %}</div>
+  <div class="score">Score {{ "%.0f"|format(t.score) if t.score is number else "UNKNOWN" }}<span class="meter"><i style="width:{{ t.score if t.score is number else 0 }}%"></i></span></div>
+  <div class="cols2">
+    <div><b class="small">Why it is interesting</b><ul class="lst">{% for x in su.why or [] %}<li>{{ x }}</li>{% endfor %}</ul></div>
+    <div><b class="small">What would confirm it</b><ul class="lst">{% for x in su.confirm or [] %}<li>{{ x }}</li>{% endfor %}</ul></div>
+    <div><b class="small">What would invalidate it</b><ul class="lst">{% for x in su.invalidate or [] %}<li>{{ x }}</li>{% endfor %}</ul></div>
+    <div><b class="small">What is missing</b><ul class="lst">{% for x in su.missing or [] %}<li>{{ x }}</li>{% endfor %}</ul></div>
+  </div>
+  {% if t.catalysts %}<div class="small"><b>Overnight:</b> {% for x in t.catalysts %}{{ x.kind }} at {{ x.available_at[:16] }} ({{ x.phase }}){% if not loop.last %}; {% endif %}{% endfor %}</div>{% endif %}
+  {% if t.preopen %}<div class="small"><b>Pre-open recheck</b> {{ t.preopen.checked_at[:16] }} UTC: {{ t.preopen.status_after }} ({{ t.preopen.reason }})</div>{% elif t.status_at_scan == 'REJECTED' %}<div class="small muted">Not rechecked: rejected at the scan.</div>{% else %}<div class="small muted">Pre-open recheck not run yet.</div>{% endif %}
+  <div class="block {{ 'ok' if t.status in ('PAPER_ELIGIBLE','TRADED') else '' }}">{{ su.paper or t.block_reason }}</div>
+</div>{% endfor %}</div>{% else %}<p class="muted">No next-session setups yet (no end-of-day scan).</p>{% endif %}
+{% if N.alerts %}{{ table(N.alerts, ["level","code","message"]) }}{% endif %}
+{% endmacro %}
+
+{% if M.status != 'OPEN' %}{{ next_setups() }}{% endif %}
+
+<h2>Top opportunities{% if d.run %} · session {{ d.run.as_of_date }}{% endif %}</h2>
+{% if not d.run %}<p class="muted">No discovery run yet (quantlab next-session scan, or the daily pipeline).</p>{% else %}
+<p class="muted small">Ordered by status (paper-eligible first), then by discovery score. Score 0-100 ranks five price/volume families (20 points each); UNKNOWN means missing data, never a low value.</p>
+<div class="opps">{% for c in d.top[:3] %}{{ opp_card(c, loop.first) }}{% endfor %}</div>
+<div style="overflow-x:auto"><table><thead><tr><th>Ticker</th><th>Score</th><th>Origin</th><th>Setup</th><th>Key evidence</th><th>Last close</th><th>Technical</th><th>Catalyst</th><th>Coverage</th><th>Strategy</th><th>Status</th><th>Blocker</th></tr></thead><tbody>
+{% for c in d.top[3:] %}<tr>
+<td><b style="font-family:var(--mono)">{{ c.symbol }}</b></td><td style="font-family:var(--mono)">{{ "%.0f"|format(c.score) if c.score is number else "UNK" }}</td><td><span class="origin">{{ c.origin }}</span></td>
+<td style="white-space:normal">{{ c.setup_type }}</td><td style="white-space:normal;min-width:220px;font-size:12px">{{ c.reasons[:2]|join("; ") }}</td>
+<td style="font-family:var(--mono)">{{ "%.2f"|format(c.levels.close) if c.levels.close else "" }}</td>
+<td style="white-space:normal;font-size:11.5px">{% for t in c.tech[:3] %}{{ t.k }} {{ t.v }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
+<td style="white-space:normal;font-size:11.5px">{{ c.catalyst.state }}</td><td>{{ "%.0f"|format((c.coverage or 0) * 5) }}/5</td>
+<td style="white-space:normal;font-size:11.5px">{{ c.strategy_status or "none" }}</td><td><span class="pill {{ c.status }}">{{ c.status }}</span></td>
+<td style="white-space:normal;min-width:200px;font-size:11.5px">{{ c.block_reason or "" }}</td></tr>{% endfor %}
 </tbody></table></div>
+{% endif %}
+
+{% if M.status == 'OPEN' %}{{ next_setups() }}{% endif %}
+
+{% if d.run %}
+<h2>Candidate funnel · session {{ d.run.as_of_date }}</h2>
+<div class="funnel">{% for s in d.funnel %}<div title="{{ s.hint }}"><b>{{ "{:,}".format(s.n) if s.n is not none else "?" }}</b><span>{{ s.label }}</span></div>{% endfor %}</div>
+<div class="small">Candidate origin: discovery only <b>{{ F.discovery_only or 0 }}</b> · strategy only <b>{{ F.strategy_only or 0 }}</b> · both <b>{{ F.both or 0 }}</b>. Missed discovery signals (strategy signals discovery did not select, kept in the pool): <b>{{ F.missed_discovery_signals or 0 }}</b>.</div>
+
+{% if (F.paper_eligible or 0) == 0 and not F.session_orders_placed %}
+<h2>Why no paper trade?</h2>
+{% if (F.discovered or 0) == 0 %}<div class="warnbox">Discovery found 0 setups among {{ F.basic }} scanned symbols. Check data and feature health first; this is not proof that the market has no opportunities.</div>
+{% else %}<p>{{ F.discovered }} market opportunities discovered{% if F.strategy_signals %} and {{ F.strategy_signals }} strategy signals{% endif %}; 0 are currently paper eligible. Opportunities exist; none has passed validation.</p>
+{% set total = (d.blockers.by_stage or {}).values()|sum %}
+{% for k, v in (d.blockers.by_stage or {})|dictsort(by='value', reverse=True) %}<div class="barrow"><span>{{ (d.blockers.descriptions or {}).get(k, k) }}</span><span class="track"><i style="width:{{ (100 * v / total)|round(1) if total else 0 }}%"></i></span><b style="font-family:var(--mono)">{{ v }}</b></div>{% endfor %}
+{% endif %}{% endif %}
+
+<h2>Evidence</h2>
+<div class="hero">
+  <div class="card"><h3>Strategies (only PAPER_ELIGIBLE can trade)</h3>
+  {% for s in d.strategies %}<div class="small"><b>{{ s.strategy_id }}</b> <span class="pill {{ 'PAPER_ELIGIBLE' if s.status == 'PAPER_ELIGIBLE' else ('VALIDATION_PENDING' if s.status in ('WALK_FORWARD','VALIDATED') else 'DISCOVERED') }}">{{ s.status }}</span> {{ s.describe.split(' is ' ~ s.status)[1] if (' is ' ~ s.status) in s.describe else '' }}</div>{% endfor %}</div>
+  <div class="card"><h3>Discovery research (forward outcomes)</h3>
+  {% if d.research %}
+    <div class="small muted">{{ d.research.period }} · {{ d.research.n_dates }} sessions · {{ "{:,}".format(d.research.n_obs) }} observations · next-open entry, cost-adjusted. Verdicts need consistency in both halves and a clustered t above the Bonferroni threshold ({{ "%.2f"|format(d.research.z) }} for {{ d.research.n_tests }} groups); anything else is not a significance claim.</div>
+    {% if d.research.baseline %}<div class="small">Baseline (all research-universe symbols): 5d median net {{ "{:+.2%}".format(d.research.baseline.median_net_5d) if d.research.baseline.median_net_5d is number else "n/a" }}, mean net {{ "{:+.2%}".format(d.research.baseline.mean_net_5d) if d.research.baseline.mean_net_5d is number else "n/a" }}</div>{% endif %}
+    {% for g in d.research.groups[:8] %}<div class="small"><b>{{ g.group }}</b>: {{ "{:,}".format(g.n_obs) }} obs · 5d median net {{ "{:+.2%}".format(g.median_net_5d) if g.median_net_5d is number else "n/a" }} · vs baseline {{ "{:+.2%}".format(g.vs_baseline_5d) if g.vs_baseline_5d is number else "n/a" }} · <span class="pill {{ 'PAPER_ELIGIBLE' if g.verdict == 'PROMISING' else ('REJECTED' if g.verdict == 'POOR' else 'DISCOVERED') }}">{{ g.verdict }}</span></div>{% endfor %}
+  {% else %}<p class="muted small">No research run yet (quantlab discovery-research).</p>{% endif %}
+  </div>
+</div>
 
 <h2>Near-misses</h2>
-<p class="muted">The highest-ranked setups that were not traded, with what they passed and exactly what stopped them.</p>
-{% for n in d.near_misses %}<div class="kv" style="margin-bottom:8px"><b>{{ n.symbol }} · score {{ "%.0f"|format(n.score) if n.score is not none else "UNKNOWN" }} · {{ n.status }}</b>
-Passed: {{ n.passed|join(", ") }}<br>
-Failed: {% for x in n.failed %}{{ x.stage }}: {{ x.reason }}{% if not loop.last %} | {% endif %}{% endfor %}<br>
-<span class="muted">Unknown: {{ n.unknown|join("; ") or "none" }}</span></div>{% endfor %}
+<div class="opps">{% for n in d.near_misses %}<div class="opp"><div class="head"><span class="tk">{{ n.symbol }}</span><span class="origin">{{ n.origin }}</span><span class="pill {{ n.status }}">{{ n.status }}</span><span class="muted small">score {{ "%.0f"|format(n.score) if n.score is number else "UNKNOWN" }}</span></div>
+<div class="small"><b>Passed:</b> {{ n.passed|join(", ") }}</div>
+<div class="small"><b>Failed:</b> {% for x in n.failed %}{{ x.stage }}: {{ x.reason }}{% if not loop.last %} | {% endif %}{% endfor %}</div>
+<div class="small muted"><b>Unknown:</b> {{ n.unknown|join("; ") or "none" }}</div></div>{% endfor %}</div>
 
-<h2>Feature coverage</h2>
-<p class="muted">What QuantLab can and cannot currently search. Context families are never scored; where their data is missing they are UNKNOWN, not zero.</p>
-{% set cov = [] %}{% for r in d.coverage %}{% set _ = cov.append({"feature": r.label, "coverage": "{:.1%}".format(r.coverage), "symbols": r.known ~ " / " ~ r.n, "invalid": r.invalid, "PIT status": r.pit_status, "usable": "yes" if r.usable else "NO", "role": r.role, "source": r.source}) %}{% endfor %}
+<h2>Data health</h2>
+{% if d.diagnostics %}{{ table(d.diagnostics, ["level","code","message"]) }}{% endif %}
+{% set cov = [] %}{% for r in d.coverage %}{% set _ = cov.append({"feature": r.label, "coverage": "{:.1%}".format(r.coverage), "symbols": r.known ~ " / " ~ r.n, "invalid": r.invalid, "PIT": r.pit_status, "usable": "yes" if r.usable else "NO", "role": r.role, "source": r.source}) %}{% endfor %}
 {{ table(cov) }}
-
-<h2>Strategy status</h2>
-<p class="muted">Only PAPER_ELIGIBLE strategies can place paper orders. SHADOW and WALK_FORWARD strategies still surface their setups above.</p>
-{% set st = [] %}{% for s in d.strategies %}{% set ev = s.evidence or {} %}{% set _ = st.append({"strategy": s.strategy_id, "status": s.status, "enabled": s.enabled, "evidence": (ev.verdict ~ ", " ~ ev.trades ~ " OOS trades") if ev else "no real-data walk-forward"}) %}{% endfor %}
-{{ table(st) }}
-
-{% if d.market.sector_etfs %}<h3>Sector ETFs, 63 sessions vs SPY</h3>
-<p class="muted">{{ d.market.note }}</p>
-{% set mk = [] %}{% for r in d.market.sector_etfs %}{% set _ = mk.append({"etf": r.etf, "sector": r.sector, "63d return": "{:+.1%}".format(r.ret_63), "vs SPY": "{:+.1%}".format(r.vs_spy)}) %}{% endfor %}
-{{ table(mk) }}{% endif %}
+{% if d.market_context.sector_etfs %}<p class="muted small">Sector ETFs vs SPY (63 sessions): {% for r in d.market_context.sector_etfs %}{{ r.etf }} {{ "{:+.1%}".format(r.vs_spy) }}{% if not loop.last %} · {% endif %}{% endfor %}. {{ d.market_context.note }}</p>{% endif %}
 {% endif %}
-
-<h2>Runner, data and paper account</h2>
-<div class="grid">
-<div class="kv"><b>paper runner</b>{{ S.runner or "unknown" }}</div>
-<div class="kv"><b>trading state</b>{{ S.system_state or state }}</div>
-<div class="kv"><b>data freshness</b>{{ (S.freshness or {}).status or "unknown" }}{% if (S.freshness or {}).latest_bar %} (latest bar {{ S.freshness.latest_bar }}){% endif %}</div>
-<div class="kv"><b>paper equity (broker)</b>{{ "{:,.2f}".format((P.broker or {}).equity) if (P.broker or {}).equity is number else "unknown" }}</div>
-<div class="kv"><b>open positions</b>{{ (P.positions or [])|length }}</div>
-<div class="kv"><b>paper orders placed (this session, all strategies)</b>{{ d.funnel_raw.session_orders_placed if d.run else 0 }}</div>
-</div>
+<p class="muted small">Refreshes every 60 s. Read-only: pause/resume is on <a href="/system">system</a>. <a href="/live">Paper runner</a> · <a href="/overview">pipeline overview</a></p>
 {% endblock %}

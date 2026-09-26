@@ -234,6 +234,34 @@ setup be paper-traded?"). It can never permit, size or place an order, and it ch
   back into rules.
 * **PIT.** `scan` sees only `bundle.truncate(D)` (truncation-invariance and corrupt-the-future
   tests).
+* **One candidate pool.** The pool is the discovery setups plus every symbol with a recorded
+  strategy decision that session. Origin is DISCOVERY, STRATEGY or BOTH. A strategy signal is
+  never dropped because its discovery score is low or because the symbol was outside the scan
+  (it then carries score UNKNOWN and a `discovery_scan` check). STRATEGY-origin rows are never
+  "high ranked" or put on the watchlist by discovery. `DiscoveryEngine.core()` is the single
+  scoring path shared by the scan and the research replay; `families.fired_masks()` is the single
+  definition of a fired family (NaN never fires).
+* **Next-session mode (`discovery/nextsession.py`, migration 102).** The end-of-day scan of D
+  has information cutoff 16:00 ET of D and relevance NEXT_SESSION (the next NYSE session from
+  the rule calendar in `data/audit.py`; early closes are not modelled). Information phases:
+  REGULAR_SESSION (<= 16:00 D), POST_CLOSE (<= 20:00 D), OVERNIGHT (<= 04:00 next day),
+  PRE_MARKET (< 09:30 of the next session), NEXT_SESSION (after the open: never an input).
+  `overnight_refresh` records news/events with cutoff < available_at <= now into
+  `overnight_updates`; it may promote DISCOVERED to WATCH, never to PAPER_ELIGIBLE.
+  `preopen_recheck` writes `preopen_checks` and moves a candidate to UNKNOWN (stale or missing
+  inputs), INVALIDATED (corporate action at the next open, known before now), REJECTED (data
+  quality, kill switch) or keeps PAPER_ELIGIBLE only if the chain's TRADE decision and the
+  strategy's eligibility still hold (`decide_transition`, a pure function). Both refuse to run
+  once the next open has occurred, so the actual open is never used. Setups are conditional
+  records (why / confirm / invalidate / missing), never predicted prices, and never orders.
+* **Outcome timestamps.** `discovery_outcomes` measures from the next-session open (entry at the
+  next adjusted open, cost-adjusted with `CostModel`) and records `known_before_open`
+  (`discovered_at < next_open_at`), so a candidate produced after the fact is labelled as such.
+* **Forward-outcome research (`discovery/research.py`).** Replays `core()` on past sessions with
+  block FeatureSets (rows <= D only), attaches 1/3/5/10/20-session outcomes afterwards (never as
+  inputs), stops before the locked holdout, and compares each family/combination with the
+  same-date baseline (date-clustered t, Bonferroni, period halves, minimum observations and
+  dates, else INSUFFICIENT_SAMPLE). Findings never change rules automatically.
 
 ## 8. Books & execution
 

@@ -298,16 +298,22 @@ def test_shadow_pipeline_writes_discovery_without_orders_and_dashboard_counts_ma
     assert world.db.fetchone("SELECT COUNT(*) AS n FROM decisions")["n"] == n_c
     import json
     funnel = json.loads(run["funnel_json"])
-    assert funnel["discovered"] == len(cands) and funnel["paper_eligible"] == 0
+    # the pool holds discovery setups AND strategy signals; "discovered" counts rows where a family fired
+    origins = [r["origin"] for r in world.db.fetchall(
+        "SELECT origin FROM discovery_candidates WHERE discovery_run_id=?", (run["discovery_run_id"],))]
+    assert funnel["pool"] == len(cands) and funnel["paper_eligible"] == 0
+    assert funnel["discovered"] == sum(o in ("DISCOVERY", "BOTH") for o in origins)
+    assert funnel["strategy_only"] == sum(o == "STRATEGY" for o in origins)
+    assert funnel["discovered"] >= funnel["high_ranked"] >= funnel["watchlist"]
     c = TestClient(create_app(world))
     page = c.get("/")
-    assert page.status_code == 200 and "Market discovery" in page.text and "PAPER ONLY" in page.text
+    assert page.status_code == 200 and "Top opportunities" in page.text and "PAPER ONLY" in page.text
     assert f"{funnel['discovered']} market opportunities discovered" in page.text
     assert "0 are currently paper eligible" in page.text
     api = c.get("/api/scan").json()
     by = {s["key"]: s["n"] for s in api["funnel"]}
-    assert by["discovered"] == len(cands) and by["paper_trades"] == 0
-    assert by["full_universe"] >= by["basic"] >= by["discovered"] >= by["high_ranked"] >= by["watchlist"]
+    assert by["discovered"] == funnel["discovered"] and by["paper_trades"] == 0
+    assert by["full_universe"] >= by["basic"] >= by["discovered"] >= by["watchlist"]
     assert {r["key"] for r in api["coverage"]} >= {"price_volume", *SCORED, *CONTEXT}
     # resuming the same run re-runs discovery idempotently: no duplicate rows, report keeps its section
     res2 = pipe.run(d, resume_run_id=res.run_id)

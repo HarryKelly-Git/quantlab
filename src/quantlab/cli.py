@@ -321,6 +321,58 @@ def cmd_discover(args) -> int:
     return 0
 
 
+def cmd_discovery_research(args) -> int:
+    """Forward-outcome research on point-in-time discovery replays (research only; never changes rules)."""
+    ctx = _ctx(args)
+    from quantlab.discovery.research import run_research
+    syn = _data_flag(ctx, args.data)
+    bundle = ctx.store.load_bundle(ctx.config.section("benchmarks"), snapshot=ctx.store.snapshot(synthetic=syn),
+                                   synthetic=syn)
+    res = run_research(ctx, bundle, args.start, args.end, every=args.every, min_obs=args.min_obs,
+                       min_dates=args.min_dates)
+    _print({"research_id": res["research_id"], **res["meta"], "report": res["report"],
+            "verdicts": {g["group"]: g["verdict"] for g in res["summary"]["groups"]}})
+    return 0
+
+
+def cmd_next_session(args) -> int:
+    """OVERNIGHT / NEXT-SESSION mode: scan (end of day) | refresh (overnight catalysts) | preopen | status."""
+    ctx = _ctx(args)
+    from quantlab.discovery import nextsession as ns
+    now = args.now
+    if args.action == "scan":
+        from quantlab.data.validation import quarantine_map
+        from quantlab.discovery import run_discovery
+        syn = _data_flag(ctx, args.data)
+        bundle = ctx.store.load_bundle(ctx.config.section("benchmarks"), snapshot=ctx.store.snapshot(synthetic=syn),
+                                       synthetic=syn)
+        ms = ns.market_state(now)
+        as_of = args.as_of or ms.get("last_completed_session") or bundle.panel.dates[-1]
+        if str(as_of) not in {str(d.date()) for d in bundle.panel.dates}:
+            print(f"NO BAR FOR {as_of}: the latest stored session is {bundle.panel.dates[-1].date()}. "
+                  "Ingest it first; the scan never substitutes older data.", file=sys.stderr)
+            return 2
+        dr = run_discovery(ctx, bundle, as_of, quarantine=quarantine_map(ctx.db))
+        f = dr.assessment.funnel
+        _print({"discovery_run_id": dr.discovery_run_id, "decision_session": str(dr.scan.as_of.date()),
+                "next_session": (dr.assessment.candidates[0]["setup"] if dr.assessment.candidates else {}) and
+                ns.market_state(now).get("next_session"), "funnel": {k: v for k, v in f.items() if not isinstance(v, list)}})
+        return 0
+    if args.action == "refresh":
+        _print(ns.overnight_refresh(ctx, now))
+        return 0
+    if args.action == "preopen":
+        _print(ns.preopen_recheck(ctx, now))
+        return 0
+    st = ns.next_session_state(ctx, now, top=args.top)
+    _print({"market": st["market"], "run": st["run"], "counts": st["counts"], "alerts": st["alerts"],
+            "pipeline": st["pipeline"],
+            "top": [{"symbol": t["symbol"], "score": t["score"], "origin": t["origin"], "status": t["status"],
+                     "setup": t["setup"].get("setup_type"), "confirm": t["setup"].get("confirm"),
+                     "invalidate": t["setup"].get("invalidate"), "paper": t["setup"].get("paper")} for t in st["top"]]})
+    return 0
+
+
 def cmd_demo(args) -> int:
     """Offline end-to-end run on SYNTHETIC data (planted momentum edge by default)."""
     ctx = _ctx(args)
@@ -432,6 +484,21 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--as-of"), s.add_argument("--top", type=int, default=15)
     s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
     s.set_defaults(fn=cmd_discover)
+
+    s = sub.add_parser("discovery-research", help="forward outcomes of point-in-time discovery replays (research only)")
+    s.add_argument("--start", required=True), s.add_argument("--end", required=True)
+    s.add_argument("--every", type=int, default=5, help="sample every N sessions (default 5)")
+    s.add_argument("--min-obs", type=int, default=200), s.add_argument("--min-dates", type=int, default=30)
+    s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
+    s.set_defaults(fn=cmd_discovery_research)
+
+    s = sub.add_parser("next-session", help="overnight / next-session mode: scan | refresh | preopen | status")
+    s.add_argument("action", choices=["scan", "refresh", "preopen", "status"])
+    s.add_argument("--now", help="observation time (ISO, UTC if no offset); default = wall clock. For dry runs/tests")
+    s.add_argument("--as-of", help="scan: decision session (default: last completed session)")
+    s.add_argument("--top", type=int, default=10)
+    s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
+    s.set_defaults(fn=cmd_next_session)
 
     s = sub.add_parser("dashboard", help="serve the read-only dashboard on localhost")
     s.add_argument("--port", type=int), s.add_argument("--allow-remote", action="store_true")

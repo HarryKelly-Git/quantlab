@@ -223,6 +223,32 @@ def fire_mean_reversion(r: pd.Series, p: pd.Series, t: Triggers) -> tuple[bool, 
     return fired, reasons, "BEARISH"
 
 
+def fired_masks(xs: pd.DataFrame, pr: pd.DataFrame, comp: pd.DataFrame, t: Triggers) -> pd.DataFrame:
+    """THE definition of when a scored family fires (vectorised; the row-wise functions above only
+    write the reason text). ``xs`` = feature values, ``pr`` = unsigned percentile ranks, ``comp`` =
+    component points (a family whose component is UNKNOWN never fires). NaN never satisfies a test."""
+    f = lambda c: pd.to_numeric(xs[c], errors="coerce")    # noqa: E731
+    up = f("dist_ma50") > 0
+    nh50 = f("new_high_50") >= 0.5
+    mom = up & ((pr["ret_60d"] >= t.mom_pct_60d) | (pr["ret_20d"] >= t.mom_pct_20d) | nh50)
+    rs = (f("rs_spy_63") > 0) & (pr["rs_spy_63"] >= t.rs_pct_63)
+    vol = (f("rel_volume_1d") >= t.vol_rel_1d) | (f("rel_volume_5d") >= t.vol_rel_5d)
+    breakout = (f("breakout_55") > 0) & (f("rel_volume_1d") >= t.brk_rel_volume)
+    squeeze = (f("prev_contraction") <= t.brk_max_prev_contraction) & (f("range_expansion") >= t.brk_min_range_expansion)
+    mr = (f("ret_z_3d") <= t.mr_ret_z_3d) | (f("ret_z_1d") <= t.mr_ret_z_1d)
+    out = pd.DataFrame({"momentum": mom, "relative_strength": rs, "volume_activity": vol,
+                        "breakout_compression": breakout | squeeze, "mean_reversion": mr}, index=xs.index)
+    out = out.fillna(False).astype(bool)
+    for fam in SCORED:
+        out[fam] &= comp[fam].notna()
+    return out
+
+
+def stabilising(xs: pd.DataFrame) -> pd.Series:
+    """Mean-reversion stabilisation evidence at D: closed up, in the upper half of the day's range."""
+    return (pd.to_numeric(xs["close_location"], errors="coerce") >= 0.5) & (pd.to_numeric(xs["ret_1d"], errors="coerce") >= 0)
+
+
 FIRE: dict[str, Callable[[pd.Series, pd.Series, Triggers], tuple[bool, list[str], str]]] = {
     "momentum": fire_momentum, "relative_strength": fire_relative_strength,
     "volume_activity": fire_volume_activity, "breakout_compression": fire_breakout_compression,
@@ -256,5 +282,5 @@ def fire_context(fam: str, r: pd.Series, t: Triggers) -> tuple[bool, list[str]]:
     raise ValueError(fam)
 
 
-__all__ = ["AUX_FEATURES", "CONTEXT", "CONTEXT_FEATURES", "FIRE", "LABELS", "POINTS", "SCORED", "SCORED_FEATURES",
+__all__ = ["AUX_FEATURES", "CONTEXT", "CONTEXT_FEATURES", "FIRE", "LABELS", "POINTS", "SCORED", "SCORED_FEATURES", "fired_masks", "stabilising",
            "SOURCES", "Triggers", "fire_context", "pct_rank"]

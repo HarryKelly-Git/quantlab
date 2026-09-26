@@ -232,17 +232,20 @@ def create_app(ctx: AppContext | None = None) -> FastAPI:
         return db.fetchone("SELECT * FROM runs WHERE kind='pipeline' ORDER BY started_at DESC LIMIT 1")
 
     @app.get("/", response_class=HTMLResponse)
-    def discovery(request: Request):
-        """MARKET DISCOVERY (what looks interesting) kept separate from TRADE VALIDATION."""
+    def discovery(request: Request, at: str | None = None):
+        """The QuantLab terminal: market discovery, next-session setups, current paper trade.
+        ``?at=<ISO time>`` views market/next-session state as of that moment (read-only replay)."""
         from quantlab.dashboard.scan import scan_state
         synthetic = db.fetchone("SELECT MAX(is_synthetic) AS s FROM datasets WHERE kind='bars'")
-        return render(request, "scan.html", d=scan_state(ctx, live_state(ctx, bench)),
+        now = pd.Timestamp(at).to_pydatetime() if at else None
+        return render(request, "scan.html", d=scan_state(ctx, live_state(ctx, bench, now=now), now=now),
                       synthetic=bool(synthetic and synthetic["s"]))
 
     @app.get("/api/scan")
-    def api_scan():
+    def api_scan(at: str | None = None):
         from quantlab.dashboard.scan import scan_state
-        return JSONResponse(json.loads(json.dumps(scan_state(ctx), default=str)))
+        now = pd.Timestamp(at).to_pydatetime() if at else None
+        return JSONResponse(json.loads(json.dumps(scan_state(ctx, now=now), default=str)))
 
     @app.get("/overview", response_class=HTMLResponse)
     def overview(request: Request):
