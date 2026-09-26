@@ -12,6 +12,8 @@ from quantlab.data.providers.synthetic import SyntheticMarket, SyntheticSpec
 from quantlab.db.database import open_db
 from quantlab.testing.fixtures import SYNTHETIC_BENCHMARKS, make_synthetic_bundle
 
+os.environ["QUANTLAB_SKIP_LOCAL_CONFIG"] = "1"   # a developer's config/local.yaml never changes test outcomes
+
 ROOT = Path(__file__).resolve().parents[1]
 
 SMALL_SPEC = SyntheticSpec(n_stocks=40, start="2018-01-02", end="2021-12-31", seed=42)

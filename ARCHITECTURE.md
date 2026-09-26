@@ -376,6 +376,17 @@ in the decision chain. With no ACTIVE strategy at stage PAPER/PROMOTED the runne
   (PLANNED / REVALIDATED / SUBMITTED / CANCELLED_PREOPEN / REFUSED), `exploration_outcomes`
   (1/3/5/10/20 sessions from the next open, cost-adjusted, MFE/MAE, stop breached, catalyst
   persisted) are append-only. Exploratory trades carry `strategy_id = EXPLORATION`.
+* **Runner integration.** After D's bars the runner runs the daily catalyst refresh
+  (`data/catalyst_refresh.py`: news since the last window, recent SEC filings, facts for new
+  10-Q/10-K; best effort). From `exploration.submit_after_et` (08:30 ET) until the order cutoff it runs
+  the pre-open step once: candidate-scoped catalyst refresh -> `overnight_refresh` ->
+  `preopen_recheck` -> (EXPLORATION only) `preopen_submit`. The runner loads a lean bundle
+  (`paper.runner.bundle_bars_days` of bars, ~150 days of news, ~3 years of facts).
+* **Real-money review gate (`exploration/review.py`).** A candidate is listed for the operator's own
+  review only if its strategy is PAPER_ELIGIBLE or its pattern hypothesis is STRICT_ELIGIBLE, the same
+  strategy/pattern has >= 30 closed paper trades with a positive mean, and it has a strict TRADE
+  decision that day. Exploratory trades never qualify; the listing is research, not advice, and hands
+  over to the Upside Engine v2 doctrine.
 * **Learning loop.** Exploratory outcomes vs watched-but-not-traded vs rejected vs strict vs SPY
   (`experiment_results`). Patterns become `research_hypotheses` that move one stage at a time
   (EXPLORATION_OBSERVED -> HISTORICAL_PIT_TEST -> WALK_FORWARD -> LOCKED_HOLDOUT -> PROSPECTIVE_PAPER ->

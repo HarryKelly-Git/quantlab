@@ -236,6 +236,14 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
 
 {% if M.status == 'OPEN' %}{{ next_setups() }}{% endif %}
 
+{% set RV = d.review or {} %}
+<h2>Real-money review queue</h2>
+<div class="card">
+  {% if RV.queue %}{% for q in RV.queue %}<div><b style="font-family:var(--mono)">{{ q.symbol }}</b> · strategy {{ q.strategy or "-" }}{% if q.pattern %} · pattern {{ q.pattern }}{% endif %} · {{ q.track.closed }} closed paper trades, mean net {{ "{:+.2%}".format(q.track.mean_net_return) if q.track.mean_net_return is number else "?" }}</div>{% endfor %}
+  {% else %}<div class="big">EMPTY</div><div class="small">{{ RV.why_empty }}.</div>{% endif %}
+  <div class="small muted">A name appears here only if its strategy or pattern passed the full validation ladder, has &ge; {{ (RV.ladder or {}).min_closed_paper_trades }} closed paper trades with a positive mean, and has a strict TRADE decision today. {{ RV.note }}</div>
+</div>
+
 <h2>Exploratory paper trading · {{ 'ON' if d.paper_mode == 'EXPLORATION' else 'tracked as SHADOW (STRICT mode)' }}</h2>
 <p class="muted small">Exploration asks "what happens if we take the best-looking experimental setups?". It does not require validated strategies, significant out-of-sample results or positive historical EV. It still requires valid data, liquidity, no quarantine, the kill switch ACTIVE and the position/exposure limits.</p>
 {% if X.selected %}<div class="opps">{% for e in X.selected %}

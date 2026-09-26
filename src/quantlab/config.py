@@ -191,7 +191,9 @@ def load_config(
     data = yaml.safe_load(default_path.read_text(encoding="utf-8")) or {}
     sources.append(str(default_path))
 
-    layers: list[Path] = [root_path / "config" / "local.yaml"]
+    # QUANTLAB_SKIP_LOCAL_CONFIG=1 (set by the test-suite): a developer's git-ignored local.yaml
+    # must never change test outcomes
+    layers: list[Path] = [] if os.environ.get("QUANTLAB_SKIP_LOCAL_CONFIG") == "1" else [root_path / "config" / "local.yaml"]
     env_path = os.environ.get("QUANTLAB_CONFIG")
     if env_path:
         layers.append(Path(env_path))

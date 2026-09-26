@@ -304,6 +304,9 @@ paper:
   # TRADING_MODE=PAPER and LIVE_TRADING=false (checked at startup; there is no live mode).
   runner:
     process_after_et: "19:05"     # process session D from this time (>= 19:00: Alpaca rejects opg orders 09:28-19:00 ET)
+    catalyst_refresh: true        # daily: recent news + SEC filings + new fundamentals (best effort; never blocks trading)
+    catalyst_sec_days: 10         # SEC filings window re-read each day (acceptance-time PIT; duplicates de-duplicated)
+    bundle_bars_days: 900         # bars loaded per session (>= every feature / universe / exit lookback)
     order_cutoff_et: "09:25"      # last moment to submit orders for D+1's open (must be < 09:28 ET)
     tick_seconds: 2
     heartbeat_seconds: 10

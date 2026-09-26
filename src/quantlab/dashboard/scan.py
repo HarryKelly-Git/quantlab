@@ -19,6 +19,7 @@ from quantlab.discovery.catalysts import catalyst_summary
 from quantlab.discovery.source_coverage import coverage_summary
 from quantlab.discovery.status import describe_strategy, strategy_research_status
 from quantlab.exploration.engine import paper_mode
+from quantlab.exploration.review import review_queue
 
 FUNNEL = (
     ("full_universe", "Scanned", "symbols in the stored data"),
@@ -127,6 +128,7 @@ def scan_state(ctx: AppContext, live: dict[str, Any] | None = None, now: datetim
         "research": None, "paper": _paper_panel(db), "monitored": None,
         "paper_mode": paper_mode(ctx.config), "catalysts": None, "source_coverage": [], "catalyst_candidates": [],
         "catalyst_research": _catalyst_research(cr), "exploration": _exploration_panel(ctx),
+        "review": review_queue(db, ctx.config),
     }
     if rr:
         groups = research_summary.get("groups", [])

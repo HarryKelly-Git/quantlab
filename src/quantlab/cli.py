@@ -351,6 +351,12 @@ def cmd_catalysts(args) -> int:
         from quantlab.discovery.source_coverage import source_coverage
         _print(source_coverage(ctx))
         return 0
+    if args.action == "refresh":
+        from quantlab.data.catalyst_refresh import refresh_catalysts
+        sess = pd.Timestamp(args.end if args.end != "2025-01-01" else pd.Timestamp.now().normalize())
+        _print(refresh_catalysts(ctx, sess, symbols=args.symbols.split(",") if args.symbols else None,
+                                 sec_days=int(ctx.config.get("paper.runner.catalyst_sec_days", 10)), workers=args.workers))
+        return 0
     syms = args.symbols.split(",") if args.symbols else catalyst_symbols(ctx.store)
     if args.action == "ingest-news":
         from quantlab.data.providers.alpaca_data import AlpacaDataProvider
@@ -621,8 +627,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
     s.set_defaults(fn=cmd_next_session)
 
-    s = sub.add_parser("catalysts", help="catalyst data: ingest-sec | ingest-news | ingest-facts | coverage")
-    s.add_argument("action", choices=["ingest-sec", "ingest-news", "ingest-facts", "coverage"])
+    s = sub.add_parser("catalysts", help="catalyst data: ingest-sec | ingest-news | ingest-facts | refresh | coverage")
+    s.add_argument("action", choices=["ingest-sec", "ingest-news", "ingest-facts", "refresh", "coverage"])
     s.add_argument("--since", default="2020-01-01", help="SEC: earliest acceptance/filing date kept")
     s.add_argument("--start", default="2021-01-01"), s.add_argument("--end", default="2025-01-01")
     s.add_argument("--symbols", help="comma list (default: stored-bar symbols that are COMMON stock)")

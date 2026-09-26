@@ -381,7 +381,9 @@ class DailyPipeline:
         if dr is None:
             return {"skipped": "no discovery run this session"}
         mode = paper_mode(self.cfg)
-        sim_now = self.cfg_cutoff(st["as_of"]) + pd.Timedelta(minutes=5)
+        # replays: simulated time just after the close; the paper runner (preopen): the real clock
+        sim_now = (pd.Timestamp.now(tz="UTC") if self.exploration_submit == "preopen"
+                   else self.cfg_cutoff(st["as_of"]) + pd.Timedelta(minutes=5))
         mtm = st.get("mtm") or {}
         plan = plan_exploration(self.ctx, book=self.book, run_id=dr.discovery_run_id, equity=mtm.get("equity"),
                                 mode=mode, now=sim_now)

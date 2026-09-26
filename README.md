@@ -85,6 +85,24 @@ reliable.
 .venv\Scripts\python -m pytest                               # test suite (offline, synthetic data)
 ```
 
+## Market-open checklist (paper)
+
+1. `.env` has `TRADING_MODE=PAPER` and `LIVE_TRADING=false` (exact values; the runner refuses otherwise).
+2. `config/local.yaml` (git-ignored) sets `paper.mode`: `EXPLORATION` (small exploratory budget) or
+   `STRICT` (validated strategies only; currently none).
+3. `.venv\Scripts\python -m quantlab.cli paper preflight` passes.
+4. Start the runner and leave the machine awake: `.venv\Scripts\python -m quantlab.cli paper start`.
+   It processes the last completed session straight away if the order window is still open (after
+   19:05 ET, before 09:25 ET), and runs the pre-open step from 08:30 ET. New Zealand time (NZDT):
+   19:05 ET = 12:05 next day; 08:30-09:25 ET = 01:30-02:25; the open 09:30 ET = 02:30.
+5. Watch `.venv\Scripts\python -m quantlab.cli dashboard` (http://127.0.0.1:8765): mode banner, strict vs
+   exploratory trades, catalysts, best next-session setups, real-money review queue.
+
+The real-money review queue is research, not advice: a name appears only after its strategy or
+pattern has passed the full validation ladder, has at least 30 closed paper trades with a positive
+mean, and has a strict TRADE decision that day. Exploratory trades never qualify. Anything listed
+still goes through the Upside Engine v2 doctrine (`../CLAUDE.md`) before any real-money decision.
+
 ## Alpaca PAPER runner (real-time paper trading)
 
 ```
@@ -112,6 +130,14 @@ What it does:
   runs the existing daily pipeline: validation, fills and marks, exit rules, features, strategies,
   candidates, EV/no-trade/portfolio/risk gates, then orders. Orders are `opg` market-on-open orders
   for the next session's opening auction. Alpaca rejects `opg` orders between 09:28 and 19:00 ET.
+* **Catalyst refresh (daily, best effort).** After D's bars: news since the last stored window, each
+  stock's recent SEC filings (acceptance-time PIT; SIC read only for new periodic reports) and
+  fundamentals for companies that just filed. A failure is logged and never blocks trading.
+* **Pre-open (08:30-09:25 ET, once).** Overnight news/filings for the current candidates, the
+  overnight refresh (a post-close 8-K 2.02 can create a WATCH candidate), the pre-open recheck
+  (stale data, corporate actions, quarantine, kill switch), then - in `paper.mode: EXPLORATION` only -
+  revalidation and submission of the planned exploratory entries (at most 2 per session, 2% of
+  equity each, at most 5 open) through the same execution service and order window as strict orders.
 * **Missed deadline.** If D is processed after 09:25 ET on the next session (for example, the runner
   was down), it still records candidates and decisions, but refuses every order ("execution window
   missed").

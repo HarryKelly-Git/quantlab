@@ -213,8 +213,27 @@ def default_ingest(ctx: AppContext, session: date) -> dict[str, Any]:
 
 
 def default_bundle_loader(ctx: AppContext) -> DataBundle:
-    snap = ctx.store.snapshot(synthetic=False)
-    return ctx.store.load_bundle(ctx.config.section("benchmarks"), snapshot=snap, synthetic=False)
+    """Real-data bundle for one session: recent bars (``paper.runner.bundle_bars_days``, enough for
+    every feature, universe rule and exit), ~150 days of news and ~3 years of facts. Loading less
+    history never changes what is known at D; it keeps catalyst history within this machine's RAM."""
+    from quantlab.discovery.catalyst_research import research_bundle
+    today = pd.Timestamp.now().normalize()
+    days = int(ctx.config.get("paper.runner.bundle_bars_days", 900))
+    return research_bundle(ctx, str((today - pd.Timedelta(days=days)).date()), str(today.date()),
+                           news_since=str((today - pd.Timedelta(days=150)).date()),
+                           facts_since=str((today - pd.Timedelta(days=3 * 366)).date()))
+
+
+def default_catalyst_refresh(ctx: AppContext, session: date, scope: str = "daily",
+                             symbols: list[str] | None = None) -> dict[str, Any]:
+    """Recent news / SEC filings / new fundamentals (best effort; see data/catalyst_refresh.py).
+    ``scope="preopen"``: news + SEC for the current candidates only (fast)."""
+    from quantlab.data.catalyst_refresh import refresh_catalysts
+    if not bool(ctx.config.get("paper.runner.catalyst_refresh", True)):
+        return {"skipped": "paper.runner.catalyst_refresh is false"}
+    days = int(ctx.config.get("paper.runner.catalyst_sec_days", 10))
+    parts = ("news", "sec") if scope == "preopen" else ("news", "sec", "facts")
+    return refresh_catalysts(ctx, pd.Timestamp(session), symbols=symbols, parts=parts, sec_days=days)
 
 
 def stored_last_bar_date(ctx: AppContext, synthetic: bool = False) -> date | None:
@@ -236,7 +255,8 @@ class PaperRunner:
     def __init__(self, ctx: AppContext, *, broker: Any = None, stream_factory: Callable[..., Any] | None = None,
                  now: Callable[[], datetime] | None = None, ingest: Callable[[AppContext, date], dict] | None = None,
                  bundle_loader: Callable[[AppContext], DataBundle] | None = None, env: dict[str, str] | None = None,
-                 heartbeat_thread: bool = True, allow_synthetic: bool = False):
+                 heartbeat_thread: bool = True, allow_synthetic: bool = False,
+                 catalyst_refresh: Callable[..., dict] | None = None):
         self.ctx, self.db, self.cfg = ctx, ctx.db, ctx.config
         if broker is None:
             from quantlab.execution.alpaca_paper import AlpacaPaperBroker
@@ -247,6 +267,9 @@ class PaperRunner:
         self._now = now or (lambda: datetime.now(timezone.utc))
         self._ingest = ingest or default_ingest
         self._bundle_loader = bundle_loader or default_bundle_loader
+        # network refresh of catalyst data: real data only (tests / synthetic worlds never call out)
+        self._catalyst_refresh = catalyst_refresh or (None if allow_synthetic else default_catalyst_refresh)
+        self._preopen_done: date | None = None
         self._stream_factory = stream_factory
         self.env = env
         self.allow_synthetic = allow_synthetic
@@ -740,6 +763,15 @@ class PaperRunner:
             self._heartbeat(force=True)
             summary = self._ingest(self.ctx, d)
             self.event("INFO", "data", f"ingest for {d}: {to_json(summary)[:500]}")
+        if self._catalyst_refresh is not None:
+            self.phase = f"processing {d}: catalyst refresh"
+            self._heartbeat(force=True)
+            try:
+                cr = self._catalyst_refresh(self.ctx, d, "daily")
+                self.event("INFO", "data", f"catalyst refresh for {d}: " + ", ".join(
+                    f"{k} {v.get('rows', v.get('error', ''))}" for k, v in cr.items() if isinstance(v, dict)), cr)
+            except Exception as exc:          # catalysts are discovery context: never block trading
+                self.event("WARN", "data", f"catalyst refresh for {d} failed: {exc!r}"[:500])
         bundle = self._bundle_loader(self.ctx)
         if bundle.is_synthetic and not self.allow_synthetic:
             raise RunnerRefused("the paper runner refuses SYNTHETIC market data")
@@ -783,12 +815,13 @@ class PaperRunner:
         return {"status": "failed" if res.errors else "succeeded", "run_id": run_id, "counts": counts}
 
     def _maybe_explore(self, now: datetime) -> dict[str, Any] | None:
-        """PAPER_EXPLORATION pre-open step: from ``exploration.submit_after_et`` on the next session's
-        date until the order cutoff, revalidate the planned exploratory entries of the processed
-        session and submit them through the same execution service and order guard as strict orders.
-        STRICT mode: nothing (selections stay SHADOW)."""
+        """PRE-OPEN step, from ``exploration.submit_after_et`` on the next session's date until the order
+        cutoff (once per session): refresh overnight catalysts (real data), attach them to the
+        next-session run, run the pre-open recheck, then -- in EXPLORATION mode only -- revalidate the
+        planned exploratory entries and submit them through the same execution service and order guard
+        as strict orders. STRICT mode submits nothing (selections stay SHADOW)."""
         from quantlab.exploration import ExplorationPolicy, paper_mode, preopen_submit
-        if paper_mode(self.ctx.config) != "EXPLORATION" or self.plan is None or self.calendar is None:
+        if self.plan is None or self.calendar is None:
             return None
         plan = self.plan
         job = self._job(plan.session)
@@ -798,6 +831,11 @@ class PaperRunner:
         h, m = (int(x) for x in pol.submit_after_et.split(":"))
         start = datetime.combine(plan.next_session, time(h, m), tzinfo=ET).astimezone(timezone.utc)
         if now < start or order_window_reason(now, plan.session, plan.next_session, self.process_after, self.order_cutoff):
+            return None
+        if self._preopen_done != plan.session:
+            self._preopen_done = plan.session
+            self._preopen_information(plan, now)
+        if paper_mode(self.ctx.config) != "EXPLORATION":
             return None
         from quantlab.execution.ledger import Ledger
         from quantlab.execution.service import PaperExecutionService
@@ -811,6 +849,29 @@ class PaperRunner:
                        f"submitted, {res.get('cancelled', 0)} cancelled, {res.get('refused', 0)} refused",
                        {k: v for k, v in res.items() if k != "details"})
         return res
+
+    def _preopen_information(self, plan: SessionPlan, now: datetime) -> None:
+        """Overnight catalysts -> next-session run -> pre-open recheck. Best effort, logged."""
+        from quantlab.discovery import nextsession as ns
+        run = ns.latest_run(self.db)
+        if run is None or str(run["as_of_date"]) != str(plan.session):
+            self.event("WARN", "preopen", f"no end-of-day discovery run for {plan.session}: pre-open recheck skipped")
+            return
+        if self._catalyst_refresh is not None and not run["is_synthetic"]:
+            syms = [r["symbol"] for r in self.db.fetchall("SELECT symbol FROM discovery_candidates WHERE discovery_run_id=?",
+                                                          (run["discovery_run_id"],))]
+            try:
+                self._catalyst_refresh(self.ctx, plan.session, "preopen", symbols=syms)
+            except Exception as exc:
+                self.event("WARN", "preopen", f"pre-open catalyst refresh failed: {exc!r}"[:500])
+        try:
+            r1 = ns.overnight_refresh(self.ctx, pd.Timestamp(now))
+            r2 = ns.preopen_recheck(self.ctx, pd.Timestamp(now))
+            self.event("INFO", "preopen", f"pre-open for {plan.next_session}: {r1.get('recorded', 0)} overnight item(s), "
+                       f"{r1.get('new_candidates', 0)} new candidate(s), {r2.get('checked', 0)} rechecked",
+                       {"overnight": r1, "transitions": r2.get("transitions")})
+        except Exception as exc:
+            self.event("WARN", "preopen", f"pre-open recheck failed: {exc!r}"[:500])
 
     def _order_guard(self, plan: SessionPlan) -> Callable[[str, str], str | None]:
         def guard(purpose: str, symbol: str) -> str | None:
