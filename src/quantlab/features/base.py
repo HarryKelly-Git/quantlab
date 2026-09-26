@@ -79,7 +79,7 @@ FEATURES = FeatureRegistry()
 
 def load_all_features() -> FeatureRegistry:
     import importlib
-    for mod in ("price", "volume", "relative", "event", "fundamental", "news", "market"):
+    for mod in ("price", "volume", "relative", "event", "fundamental", "news", "market", "industry"):
         try:
             importlib.import_module(f"quantlab.features.{mod}")
         except ModuleNotFoundError as exc:  # a group may not exist yet

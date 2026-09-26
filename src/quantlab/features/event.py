@@ -17,7 +17,7 @@ import pandas as pd
 
 from quantlab.core.types import PitStatus
 from quantlab.features.base import FEATURES, FeatureSet
-from quantlab.features.price import full_like_nan, market_series, memo, rolling_std, safe_div
+from quantlab.features.price import active_from, full_like_nan, market_series, memo, rolling_std, safe_div
 
 _SRC_EV = "bundle.events (earnings_release reaction_date/available_at) + panel ret/dollar_volume"
 _RESET = -1.0e300   # sentinel: "new event, value not known yet"
@@ -32,6 +32,8 @@ def _reaction_index(fs: FeatureSet) -> pd.DataFrame:
         if ev.empty:
             return out
         ev = ev[(ev["event_type"] == "earnings_release") & ev["symbol"].isin(p.symbols)]
+        # an 8-K/A refiles an earlier release: it is not a new event (no new reaction session)
+        ev = ev[~ev["payload_json"].astype(str).str.contains('"form": "8-K/A"', regex=False)]
         if ev.empty:
             return out
         usable = fs.bundle.calendar.first_usable_sessions(ev["available_at"])
@@ -116,3 +118,51 @@ def event_rel_volume(fs: FeatureSet) -> pd.DataFrame:
                   _SRC_EV, PitStatus.PIT, lookback=0)
 def est_sessions_to_earnings(fs: FeatureSet) -> pd.DataFrame:
     return (63.0 - fs.get("days_since_earnings")).clip(lower=0.0, upper=63.0)
+
+
+@FEATURES.feature("reaction_ret_1d", "event",
+                  "abnormal return (ret - SPY ret) on the latest earnings reaction session r; known from the close "
+                  "of r, carried until the next event", _SRC_EV, PitStatus.PIT, lookback=1)
+def reaction_ret_1d(fs: FeatureSet) -> pd.DataFrame:
+    return _abnormal(fs).where(_reaction_index(fs)).ffill()
+
+
+@FEATURES.feature("reaction_z_1d", "event",
+                  "reaction_ret_1d / std(ret - SPY ret, 60) measured through r-1; carried until the next event",
+                  _SRC_EV, PitStatus.PIT, lookback=61)
+def reaction_z_1d(fs: FeatureSet) -> pd.DataFrame:
+    ar = _abnormal(fs)
+    z = safe_div(ar, rolling_std(ar, 60).shift(1))
+    return z.where(_reaction_index(fs)).ffill()
+
+
+@FEATURES.feature("abn_ret_since_reaction", "event",
+                  "cumulative abnormal return from the close of the latest reaction session r to D (0 at r); "
+                  "missing bars count as 0", _SRC_EV, PitStatus.PIT, lookback=1)
+def abn_ret_since_reaction(fs: FeatureSet) -> pd.DataFrame:
+    cum = _abnormal(fs).fillna(0.0).cumsum()
+    at_r = cum.where(_reaction_index(fs)).ffill()
+    return cum - at_r
+
+
+SEC_SOURCE_TYPES = ("sec_8k", "earnings_release", "periodic_report", "foreign_report")
+_SRC_8K = "bundle.events sec_8k (8-K items other than 2.02/7.01/9.01; available_at = SEC acceptance)"
+
+
+@FEATURES.feature("sec_material_1d", "event",
+                  "material 8-K filings (items other than 2.02/7.01/9.01) usable in (cutoff(D-1), cutoff(D)]",
+                  _SRC_8K, PitStatus.PIT, lookback=0)
+def sec_material_1d(fs: FeatureSet) -> pd.DataFrame:
+    p = fs.panel
+    ev_all = fs.bundle.events
+    sec = ev_all[ev_all["event_type"].isin(SEC_SOURCE_TYPES)] if len(ev_all) else ev_all
+    if sec.empty:
+        return full_like_nan(fs)            # no SEC filings source => UNKNOWN, not zero
+    ev = sec[(sec["event_type"] == "sec_8k") & sec["symbol"].isin(p.symbols)]
+    out = pd.DataFrame(0.0, index=p.dates, columns=p.symbols)
+    if ev.empty:
+        return active_from(fs, sec["available_at"], out)
+    sess = fs.bundle.calendar.first_usable_sessions(ev["available_at"])
+    c = pd.DataFrame({"s": sess.to_numpy(), "sym": ev["symbol"].to_numpy()}).dropna()
+    c = c.groupby(["s", "sym"]).size().unstack(fill_value=0).reindex(index=p.dates, columns=p.symbols, fill_value=0)
+    return active_from(fs, sec["available_at"], out.add(c.astype("float64"), fill_value=0.0))

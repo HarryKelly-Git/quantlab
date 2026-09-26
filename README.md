@@ -27,6 +27,9 @@ Contracts are in [ARCHITECTURE.md](ARCHITECTURE.md). Verified external-API facts
 | Market discovery (`discover`, dashboard `/`) | working + tested. Research only: 5 scored price/volume families (momentum, relative strength, volume/activity, breakout/compression, mean reversion). Earnings/news/fundamentals/sector are UNKNOWN for almost all real symbols and never scored. One candidate pool: discovery setups plus every strategy signal, with origin DISCOVERY / STRATEGY / BOTH (a strategy signal is never dropped for a low discovery score). Real dry run 2026-09-24: 751 setups, 164 strategy signals (137 both, 27 strategy-only), pool 778, 25 watchlist, 0 paper eligible |
 | Next-session mode (`next-session scan/refresh/preopen/status`) | working + tested on synthetic timestamps and a copy of the real DB. End-of-day scan with information cutoff 16:00 ET of D, NYSE rule calendar (early closes not modelled), post-close / overnight / pre-market updates only when their timestamp proves availability, pre-open recheck that refuses to run after the open. Setups are conditional ("requires next-session confirmation"), never predicted prices or orders |
 | Discovery forward-outcome research (`discovery-research`) | working + tested. Real replay 2021-03-12..2024-11-27 (holdout-safe): all 15 families/combinations **FLAT** vs the same-date baseline at 5 sessions net of costs. Momentum and relative strength vs SPY are near-duplicates (Spearman 0.94). See [docs/DATA-EXPANSION-PLAN.md](docs/DATA-EXPANSION-PLAN.md) |
+| Catalyst data (`catalysts ingest-sec / ingest-news / ingest-facts / coverage`) | working + tested; real ingestion on a scratch copy 2026-09-26 (see [docs/DATA-EXPANSION-PLAN.md](docs/DATA-EXPANSION-PLAN.md)): SEC earnings timing, other 8-K items, foreign filers, point-in-time SIC from filing headers, market-wide news (2021-2024 + 2026-06..09), XBRL fundamentals |
+| Catalyst discovery + evidence chain | working + tested. Post-earnings and material-event families, direction recorded never assumed, setup class, evidence chain with provenance, overnight earnings creates WATCH candidates. Catalysts never make anything eligible |
+| Paper modes STRICT / EXPLORATION (`paper.mode`, `explore`, `hypothesis`) | working + tested on synthetic data (sim broker). Default STRICT. EXPLORATION paper trades a small fixed daily budget without proven EV, with every safety control; decisions immutable; outcomes tracked; hypotheses never promoted automatically. Not yet run on the Alpaca paper account |
 | Human paper lab, counterfactual engine, human-vs-bot comparison | **not implemented** |
 | Walk-forward OOS runner | working + tested, including a corrupt-the-future no-look-ahead test. First real run: `momentum_trend` on ~5,240 currently listed stocks, 4 OOS windows 2023-2024: **NOT_SIGNIFICANT** (see below) |
 | Real-data audit (`data-audit`) | working. SPY/XLK/AAPL/MSFT 2020-01-02..2026-09-24: **SUITABLE_SMALL_SAMPLE_ONLY**. SIP feed (median SPY volume 70.9M shares/day), 0 missing NYSE sessions, splits and dividends verified, SEC 8-K timing PIT |
@@ -74,6 +77,10 @@ reliable.
 .venv\Scripts\python -m quantlab.cli next-session preopen               # pre-open recheck (refuses after the open)
 .venv\Scripts\python -m quantlab.cli next-session status                # market state, counts, alerts
 .venv\Scripts\python -m quantlab.cli discovery-research --start 2021-03-01 --end 2024-11-30 --data real
+.venv\Scripts\python -m quantlab.cli catalysts ingest-sec | ingest-news | ingest-facts | coverage
+.venv\Scripts\python -m quantlab.cli catalyst-research --data real  # point-in-time catalyst replay (research only)
+.venv\Scripts\python -m quantlab.cli explore plan|status|results       # exploration decisions (never submits)
+.venv\Scripts\python -m quantlab.cli hypothesis list|create|advance     # exploration -> validation workflow
 .venv\Scripts\python -m quantlab.cli dashboard               # http://127.0.0.1:8765  (/ = research terminal)
 .venv\Scripts\python -m pytest                               # test suite (offline, synthetic data)
 ```

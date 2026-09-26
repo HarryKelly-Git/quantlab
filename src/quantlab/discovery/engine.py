@@ -98,6 +98,9 @@ class ScanResult:
     dataset_ids: list[str] = field(default_factory=list)
     not_scanned: dict[str, str] = field(default_factory=dict)   # symbol -> why it failed the basic filter
     calendar: Any = None
+    catalyst_panel: dict[str, Any] = field(default_factory=dict)  # CATALYSTS panel at D (dashboard)
+    basic_symbols: list[str] = field(default_factory=list)        # symbols that passed the basic filter
+    source_coverage: dict[str, Any] | None = None                 # catalyst data-source coverage at scan time
 
 
 @dataclass
@@ -238,6 +241,9 @@ class DiscoveryEngine:
                        else ("BULLISH" if votes["BULLISH"] > votes["BEARISH"] else "BEARISH"))
 
         context, ctx_cov = self._context(view, tb, fs, d, syms)
+        from quantlab.discovery.catalysts import CatalystEngine
+        cat_eng = CatalystEngine(self.config)
+        cats = cat_eng.evaluate(view, fs, d, syms, technical={s: {"fired": fired[s], "bias": bias[s]} for s in syms})
         uni = UniverseEngine(self.config).explain(view, d, exclude=quarantine).set_index("symbol")["reason"]
         table = pd.DataFrame(index=syms)
         table["score"] = c["score"]
@@ -258,6 +264,8 @@ class DiscoveryEngine:
         table["unknown"] = pd.Series({s: [f for f in c["scored_feats"] if states.at[s, f] == UNKNOWN] for s in syms},
                                      dtype=object)
         table["levels"] = pd.Series({s: _levels(xs.loc[s], c["close"].get(s)) for s in syms}, dtype=object)
+        table["catalyst"] = pd.Series(cats, dtype=object)
+        table["catalyst_fired"] = pd.Series({s: list(cats[s]["families"]) if s in cats else [] for s in syms}, dtype=object)
         # why symbols outside the basic filter were not scanned (a strategy signal can still enter the pool)
         p = c["p"]
         not_scanned: dict[str, str] = {}
@@ -280,6 +288,8 @@ class DiscoveryEngine:
                          list(view.dataset_ids))
         res.not_scanned = not_scanned
         res.calendar = view.calendar
+        res.catalyst_panel = cat_eng.panel(view, fs, d, syms, cats)
+        res.basic_symbols = list(syms)
         return res
 
     def _factors(self, s: str, xs: pd.DataFrame, states: pd.DataFrame, pct: pd.DataFrame, d, fs) -> dict[str, Any]:
@@ -292,7 +302,7 @@ class DiscoveryEngine:
                           "family": fam, "source": spec.source, "pit_status": spec.pit_status.value,
                           "as_of": str(d.date())}
         for f in ("new_high_20", "new_high_50", "range_expansion", "prev_contraction", "close_location", "ret_1d",
-                  "dist_ma50", "ma50_over_ma200", "ret_z_1d"):
+                  "dist_ma50", "ma50_over_ma200", "ret_z_1d", "adv20", "atr14_pct"):
             v = xs.at[s, f]
             val = bool(v) if isinstance(v, (bool, np.bool_)) else _num(v)
             out[f] = {"value": val, "state": VALID if val is not None else UNKNOWN, "source": "derived from panel a-fields",
@@ -310,7 +320,8 @@ class DiscoveryEngine:
         ev = view.events
         covered["earnings"] = set()
         if not ev.empty:
-            recent = pd.to_datetime(ev["available_at"], utc=True) >= view.calendar.cutoff(dates[max(0, len(dates) - 101)])
+            recent = ((pd.to_datetime(ev["available_at"], utc=True) >= view.calendar.cutoff(dates[max(0, len(dates) - 101)]))
+                      & (ev["event_type"] == "earnings_release"))
             covered["earnings"] = set(ev.loc[recent, "symbol"])
             for s_ in set(ev["symbol"]) - covered["earnings"]:
                 why_sym[("earnings", s_)] = "no earnings event in the last 100 sessions: coverage unknown"
@@ -326,13 +337,9 @@ class DiscoveryEngine:
                     why_sym[("news", s_)] = w
         covered["fundamentals"] = set(view.fundamentals["symbol"]) if not view.fundamentals.empty else set()
         why["fundamentals"] = "no fundamentals dataset for this symbol"
-        try:
-            from quantlab.sectors import sector_map
-            smap = sector_map(view, self.config)
-        except Exception:   # pragma: no cover - sector map is optional context
-            smap = {}
-        covered["sector"] = {k for k, v in smap.items() if v}
-        why["sector"] = "no sector/industry/SIC label for this symbol"
+        sic_now = fs.cross_section(d, ["sic_code_asof"])["sic_code_asof"] if "sic_code_asof" in fs.registry else None
+        covered["sector"] = set(sic_now.index[sic_now.notna()]) if sic_now is not None else set()
+        why["sector"] = "no SIC observed in a filing header by the decision time"
 
         vals: dict[str, pd.DataFrame] = {}
         for fam in CONTEXT:
@@ -432,14 +439,17 @@ class DiscoveryEngine:
         """MASTER CANDIDATE POOL = discovery setups UNION strategy signals. A strategy signal enters
         the pool (and the unchanged validation chain decides it) whatever its discovery score:
         discovery ranking never suppresses a strategy signal."""
+        from quantlab.discovery.catalysts import CatalystTriggers, catalyst_text, evidence_chain, setup_class
         t = scan.table
         fired_syms = set(t.index[t["fired"].map(len) > 0])
+        cat_syms = set(t.index[t["catalyst_fired"].map(len) > 0]) if "catalyst_fired" in t.columns else set()
+        disc_syms = fired_syms | cat_syms
         linked = set(links or {})
         rows = []
-        for sym in fired_syms | linked:
+        for sym in disc_syms | linked:
             r = t.loc[sym].copy() if sym in t.index else self._unscanned_row(sym, scan)
-            r["origin"] = "BOTH" if (sym in fired_syms and sym in linked) else ("DISCOVERY" if sym in fired_syms
-                                                                                 else "STRATEGY")
+            r["origin"] = "BOTH" if (sym in disc_syms and sym in linked) else ("DISCOVERY" if sym in disc_syms
+                                                                                else "STRATEGY")
             rows.append((sym, r))
         rows.sort(key=lambda x: (-(x[1]["score"]) if _finite(x[1]["score"]) else float("inf"), x[0]))
         cands: list[dict[str, Any]] = []
@@ -451,6 +461,11 @@ class DiscoveryEngine:
             c["origin"] = r["origin"]
             c["scanned"] = bool(r.get("scanned", True))
             c["levels"] = r.get("levels") if isinstance(r.get("levels"), dict) else {}
+            cat = r.get("catalyst") if isinstance(r.get("catalyst"), dict) else {}
+            c["catalyst"] = cat
+            c["catalyst_fired"] = list(cat.get("families") or [])
+            c["setup_class"] = setup_class(bool(c["fired"] or c["links"]), bool(c["catalyst_fired"]),
+                                           bool(cat.get("catalyst_known")))
             cands.append(c)
         # watchlist: top-N high-ranked setups that passed DATA and UNIVERSE validation
         wl = 0
@@ -460,9 +475,26 @@ class DiscoveryEngine:
                 wl += 1
             else:
                 c["on_watchlist"] = False
+        # market-confirmed catalyst setups with a POSITIVE price response (QuantLab is long-only) get a
+        # separate, capped allowance; ordered by independent evidence agreement, then discovery score
+        cap = CatalystTriggers.from_config(self.config).watchlist_size
+        cw = [c for c in cands if c["catalyst_fired"] and not c["on_watchlist"] and not c["data_or_universe_failed"]
+              and _cat_direction(c["catalyst"]) == "POSITIVE"]
+        cw.sort(key=lambda c: (-(c["catalyst"]["agreement"]["n_supporting"] - c["catalyst"]["agreement"]["n_contradicting"]),
+                               -(c["score"] or 0.0), c["symbol"]))
+        for c in cw[:cap]:
+            c["on_watchlist"] = True
+            c["catalyst_watch"] = True
         for c in cands:
             c["status"] = self._status(c)
             c["setup"] = setup_record(c)
+            if c["catalyst"]:
+                extra = catalyst_text(c["catalyst"], c["levels"])
+                for k in ("why", "confirm", "invalidate"):
+                    c["setup"][k] = extra[k] + c["setup"][k]
+                c["setup"]["missing"] = extra["missing"] + [m for m in c["setup"]["missing"] if m not in extra["missing"]]
+            c["setup"]["setup_class"] = c["setup_class"]
+            c["chain"] = evidence_chain(c)
         return Assessment(cands, self._funnel(scan, cands, links), self._blockers(cands),
                           self._near_misses(cands), self._diagnostics(scan, cands))
 
@@ -474,7 +506,8 @@ class DiscoveryEngine:
              "bias": "NEUTRAL", "context": {f: {"state": UNKNOWN, "why": f"not in the discovery scan ({why})"}
                                             for f in CONTEXT},
              "universe_reason": f"not scanned: {why}", "close": np.nan, "adv20": np.nan, "history": np.nan,
-             "factors": {}, "invalid": [], "unknown": [], "levels": {}, "scanned": False, "not_scanned_reason": why}
+             "factors": {}, "invalid": [], "unknown": [], "levels": {}, "scanned": False, "not_scanned_reason": why,
+             "catalyst": {}, "catalyst_fired": []}
         return pd.Series(r, dtype=object)
 
     def _assess_one(self, s, r, high, links, strategies) -> dict[str, Any]:
@@ -485,6 +518,8 @@ class DiscoveryEngine:
 
         for fam in r["fired"]:
             check("DISCOVERY", fam, True, "; ".join(r["reasons"].get(fam, [])) or LABELS[fam])
+        for fam in (r.get("catalyst_fired") or []):
+            check("DISCOVERY", fam, True, _cat_reason(r.get("catalyst") or {}, fam))
         inv = list(r["invalid"])
         if r.get("scanned", True) is False:
             # the decision chain already applied its own data/universe checks to this strategy signal
@@ -597,6 +632,15 @@ class DiscoveryEngine:
             "strategy_only": origin.get("STRATEGY", 0),
             "missed_discovery_signals": origin.get("STRATEGY", 0),   # strategy signals discovery did not select
             "pool": len(cands),
+            "technical_setups": sum(1 for c in cands if c["fired"]),
+            "catalyst_setups": sum(1 for c in cands if c.get("catalyst_fired")),
+            "post_earnings": sum(1 for c in cands if "post_earnings" in (c.get("catalyst_fired") or [])),
+            "material_event": sum(1 for c in cands if "material_event" in (c.get("catalyst_fired") or [])),
+            "technical_plus_catalyst": sum(1 for c in cands if c.get("setup_class") == "TECHNICAL + CATALYST"),
+            "catalyst_driven": sum(1 for c in cands if c.get("setup_class") == "CATALYST-DRIVEN"),
+            "technical_only": sum(1 for c in cands if c.get("setup_class") == "TECHNICAL-ONLY"),
+            "class_unknown": sum(1 for c in cands if c.get("setup_class") == "UNKNOWN"),
+            "catalyst_watch": sum(1 for c in cands if c.get("catalyst_watch")),
             "high_ranked": sum(1 for c in cands if c["high_quality"]),
             "watchlist": sum(1 for c in cands if c["on_watchlist"]),
             "in_validation": in_val,
@@ -694,6 +738,26 @@ PLACED_ORDER_STATUSES = ("new", "accepted", "partially_filled", "filled")
 _STAGE_PROGRESS = ["DATA", "SIGNAL", "NO_TRADE", "STRATEGY", "EV", "PORTFOLIO", "RISK", "EXECUTION", "AI"]
 
 
+def _cat_direction(cat: dict[str, Any]) -> str:
+    pe, me = cat.get("post_earnings") or {}, cat.get("material_event") or {}
+    if pe.get("state") == "FIRED":
+        return pe.get("reaction_direction", "UNKNOWN")
+    if me.get("state") == "FIRED":
+        return me.get("direction", "UNKNOWN")
+    return "NONE"
+
+
+def _cat_reason(cat: dict[str, Any], fam: str) -> str:
+    if fam == "post_earnings":
+        pe = cat.get("post_earnings") or {}
+        z = pe.get("reaction_z")
+        return (f"earnings reaction {pe.get('sessions_since_reaction')} session(s) ago: {str(pe.get('reaction_direction')).lower()}"
+                + (f" (z {z:+.1f})" if z is not None else "") + f", volume {str(pe.get('volume')).lower()}")
+    me = cat.get("material_event") or {}
+    return (f"company event today ({', '.join(me.get('categories') or [])}): move {str(me.get('direction')).lower()}, "
+            f"volume {str(me.get('volume')).lower()}")
+
+
 def next_session_info(d, calendar=None) -> dict[str, Any]:
     """The exchange-calendar session AFTER decision session ``d`` and the information cutoff of ``d``
     (its regular close). The stored bundle calendar ends at ``d``, so the forward date comes from the
@@ -714,8 +778,11 @@ def next_session_info(d, calendar=None) -> dict[str, Any]:
             "calendar_source": "NYSE rules (data/audit.py)" if nxt else "MISSING"}
 
 
-def _setup_type(fired: list[str], links: list[dict[str, Any]]) -> str:
+def _setup_type(fired: list[str], links: list[dict[str, Any]], catalyst: list[str] | None = None) -> str:
     f = set(fired)
+    cat = [{"post_earnings": "Post-earnings", "material_event": "Material company event"}.get(x, x) for x in (catalyst or [])]
+    if not f and cat:
+        return " + ".join(cat)
     if not f and links:
         return "Strategy signal (" + ", ".join(sorted({x["strategy_id"] for x in links})) + ")"
     parts = []
@@ -789,7 +856,8 @@ def setup_record(c: dict[str, Any]) -> dict[str, Any]:
     reasons = [x for f in fired for x in (c.get("reasons") or {}).get(f, [])][:4]
     if c.get("links"):
         reasons.append("signalled by " + ", ".join(sorted({x["strategy_id"] for x in c["links"]})))
-    return {"relevance": "NEXT_SESSION", "setup_type": _setup_type(fired, c.get("links") or []), "why": reasons,
+    return {"relevance": "NEXT_SESSION", "setup_type": _setup_type(fired, c.get("links") or [], c.get("catalyst_fired")),
+            "why": reasons,
             "confirm": confirm, "invalidate": invalidate, "missing": missing, "paper": paper, "conditional": True,
             "condition": "Requires next-session price/volume confirmation. Not an order.", "levels": lv}
 
@@ -888,7 +956,10 @@ def persist(db: Database, engine: DiscoveryEngine, scan: ScanResult, a: Assessme
             "blockers_json": to_json({**a.blockers, "near_misses": a.near_misses}), "families_json": to_json(fams),
             "config_json": to_json(engine.s.as_dict()), "dataset_ids_json": to_json(scan.dataset_ids),
             "next_session": ns.get("next_session"), "info_cutoff_at": ns.get("info_cutoff_at"),
-            "calendar_source": ns.get("calendar_source")})
+            "calendar_source": ns.get("calendar_source"),
+            "catalysts_json": to_json(getattr(scan, "catalyst_panel", None)),
+            "source_coverage_json": to_json(getattr(scan, "source_coverage", None)),
+            "basic_symbols_json": to_json(getattr(scan, "basic_symbols", None))})
         db.insert_many("discovery_candidates", [{
             "discovery_id": f"{disc_run}:{c['symbol']}", "discovery_run_id": disc_run, "as_of_date": d,
             "symbol": c["symbol"], "discovery_score": c["score"],
@@ -903,6 +974,9 @@ def persist(db: Database, engine: DiscoveryEngine, scan: ScanResult, a: Assessme
             "strategy_links_json": to_json(c["links"]), "is_synthetic": int(scan.is_synthetic), "created_at": now,
             "origin": c.get("origin"), "relevance": "NEXT_SESSION", "next_session": ns.get("next_session"),
             "info_cutoff_at": ns.get("info_cutoff_at"), "discovered_at": now, "setup_json": to_json(c.get("setup")),
+            "setup_class": c.get("setup_class"), "catalyst_families": ",".join(c.get("catalyst_fired") or []) or None,
+            "catalyst_record_json": to_json(c.get("catalyst") or None),
+            "evidence_chain_json": to_json(c.get("chain")), "created_by": "EOD_SCAN",
         } for c in a.candidates])
         db.insert_many("discovery_diagnostics", [{
             "discovery_run_id": disc_run, "as_of_date": d, "level": x["level"], "code": x["code"],

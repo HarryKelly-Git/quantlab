@@ -121,6 +121,10 @@ class MarketDataStore:
         df = pd.concat(frames, ignore_index=True)
         key = [k for k in schemas.KEYS[kind] if k in df.columns]
         df = df.sort_values("retrieved_at", kind="mergesort").drop_duplicates(key, keep="last")
+        if kind == "news" and len(df):
+            # tags per article over ALL stored rows, before any caller filters symbols (a symbol-
+            # filtered view would make every article look company-specific)
+            df["n_tags"] = df.groupby("news_id")["symbol"].transform("size").astype("float64")
         return df.reset_index(drop=True)
 
     def snapshot(self, synthetic: bool | None = None) -> dict[str, list[str]]:

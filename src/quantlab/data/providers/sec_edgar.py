@@ -78,6 +78,10 @@ FALLBACK_CHAINS: dict[str, list[tuple[str, str]]] = {
     "GrossProfit": [("us-gaap", "GrossProfit")],
     # dei cover-page fact; excluded for multi-class issuers (dimensional facts are not aggregated).
     "SharesOutstanding": [("dei", "EntityCommonStockSharesOutstanding")],
+    # cash-flow statement concepts are reported as YTD durations in 10-Qs; free cash flow is only
+    # derived from full fiscal-year (FY) durations as known at the time
+    "OperatingCashFlow": [("us-gaap", "NetCashProvidedByUsedInOperatingActivities")],
+    "Capex": [("us-gaap", "PaymentsToAcquirePropertyPlantAndEquipment")],
 }
 
 # Duration classification thresholds (days, inclusive). Quarter/annual ranges are as specified in
@@ -244,13 +248,16 @@ class SecEdgarProvider(FundamentalsProvider, EventProvider):
             log_event(log, "sec_edgar: symbols not found in company_tickers_exchange.json", symbols=missing)
         return found, missing
 
-    def _submissions(self, cik10: str) -> dict[str, Any] | None:
-        """{"meta": <submissions root minus filings>, "filings": [row dicts, recent+all pages]}."""
-        if cik10 not in self._submissions_cache:
+    def _submissions(self, cik10: str, since: Any = None) -> dict[str, Any] | None:
+        """{"meta": <submissions root minus filings>, "filings": [row dicts, recent+all pages]}.
+        ``since``: skip older history pages whose ``filingTo`` ends before it (only the pages; the
+        caller still filters rows, because ``filingTo`` is approximate)."""
+        key = cik10 if since is None else f"{cik10}|{pd.Timestamp(since).date()}"
+        if key not in self._submissions_cache:
             root = self.http.get_json(SUBMISSIONS_URL.format(cik10=cik10), headers=self._ua_headers(),
                                        not_found_ok=True)
             if root is None:
-                self._submissions_cache[cik10] = None
+                self._submissions_cache[key] = None
             else:
                 recent = dict((root.get("filings") or {}).get("recent") or {})
                 rows = _rows_from_columnar(recent)
@@ -258,14 +265,17 @@ class SecEdgarProvider(FundamentalsProvider, EventProvider):
                     pname = page.get("name")
                     if not pname:
                         continue
+                    upto = page.get("filingTo")
+                    if since is not None and upto and pd.Timestamp(upto) < pd.Timestamp(pd.Timestamp(since).date()) - pd.Timedelta(days=31):
+                        continue
                     page_data = self.http.get_json(SUBMISSIONS_PAGE_URL.format(name=pname),
                                                     headers=self._ua_headers(), not_found_ok=True)
                     if page_data is None:
                         log_event(log, "sec_edgar: submissions history page missing", cik=cik10, page=pname)
                         continue
                     rows.extend(_rows_from_columnar(page_data))
-                self._submissions_cache[cik10] = {"meta": root, "filings": rows}
-        return self._submissions_cache[cik10]
+                self._submissions_cache[key] = {"meta": root, "filings": rows}
+        return self._submissions_cache[key]
 
     # ------------------------------------------------------------------------------------------
     # Events: 8-K item 2.02 earnings releases
@@ -310,14 +320,17 @@ class SecEdgarProvider(FundamentalsProvider, EventProvider):
     # ------------------------------------------------------------------------------------------
     # Fundamentals: companyfacts -> canonical concepts, PIT via accn->acceptance join
     # ------------------------------------------------------------------------------------------
-    def get_fundamentals(self, symbols: list[str], concepts: list[str] | None = None) -> pd.DataFrame:
+    def get_fundamentals(self, symbols: list[str], concepts: list[str] | None = None, since: Any = None) -> pd.DataFrame:
+        """``since``: keep only facts that became available on/after it (earlier history pages of the
+        submissions index are skipped). Comparatives re-reported in later filings are kept with the
+        later filing's availability, so prior-period values still exist as they were known then."""
         syms = sorted({str(s).strip().upper() for s in symbols if str(s).strip()})
         cik_map, unmapped = self._resolve_ciks(syms)
         now = pd.Timestamp(self._clock()).tz_convert("UTC")
         chains = FALLBACK_CHAINS if not concepts else {k: v for k, v in FALLBACK_CHAINS.items() if k in concepts}
         all_rows: list[dict[str, Any]] = []
         for sym, cik10 in cik_map.items():
-            subs = self._submissions(cik10)
+            subs = self._submissions(cik10, since=since)
             accn_accept, accn_filed = _accn_index(subs["filings"]) if subs else ({}, {})
             facts_json = self.http.get_json(COMPANYFACTS_URL.format(cik10=cik10), headers=self._ua_headers(),
                                              not_found_ok=True)
@@ -336,6 +349,15 @@ class SecEdgarProvider(FundamentalsProvider, EventProvider):
         if not all_rows:
             return schemas.empty("fundamentals")
         df = pd.DataFrame(all_rows)
+        if since is not None:
+            s = pd.Timestamp(since)
+            s = s.tz_localize("UTC") if s.tzinfo is None else s.tz_convert("UTC")
+            # by the reporting filing's own date: pre-window filings are history, even when their
+            # availability had to fall back to a conservative (later) timestamp
+            filed = pd.to_datetime(df["filed_date"], errors="coerce")
+            df = df[(pd.to_datetime(df["available_at"], utc=True) >= s) & ~(filed < s.tz_convert(None))]
+            if df.empty:
+                return schemas.empty("fundamentals")
         df, self.last_ambiguous_facts = _dedupe_drop_conflicts(df, schemas.FUNDAMENTALS_KEY, "fundamentals")
         out = schemas.conform("fundamentals", df)
         out.attrs.update(unmapped_symbols=unmapped)
@@ -422,10 +444,15 @@ class SecEdgarProvider(FundamentalsProvider, EventProvider):
         derived: list[dict[str, Any]] = []
         for (concept, unit, start), grp in groups.items():
             for fy in grp["FY"]:
-                for ytd9 in grp["YTD9"]:
-                    gap_days = (pd.Timestamp(fy["period_end"]) - pd.Timestamp(ytd9["period_end"])).days
-                    if not (_Q_DAYS[0] <= gap_days <= _Q_DAYS[1]):
-                        continue
+                # ONE Q4 per FY filing: pair it with the YTD9 version known when the FY was filed
+                # (else the earliest one). Pairing every restated YTD9 version produced the same key
+                # with different availability, which the conflict guard then dropped entirely.
+                ok = [y for y in grp["YTD9"] if _Q_DAYS[0] <= (pd.Timestamp(fy["period_end"]) -
+                                                               pd.Timestamp(y["period_end"])).days <= _Q_DAYS[1]]
+                known = [y for y in ok if pd.Timestamp(y["available_at"]) <= pd.Timestamp(fy["available_at"])]
+                pick = (max(known, key=lambda y: pd.Timestamp(y["available_at"])) if known else
+                        min(ok, key=lambda y: pd.Timestamp(y["available_at"])) if ok else None)
+                for ytd9 in ([pick] if pick is not None else []):
                     fy_pit, ytd9_pit = PitStatus(fy["pit_status"]), PitStatus(ytd9["pit_status"])
                     derived.append({
                         "symbol": fy["symbol"], "cik": fy["cik"], "concept": concept, "unit": unit,

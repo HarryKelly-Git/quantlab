@@ -156,9 +156,9 @@ def test_information_phases():
     assert ns.info_phase(et("2024-03-25 09:30"), d, n) == "NEXT_SESSION"
 
 
-def _news(sym, when, nid):
+def _news(sym, when, nid, headline=None):
     t = pd.Timestamp(when, tz="America/New_York").tz_convert(UTC)
-    return {"news_id": nid, "symbol": sym, "headline": f"{sym} item {nid}", "summary": "", "source": "synthetic",
+    return {"news_id": nid, "symbol": sym, "headline": headline or f"{sym} item {nid}", "summary": "", "source": "synthetic",
             "url": None, "created_at": t.isoformat(), "updated_at": t.isoformat(), "available_at": t, "pit_status": "PIT",
             "provider": "synthetic", "retrieved_at": t.isoformat()}
 
@@ -182,7 +182,8 @@ def test_overnight_refresh_includes_post_close_and_excludes_the_future(dctx, cb)
     d = cb.panel.dates[-1]                                                         # 2024-03-22 (Fri)
     _setup_store(dctx, cb, news_rows=[
         _news("DROP", "2024-03-22 15:00", "reg"),       # before the cutoff: already regular-session information
-        _news("DROP", "2024-03-22 17:00", "post"),      # POST_CLOSE
+        _news("DROP", "2024-03-22 17:00", "post", "DROP Announces Agreement To Acquire Widget Co For $40M"),  # POST_CLOSE, material
+        _news("DROP", "2024-03-22 18:00", "chat", "Looking Into DROP's Recent Short Interest"),               # commentary
         _news("DROP", "2024-03-25 06:00", "pre"),       # PRE_MARKET
         _news("DROP", "2024-03-25 10:00", "next")])     # after the open: never an input
     dr = run_discovery(dctx, cb, d, links={})
@@ -190,13 +191,14 @@ def test_overnight_refresh_includes_post_close_and_excludes_the_future(dctx, cb)
     status_drop = next(c["status"] for c in dr.assessment.candidates if c["symbol"] == "DROP")
     assert status_drop == "DISCOVERED"
     r1 = ns.overnight_refresh(dctx, pd.Timestamp("2024-03-23 12:00", tz=UTC))
-    assert r1["ok"] and r1["recorded"] == 1 and r1["promoted"] == 1
-    row = dctx.db.fetchone("SELECT * FROM overnight_updates")
-    assert row["phase"] == "POST_CLOSE" and row["source_id"] == "post" and row["effect"] == "PROMOTED_TO_WATCH"
+    assert r1["ok"] and r1["recorded"] == 2 and r1["promoted"] == 1 and r1["context_only"] == 1
+    eff = {r["source_id"]: r for r in dctx.db.fetchall("SELECT * FROM overnight_updates")}
+    assert eff["post"]["phase"] == "POST_CLOSE" and eff["post"]["effect"] == "PROMOTED_TO_WATCH"
+    assert eff["chat"]["effect"] == "CONTEXT_ONLY"                          # commentary never promotes
     r2 = ns.overnight_refresh(dctx, pd.Timestamp("2024-03-25 12:00", tz=UTC))       # 08:00 ET, pre-market
     assert r2["recorded"] == 1
     phases = {r["source_id"]: r["phase"] for r in dctx.db.fetchall("SELECT source_id, phase FROM overnight_updates")}
-    assert phases == {"post": "POST_CLOSE", "pre": "PRE_MARKET"}                   # 'reg' and 'next' never used
+    assert phases == {"post": "POST_CLOSE", "chat": "POST_CLOSE", "pre": "PRE_MARKET"}   # 'reg' and 'next' never used
     r3 = ns.overnight_refresh(dctx, pd.Timestamp("2024-03-25 14:00", tz=UTC))       # after the open
     assert not r3["ok"] and "already opened" in r3["reason"]
     st = ns.next_session_state(dctx, pd.Timestamp("2024-03-25 12:30", tz=UTC))

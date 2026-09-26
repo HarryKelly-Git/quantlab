@@ -22,6 +22,8 @@ NEXT_SESSION. Information that arrived after a cutoff can never change an earlie
 """
 from __future__ import annotations
 
+import json
+
 from datetime import datetime, time, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -107,32 +109,126 @@ def _window_check(run: dict[str, Any], now: pd.Timestamp) -> str | None:
     return None
 
 
-def _items(ctx, symbols: set[str], t0: pd.Timestamp, t1: pd.Timestamp, synthetic: bool) -> list[dict[str, Any]]:
-    """News and earnings events for ``symbols`` that became available in (t0, t1]. Items without an
-    availability timestamp are never used. Real and synthetic data are never mixed."""
-    out: list[dict[str, Any]] = []
-    syn = bool(synthetic)
-    for kind, src in (("news", "news"), ("earnings_event", "events")):
-        ids = ctx.store.dataset_ids(src, synthetic=syn)
-        if not ids:
-            continue
-        df = ctx.store.load(src, ids)
-        if df.empty or "available_at" not in df.columns:
-            continue
+def _window_rows(ctx, kind: str, columns: list[str], t0: pd.Timestamp, t1: pd.Timestamp, synthetic: bool) -> pd.DataFrame:
+    """Rows of ``kind`` with t0 < available_at <= t1, reading only ``columns`` from each dataset."""
+    import pyarrow.parquet as pq
+    frames = []
+    for ds in ctx.store.dataset_ids(kind, synthetic=bool(synthetic)):
+        row = ctx.db.fetchone("SELECT path FROM datasets WHERE dataset_id=?", (ds,))
+        path = ctx.store.data_dir / row["path"]
+        have = set(pq.read_schema(path).names)
+        df = pq.read_table(path, columns=[c for c in columns if c in have]).to_pandas()
         ts = pd.to_datetime(df["available_at"], utc=True, errors="coerce")
-        m = df["symbol"].isin(symbols) & (ts > t0) & (ts <= t1)
-        for r, t in zip(df[m].itertuples(), ts[m]):
-            out.append({"kind": kind, "symbol": r.symbol, "available_at": t.isoformat(),
-                        "source_id": str(getattr(r, "news_id", None) or getattr(r, "source_id", "")),
-                        "detail": {"headline": getattr(r, "headline", None), "event_type": getattr(r, "event_type", None),
-                                   "pit_status": getattr(r, "pit_status", None)}})
+        frames.append(df[(ts > t0) & (ts <= t1)])
+    if not frames:
+        return pd.DataFrame(columns=columns)
+    out = pd.concat(frames, ignore_index=True)
+    return out.sort_values("retrieved_at", kind="mergesort") if "retrieved_at" in out.columns else out
+
+
+def _items(ctx, symbols: set[str], t0: pd.Timestamp, t1: pd.Timestamp, synthetic: bool) -> list[dict[str, Any]]:
+    """News, earnings releases and material 8-Ks for ``symbols`` that became available in (t0, t1].
+    Items without an availability timestamp are never used; real and synthetic data never mix.
+    News tags are counted over ALL rows of an article before restricting to ``symbols``; a headline
+    revised after t1 is withheld (the stored text is the provider's latest version)."""
+    from quantlab.data.news_classify import classify_frame
+    out: list[dict[str, Any]] = []
+    nw = _window_rows(ctx, "news", ["news_id", "symbol", "headline", "source", "url", "created_at", "updated_at",
+                                    "available_at", "pit_status", "retrieved_at"], t0, t1, synthetic)
+    if len(nw):
+        nw = nw.drop_duplicates(["news_id", "symbol"], keep="last")
+        nw["n_tags"] = nw.groupby("news_id")["symbol"].transform("size").astype(float)
+        nw = classify_frame(nw)
+        nw = nw[nw["symbol"].isin(symbols)]
+        for r in nw.itertuples():
+            ta = pd.Timestamp(r.available_at)
+            ta = ta.tz_localize("UTC") if ta.tzinfo is None else ta.tz_convert("UTC")
+            revised = pd.Timestamp(r.updated_at).tz_convert("UTC") > t1 + pd.Timedelta(seconds=60)
+            out.append({"kind": "news", "symbol": r.symbol, "available_at": ta.isoformat(), "source_id": str(r.news_id),
+                        "detail": {"headline": None if revised else r.headline, "headline_withheld": bool(revised),
+                                   "category": r.category, "company_specific": bool(r.company_specific),
+                                   "material": bool(r.material), "guidance_dir": r.guidance_dir, "source": r.source,
+                                   "url": r.url or None, "pit_status": r.pit_status}})
+    ev = _window_rows(ctx, "events", ["symbol", "event_type", "event_time", "available_at", "source_id", "payload_json",
+                                      "pit_status", "retrieved_at"], t0, t1, synthetic)
+    if len(ev):
+        ev = ev[ev["event_type"].isin(["earnings_release", "sec_8k"]) & ev["symbol"].isin(symbols)]
+        ev = ev.drop_duplicates(["symbol", "event_type", "source_id"], keep="last")
+        for r in ev.itertuples():
+            pl = json.loads(r.payload_json or "{}")
+            ta = pd.Timestamp(r.available_at)
+            ta = ta.tz_localize("UTC") if ta.tzinfo is None else ta.tz_convert("UTC")
+            kind = "earnings_event" if r.event_type == "earnings_release" else "sec_8k"
+            out.append({"kind": kind, "symbol": r.symbol, "available_at": ta.isoformat(), "source_id": str(r.source_id),
+                        "detail": {"event_type": r.event_type, "form": pl.get("form"), "timing": pl.get("timing"),
+                                   "is_amendment": str(pl.get("form") or "").endswith("/A"),
+                                   "items": pl.get("material_items") or pl.get("items"),
+                                   "categories": pl.get("categories"), "labels": pl.get("labels"),
+                                   "pit_status": r.pit_status, "source": "SEC EDGAR"}})
+    out.sort(key=lambda x: x["available_at"])
     return out
+
+
+def _overnight_candidate(run: dict[str, Any], sym: str, it: dict[str, Any], now: pd.Timestamp, rank: int) -> dict[str, Any]:
+    """A next-session candidate created by a post-close / overnight / pre-market earnings release.
+    It is CATALYST-DRIVEN with the reaction PENDING: it can be watched, never traded from here."""
+    phase = info_phase(it["available_at"], run["as_of_date"], run["next_session"])
+    ev = {"source": "SEC EDGAR 8-K item 2.02", "accession": it["source_id"], "available_at": it["available_at"],
+          "timing": it["detail"].get("timing"), "phase": phase, "form": it["detail"].get("form")}
+    blocker = ("no strategy signal: the event arrived after the decision close; the unchanged decision chain "
+               "can only evaluate it with the next session's data")
+    chain = [
+        {"stage": "EVENT", "state": "PRESENT", "text": "earnings release (8-K item 2.02)",
+         "provenance": {"source": ev["source"], "id": ev["accession"]}},
+        {"stage": "WHEN KNOWN", "state": "PASS", "text": f"accepted {it['available_at'][:19]} UTC ({phase})",
+         "provenance": {"available_at": it["available_at"]}},
+        {"stage": "PRICE RESPONSE", "state": "PENDING", "text": "not observable before the next session's trading"},
+        {"stage": "VOLUME RESPONSE", "state": "PENDING", "text": "not observable before the next session's trading"},
+        {"stage": "SECTOR/INDUSTRY", "state": "NOT_EVALUATED", "text": "not recomputed overnight (next end-of-day scan)"},
+        {"stage": "FUNDAMENTALS", "state": "NOT_EVALUATED", "text": "the quarter's 10-Q/10-K is usually filed later"},
+        {"stage": "VALIDATION", "state": "FAIL", "text": blocker},
+        {"stage": "RISK", "state": "NOT_REACHED", "text": "no strategy decision"},
+        {"stage": "EV", "state": "NOT_REACHED", "text": "no strategy decision"},
+        {"stage": "PAPER ELIGIBILITY", "state": "FAIL", "text": f"not eligible: {blocker}"},
+    ]
+    setup = {"relevance": "NEXT_SESSION", "setup_type": "Post-earnings (reaction pending)", "setup_class": "CATALYST-DRIVEN",
+             "why": [f"earnings release accepted {it['available_at'][:16]} UTC, after the {run['as_of_date']} close ({phase})"],
+             "confirm": ["a clear price reaction in the next session (|abnormal move| >= 1.5 of its normal daily range)",
+                         "reaction-day dollar volume >= 2x normal"],
+             "invalidate": ["no meaningful reaction, or a gap that fully reverses",
+                            "a gap larger than 1 ATR, a trading halt, or a corporate action at the open"],
+             "missing": ["EPS / revenue surprise: UNKNOWN (no point-in-time consensus source)",
+                         "reported numbers: UNKNOWN until the 10-Q/10-K is filed",
+                         "pre-market price: UNKNOWN (no pre-market data source configured)"],
+             "paper": f"Not paper eligible: {blocker}", "conditional": True,
+             "condition": "Requires next-session price/volume confirmation. Not an order.", "levels": {}}
+    return {"discovery_id": f"{run['discovery_run_id']}:{sym}", "discovery_run_id": run["discovery_run_id"],
+            "as_of_date": run["as_of_date"], "symbol": sym, "discovery_score": None, "score_coverage": 0.0,
+            "rank": rank, "families_json": to_json({"fired": [], "catalyst": ["post_earnings_pending"]}),
+            "dimensions_json": to_json({}), "factors_json": to_json({}), "catalyst_json": None,
+            "direction_bias": "NEUTRAL", "status": "WATCH", "high_quality": 0, "on_watchlist": 1,
+            "block_stage": "STRATEGY_COVERAGE", "block_reason": blocker,
+            "checks_json": to_json([{"stage": "DISCOVERY", "name": "post_earnings_pending", "passed": True,
+                                     "reason": setup["why"][0]},
+                                    {"stage": "STRATEGY_COVERAGE", "name": "strategy_coverage", "passed": False,
+                                     "reason": blocker, "block": "NO_STRATEGY_COVERAGE"}]),
+            "strategy_links_json": to_json([]), "is_synthetic": int(run["is_synthetic"]), "created_at": utcnow_iso(),
+            "origin": "DISCOVERY", "relevance": "NEXT_SESSION", "next_session": run["next_session"],
+            "info_cutoff_at": now.isoformat(), "discovered_at": now.isoformat(), "setup_json": to_json(setup),
+            "setup_class": "CATALYST-DRIVEN", "catalyst_families": "post_earnings_pending",
+            "catalyst_record_json": to_json({"families": ["post_earnings_pending"], "overnight_event": ev}),
+            "evidence_chain_json": to_json(chain), "created_by": "OVERNIGHT_REFRESH"}
 
 
 def overnight_refresh(ctx, now=None, run_id: str | None = None) -> dict[str, Any]:
     """Attach post-close / overnight / pre-market catalysts (available_at <= now) to the latest
-    next-session run. A discovered setup with a fresh catalyst is promoted to the watchlist; this
-    never makes it paper eligible."""
+    next-session run.
+
+    * an earnings release (8-K 2.02, not an amendment) for a basic-universe symbol that is not yet a
+      candidate CREATES a next-session candidate (CATALYST-DRIVEN, reaction pending, status WATCH);
+    * a material company event (company-specific material news, material 8-K, earnings) PROMOTES a
+      DISCOVERED candidate to WATCH; other items (analyst notes, commentary) are recorded as context.
+    Nothing here can make a candidate paper eligible: the unchanged decision chain decides that."""
     db = ctx.db
     now = _utc(now or datetime.now(timezone.utc))
     run = latest_run(db, run_id)
@@ -141,31 +237,54 @@ def overnight_refresh(ctx, now=None, run_id: str | None = None) -> dict[str, Any
     why = _window_check(run, now)
     if why:
         return {"ok": False, "reason": why, "discovery_run_id": run["discovery_run_id"]}
-    cands = {r["symbol"]: r for r in db.fetchall(
+    cands = {r["symbol"]: dict(r) for r in db.fetchall(
         "SELECT discovery_id, symbol, status, on_watchlist, high_quality FROM discovery_candidates WHERE discovery_run_id=?",
         (run["discovery_run_id"],))}
     seen = {(r["symbol"], r["source_id"]) for r in db.fetchall(
         "SELECT symbol, source_id FROM overnight_updates WHERE discovery_run_id=?", (run["discovery_run_id"],))}
+    basic = set(from_json(run.get("basic_symbols_json"), []) or [])
     t0 = _utc(run["info_cutoff_at"])
-    items = _items(ctx, set(cands), t0, now, bool(run["is_synthetic"]))
-    rows = []
+    items = _items(ctx, basic | set(cands), t0, now, bool(run["is_synthetic"]))
+    rows, new_cands = [], []
+    next_rank = 100000 + len(cands)
     for it in items:
-        if (it["symbol"], it["source_id"]) in seen:
+        sym = it["symbol"]
+        if (sym, it["source_id"]) in seen:
             continue
-        c = cands[it["symbol"]]
-        effect = "CATALYST_ADDED"
-        if c["status"] in ("DISCOVERED",) and not c["on_watchlist"]:
+        d = it["detail"]
+        material = it["kind"] in ("earnings_event", "sec_8k") or bool(d.get("material"))
+        c = cands.get(sym)
+        if c is None:
+            if it["kind"] != "earnings_event" or d.get("is_amendment") or sym not in basic:
+                continue                      # news / 8-K alone never creates a candidate
+            row = _overnight_candidate(run, sym, it, now, next_rank)
+            next_rank += 1
+            new_cands.append(row)
+            c = cands[sym] = {"discovery_id": row["discovery_id"], "symbol": sym, "status": "WATCH", "on_watchlist": 1}
+            effect = "NEW_CANDIDATE"
+        elif not material:
+            effect = "CONTEXT_ONLY"
+        elif c["status"] == "DISCOVERED" and not c["on_watchlist"]:
             effect = "PROMOTED_TO_WATCH"
+            c["on_watchlist"] = 1
+        else:
+            effect = "CATALYST_ADDED"
+        seen.add((sym, it["source_id"]))
         rows.append({"discovery_run_id": run["discovery_run_id"], "discovery_id": c["discovery_id"],
-                     "symbol": it["symbol"], "refreshed_at": utcnow_iso(), "info_cutoff_at": now.isoformat(),
+                     "symbol": sym, "refreshed_at": utcnow_iso(), "info_cutoff_at": now.isoformat(),
                      "phase": info_phase(it["available_at"], run["as_of_date"], run["next_session"]),
                      "kind": it["kind"], "available_at": it["available_at"], "source_id": it["source_id"],
-                     "detail_json": to_json(it["detail"]), "effect": effect, "created_at": utcnow_iso()})
-    if rows:
-        db.insert_many("overnight_updates", rows)
+                     "detail_json": to_json(d), "effect": effect, "created_at": utcnow_iso()})
+    with db.transaction():
+        if new_cands:
+            db.insert_many("discovery_candidates", new_cands)
+        if rows:
+            db.insert_many("overnight_updates", rows)
     return {"ok": True, "discovery_run_id": run["discovery_run_id"], "info_cutoff_at": now.isoformat(),
             "items_found": len(items), "recorded": len(rows),
-            "promoted": sum(1 for r in rows if r["effect"] == "PROMOTED_TO_WATCH")}
+            "promoted": sum(1 for r in rows if r["effect"] == "PROMOTED_TO_WATCH"),
+            "new_candidates": len(new_cands),
+            "context_only": sum(1 for r in rows if r["effect"] == "CONTEXT_ONLY")}
 
 
 def preopen_recheck(ctx, now=None, run_id: str | None = None) -> dict[str, Any]:
@@ -354,8 +473,13 @@ def next_session_state(ctx, now=None, top: int = 10) -> dict[str, Any]:
                          "WHERE discovery_run_id=? ORDER BY available_at", (rid,)):
         cats.setdefault(r["symbol"], []).append({**{k: r[k] for k in ("phase", "kind", "available_at")},
                                                  "detail": from_json(r["detail_json"], {})})
+    new_over = sum(1 for r in rows if r.get("created_by") == "OVERNIGHT_REFRESH")
     out["counts"] = {
         "candidates": len(rows), "high_ranked": sum(1 for r in rows if r["high_quality"]),
+        "new_overnight": new_over,
+        "catalyst_setups": sum(1 for r in rows if r.get("catalyst_families")),
+        "technical_plus_catalyst": sum(1 for r in rows if r.get("setup_class") == "TECHNICAL + CATALYST"),
+        "catalyst_driven": sum(1 for r in rows if r.get("setup_class") == "CATALYST-DRIVEN"),
         "watchlist": sum(1 for r in rows if r["on_watchlist"] or r["symbol"] in promoted),
         "validation_pending": sum(1 for r in rows if r["status"] == "VALIDATION_PENDING"),
         "paper_eligible": sum(1 for r in rows if (pre.get(r["symbol"]) or {}).get("status_after", r["status"])
@@ -365,8 +489,15 @@ def next_session_state(ctx, now=None, top: int = 10) -> dict[str, Any]:
     order = {"TRADED": 0, "PAPER_ELIGIBLE": 1, "WATCH": 2, "VALIDATION_PENDING": 3, "DISCOVERED": 4, "REJECTED": 5}
     ranked = [r for r in rows if r["on_watchlist"] or r["symbol"] in promoted or r["status"] in
               ("PAPER_ELIGIBLE", "TRADED", "VALIDATION_PENDING")] or rows
+    from quantlab.discovery.catalysts import catalyst_summary
+
+    def _agree(r) -> int:
+        ag = (from_json(r.get("catalyst_record_json"), {}) or {}).get("agreement") or {}
+        return int(ag.get("n_supporting", 0)) - int(ag.get("n_contradicting", 0))
+    # BEST NEXT-SESSION SETUPS: status first, then independent evidence agreement (technical +
+    # catalyst, a count), then discovery score. An ordering only: nothing here is a probability.
     ranked = sorted(ranked, key=lambda r: (order.get((pre.get(r["symbol"]) or {}).get("status_after") or r["status"], 6),
-                                           -(r["discovery_score"] if r["discovery_score"] is not None else -1)))
+                                           -_agree(r), -(r["discovery_score"] if r["discovery_score"] is not None else -1)))
     for r in ranked[:top]:
         setup = from_json(r.get("setup_json"), {}) or {}
         p = pre.get(r["symbol"])
@@ -375,20 +506,31 @@ def next_session_state(ctx, now=None, top: int = 10) -> dict[str, Any]:
                            "status_at_scan": r["status"], "block_reason": r["block_reason"], "setup": setup,
                            "preopen": {"status_after": p["status_after"], "reason": p["reason"], "checked_at": p["checked_at"]}
                            if p else None, "catalysts": cats.get(r["symbol"], []),
-                           "promoted_overnight": r["symbol"] in promoted})
+                           "promoted_overnight": r["symbol"] in promoted,
+                           "setup_class": r.get("setup_class") or setup.get("setup_class") or "UNKNOWN",
+                           "created_by": r.get("created_by") or "EOD_SCAN",
+                           "catalyst": catalyst_summary(from_json(r.get("catalyst_record_json"), None)),
+                           "chain": from_json(r.get("evidence_chain_json"), []) or []})
     last_upd = db.fetchone("SELECT MAX(refreshed_at) AS t, COUNT(*) AS n FROM overnight_updates WHERE discovery_run_id=?", (rid,))
     post = db.fetchone("SELECT COUNT(*) AS n FROM overnight_updates WHERE discovery_run_id=? AND phase='POST_CLOSE'", (rid,))
     last_pre = db.fetchone("SELECT MAX(checked_at) AS t, COUNT(*) AS n FROM preopen_checks WHERE discovery_run_id=?", (rid,))
     dec = db.fetchone("SELECT r.run_id, r.finished_at, r.status FROM runs r WHERE r.kind='pipeline' AND r.as_of_date=? "
                       "ORDER BY r.started_at DESC LIMIT 1", (run["as_of_date"],))
+    ev_n = db.fetchone("SELECT COUNT(*) AS n FROM overnight_updates WHERE discovery_run_id=? AND kind IN "
+                       "('earnings_event','sec_8k')", (rid,))["n"]
+    news_n = db.fetchone("SELECT COUNT(*) AS n FROM overnight_updates WHERE discovery_run_id=? AND kind='news'", (rid,))["n"]
     out["pipeline"] = [
-        {"stage": "Session closed", "at": run.get("info_cutoff_at"), "state": "done"},
+        {"stage": "Regular session close", "at": run.get("info_cutoff_at"), "state": "done"},
         {"stage": "End-of-day scan", "at": run.get("created_at"), "state": "done"},
-        {"stage": "Post-close information", "at": None, "state": f"{post['n']} item(s)" if post["n"] else "none recorded"},
-        {"stage": "Overnight candidate refresh", "at": last_upd["t"], "state": "done" if last_upd["t"] else "not run"},
-        {"stage": "Pre-open validation", "at": last_pre["t"], "state": f"done ({last_pre['n']} checked)" if last_pre["t"] else "not run"},
-        {"stage": "Next-session decision", "at": (dec or {}).get("finished_at"),
-         "state": (dec or {}).get("status") or "no pipeline run for this session"},
+        {"stage": "New earnings / SEC events", "at": last_upd["t"],
+         "state": (f"{ev_n} event(s), {new_over} new candidate(s)" if last_upd["t"] else "not refreshed")},
+        {"stage": "Overnight news", "at": last_upd["t"],
+         "state": (f"{news_n} item(s); {post['n']} post-close item(s) overall" if last_upd["t"] else "not refreshed")},
+        {"stage": "Next-session setups", "at": run.get("created_at"), "state": f"{len(rows)} candidate(s)"},
+        {"stage": "Pre-open recheck", "at": last_pre["t"],
+         "state": f"done ({last_pre['n']} checked)" if last_pre["t"] else "not run"},
+        {"stage": "Validation / paper eligibility", "at": (dec or {}).get("finished_at"),
+         "state": (dec or {}).get("status") or "no pipeline decision for this session"},
     ]
     return out
 

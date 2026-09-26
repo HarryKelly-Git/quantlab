@@ -22,9 +22,12 @@ from quantlab.features.base import FEATURES, FeatureSet
 from quantlab.features.price import full_like_nan, memo, safe_div
 
 _SRC_F = "bundle.fundamentals (as-of: latest filing with available_at <= cutoff(D))"
-FLOW = ("Revenues", "NetIncomeLoss", "EarningsPerShareDiluted")
+FLOW = ("Revenues", "NetIncomeLoss", "EarningsPerShareDiluted", "GrossProfit", "OperatingIncomeLoss")
 STOCK = ("Assets", "StockholdersEquity", "LongTermDebt")
-METRICS = ("rev_growth_yoy", "ni_margin", "roe", "leverage", "eps_growth_yoy", "eps_ttm", "sue")
+# full fiscal-year durations: cash-flow statements are YTD-only in 10-Qs, so FCF uses FY values
+FYFLOW = ("OperatingCashFlow", "Capex", "Revenues")
+METRICS = ("rev_growth_yoy", "ni_margin", "roe", "leverage", "eps_growth_yoy", "eps_ttm", "sue", "gross_margin",
+           "op_margin", "fcf_margin")
 
 
 def _near(d: pd.Timestamp, keys: list[pd.Timestamp], target_days: int, tol: int = 25) -> pd.Timestamp | None:
@@ -65,7 +68,25 @@ def _sue(eps: dict[pd.Timestamp, float]) -> float:
     return diffs[0] / sd if sd > 0 else np.nan
 
 
-def _metrics(flow: dict[str, dict], stock: dict[str, tuple]) -> dict[str, float]:
+def _same_quarters_ratio(num: dict, den: dict) -> float:
+    """TTM(num) / TTM(den) over the SAME four consecutive quarters, else NaN (UNKNOWN)."""
+    n_t, d_t = _ttm(num), _ttm(den)
+    if not (np.isfinite(n_t) and np.isfinite(d_t) and d_t > 0):
+        return np.nan
+    return n_t / d_t if sorted(num, reverse=True)[:4] == sorted(den, reverse=True)[:4] else np.nan
+
+
+def _fcf_margin(fy: dict[str, dict]) -> float:
+    """(OCF - capex) / revenue of the latest fiscal year for which all three are known, else NaN."""
+    ocf, capex, rev = fy.get("OperatingCashFlow", {}), fy.get("Capex", {}), fy.get("Revenues", {})
+    common = sorted(set(ocf) & set(capex) & set(rev), reverse=True)
+    if not common or not rev[common[0]] > 0:
+        return np.nan
+    e = common[0]
+    return (ocf[e] - capex[e]) / rev[e]
+
+
+def _metrics(flow: dict[str, dict], stock: dict[str, tuple], fy: dict[str, dict] | None = None) -> dict[str, float]:
     out = dict.fromkeys(METRICS, np.nan)
     rev, ni, eps = flow["Revenues"], flow["NetIncomeLoss"], flow["EarningsPerShareDiluted"]
     y = _yoy(rev)
@@ -87,6 +108,9 @@ def _metrics(flow: dict[str, dict], stock: dict[str, tuple]) -> dict[str, float]
         out["eps_growth_yoy"] = ye[0] / ye[1] - 1.0
     out["eps_ttm"] = _ttm(eps)
     out["sue"] = _sue(eps)
+    out["gross_margin"] = _same_quarters_ratio(flow.get("GrossProfit", {}), rev)
+    out["op_margin"] = _same_quarters_ratio(flow.get("OperatingIncomeLoss", {}), rev)
+    out["fcf_margin"] = _fcf_margin(fy or {})
     return out
 
 
@@ -98,7 +122,7 @@ def _asof_table(fs: FeatureSet) -> dict[str, pd.DataFrame]:
         f = fs.bundle.fundamentals
         if f.empty:
             return frames
-        f = f[f["symbol"].isin(p.symbols) & f["concept"].isin(FLOW + STOCK)].copy()
+        f = f[f["symbol"].isin(p.symbols) & f["concept"].isin(FLOW + STOCK + FYFLOW)].copy()
         if f.empty:
             return frames
         f["usable"] = fs.bundle.calendar.first_usable_sessions(f["available_at"])
@@ -109,28 +133,46 @@ def _asof_table(fs: FeatureSet) -> dict[str, pd.DataFrame]:
         syms, concepts = f["symbol"].to_numpy(), f["concept"].to_numpy()
         fps = f["fiscal_period"].astype(str).str.upper().to_numpy()
         pes, vals = pd.DatetimeIndex(f["period_end"]), f["value"].to_numpy(dtype="float64")
+        pss = pd.DatetimeIndex(f["period_start"]) if "period_start" in f.columns else pes
         n = len(f)
         i = 0
         # plain-Python replay (vectorizing an as-of state machine obscures it); O(rows) per symbol
         while i < n:
             sym, j = syms[i], sym_index[syms[i]]
             flow: dict[str, dict] = {c: {} for c in FLOW}
+            fy: dict[str, dict] = {c: {} for c in FYFLOW}
+            # fiscal Q4 = FY - YTD9 (same period start), derived from the versions known AS OF each
+            # update: robust to restated YTD9 filings (never relies on a pre-derived Q4 row)
+            fy_d: dict[str, dict] = {c: {} for c in FLOW}
+            ytd9: dict[str, dict] = {c: {} for c in FLOW}
             stock: dict[str, tuple] = {}
             updates: list[tuple[int, dict[str, float]]] = []
             while i < n and syms[i] == sym:
                 r = row_of[i]
                 while i < n and syms[i] == sym and row_of[i] == r:
                     c, pe = concepts[i], pes[i]
+                    if c in FYFLOW and fps[i] == "FY":
+                        fy[c][pe] = vals[i]                           # later filing overwrites (as-of)
                     if c in FLOW:
-                        if fps[i] == "Q":
+                        # "Q4" = fiscal Q4 derived as FY - YTD9 by the SEC provider: a quarter too
+                        if fps[i] in ("Q", "Q4"):
                             flow[c][pe] = vals[i]                     # later filing overwrites (as-of)
-                    else:
+                        elif fps[i] == "FY":
+                            fy_d[c][(pss[i], pe)] = vals[i]
+                        elif fps[i] == "YTD9":
+                            ytd9[c][(pss[i], pe)] = vals[i]
+                    elif c in STOCK:
                         cur = stock.get(c)
                         if cur is None or pe >= cur[0]:
                             stock[c] = (pe, vals[i])
                     i += 1
                 if r >= 0:
-                    updates.append((r, _metrics(flow, stock)))
+                    for c in FLOW:
+                        for (ps, pe_fy), v_fy in fy_d[c].items():
+                            for (ps9, pe9), v9 in ytd9[c].items():
+                                if ps9 == ps and 80 <= (pe_fy - pe9).days <= 100:
+                                    flow[c][pe_fy] = v_fy - v9
+                    updates.append((r, _metrics(flow, stock, fy)))
             for k, (r, met) in enumerate(updates):
                 end = updates[k + 1][0] if k + 1 < len(updates) else T
                 for m in METRICS:
@@ -152,6 +194,9 @@ _register("roe", "NetIncomeLoss_ttm / latest StockholdersEquity (as-of; NaN if e
 _register("leverage", "LongTermDebt / Assets, latest period (as-of)")
 _register("eps_growth_yoy", "EPS_q / EPS_{q-4} - 1 (NaN if EPS_{q-4} <= 0) (as-of)")
 _register("fundamental_age", "sessions since the latest fundamental update became usable")
+_register("gross_margin", "GrossProfit_ttm / Revenues_ttm over the same 4 consecutive quarters (as-of)")
+_register("op_margin", "OperatingIncomeLoss_ttm / Revenues_ttm over the same 4 consecutive quarters (as-of)")
+_register("fcf_margin", "(OperatingCashFlow_FY - Capex_FY) / Revenues_FY, latest fiscal year with all three (as-of)")
 
 
 @FEATURES.feature("ep_ttm", "fundamental", "EPS_ttm (as-of) / RAW close", _SRC_F + "; panel close", PitStatus.PIT_CONSERVATIVE)

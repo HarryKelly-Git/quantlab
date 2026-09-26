@@ -53,7 +53,7 @@ CONTEXT_FEATURES = {
     "earnings": ("days_since_earnings", "ear_z", "event_rel_volume"),
     "news": ("news_count_1d", "news_count_z"),
     "fundamentals": ("rev_growth_yoy", "eps_growth_yoy", "ni_margin", "roe"),
-    "sector": ("sector_rs_spy_63", "rs_sector_63"),
+    "sector": ("industry_rank_63", "rs_industry_20", "sector_rs_spy_63_pit"),
 }
 SOURCES = {
     "price_volume": "Alpaca SIP daily bars (raw + in-house split/dividend adjustment)",
@@ -65,7 +65,7 @@ SOURCES = {
     "earnings": "SEC EDGAR 8-K item 2.02 timing (events dataset)",
     "news": "Alpaca news (Benzinga), available_at = created_at",
     "fundamentals": "SEC EDGAR companyfacts (as-of replay)",
-    "sector": "reference sector/industry/SIC -> sector ETF map (ASSUMED_STATIC)",
+    "sector": "SEC SIC from each filing header, as of its acceptance -> industry groups / sector ETF (PIT)",
 }
 
 
@@ -276,9 +276,10 @@ def fire_context(fam: str, r: pd.Series, t: Triggers) -> tuple[bool, list[str]]:
         fired = np.isfinite(g) and g >= 0.25 and np.isfinite(e) and e > 0
         return bool(fired), [f"revenue growth {g:+.0%} y/y with EPS growth"] if fired else []
     if fam == "sector":
-        s = r.get("sector_rs_spy_63")
-        fired = np.isfinite(s) and s > 0.05
-        return bool(fired), [f"sector ETF outperforming SPY by {s * 100:+.1f} pp (63 sessions)"] if fired else []
+        k, rs = r.get("industry_rank_63"), r.get("rs_industry_20")
+        fired = k is not None and np.isfinite(k) and k >= 0.7 and rs is not None and np.isfinite(rs) and rs > 0
+        return bool(fired), [f"industry group in the top {100 - k * 100:.0f}% (63 sessions) and the stock leads it "
+                             f"by {rs * 100:+.1f} pp (20 sessions)"] if fired else []
     raise ValueError(fam)
 
 

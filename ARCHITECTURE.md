@@ -142,6 +142,10 @@ caches. `a*` means tri-scaled OHLC. `SMA(x,n)` is a trailing simple mean. `vol` 
 | event_rel_volume | event | dv on reaction_date / mean(dv, 20 sessions before reaction_date), carried forward like ear_3d |
 | est_sessions_to_earnings | event | `63 - days_since_earnings` clipped at [0, 63] (MODEL estimate; no PIT schedule available) |
 | sue | event | seasonal random-walk SUE from EPS: (EPS_q - EPS_{q-4}) / std of last 8 such diffs, valid from the filing's available_at |
+| reaction_ret_1d | event | abnormal return (`ret - spy_ret`) on the latest earnings reaction session r (8-K/A refilings excluded). Known at the close of r, carried until the next event |
+| reaction_z_1d | event | `reaction_ret_1d / std(ret - spy_ret, 60)` measured through r-1, carried like reaction_ret_1d |
+| abn_ret_since_reaction | event | cumulative abnormal return from the close of r to D (0 at r). Continuation vs reversal of the reaction. Missing bars count as 0 |
+| sec_material_1d | event | count of material 8-K filings (items other than 2.02/7.01/9.01) usable in (cutoff(D-1), cutoff(D)]. NaN when no SEC 8-K source |
 | rev_growth_yoy | fundamental | Revenues_q / Revenues_{q-4} - 1 (earliest-filing rule) |
 | ni_margin | fundamental | NetIncomeLoss_ttm / Revenues_ttm |
 | roe | fundamental | NetIncomeLoss_ttm / StockholdersEquity (latest) |
@@ -149,8 +153,21 @@ caches. `a*` means tri-scaled OHLC. `SMA(x,n)` is a trailing simple mean. `vol` 
 | eps_growth_yoy | fundamental | EPS_q / EPS_{q-4} - 1 (NaN if EPS_{q-4} <= 0) |
 | ep_ttm | fundamental | EPS_ttm / raw close (earnings yield) |
 | fundamental_age | fundamental | sessions since the latest fundamental fact became available |
+| gross_margin | fundamental | GrossProfit_ttm / Revenues_ttm over the same 4 consecutive quarters (as-of) |
+| op_margin | fundamental | OperatingIncomeLoss_ttm / Revenues_ttm over the same 4 consecutive quarters (as-of) |
+| fcf_margin | fundamental | (OperatingCashFlow_FY - Capex_FY) / Revenues_FY for the latest fiscal year with all three (as-of; 10-Q cash flows are YTD only) |
 | news_count_1d, news_count_5d | news | items with available_at in (cutoff(D-n), cutoff(D)] |
 | news_count_z | news | `(news_count_1d - mean(news_count_1d.shift(1),60)) / std(...)` |
+| news_company_1d | news | company-specific items (article tagged with <= 2 symbols, tags counted over all stored rows) usable at D |
+| news_material_1d | news | company-specific items whose headline category (rules in `data/news_classify.py`) is a company event, usable at D |
+| sic_code_asof | industry | SIC code from the header of the latest periodic report accepted by cutoff(D) (`events.sic_observation`). NaN before the first observation |
+| industry_code | industry | 3-digit SIC group with >= 5 members at D, else 1000 + 2-digit group with >= 5 members, else NaN |
+| industry_members | industry | members of the symbol's industry group at D (including itself) |
+| industry_ret_20 | industry | equal-weighted leave-one-out 20-session return of the industry group |
+| rs_industry_20 | industry | `ret_20(stock) - industry_ret_20` |
+| industry_rank_63 | industry | percentile rank (0..1] of the group's mean 63-session return among groups at D |
+| rs_sector_20_pit | industry | `ret_20(stock) - ret_20(sector ETF)`, sector ETF from the point-in-time SIC via `sectors.SIC_SECTOR_RANGES` |
+| sector_rs_spy_63_pit | industry | `ret_63(sector ETF) - ret_63(SPY)` for the point-in-time sector |
 | market_trend_200 | market | SPY `aclose/SMA(aclose,200)-1` |
 | market_mom_60 | market | SPY 60-session return |
 | market_vol_20 | market | SPY `std(ret,20)*sqrt(252)` |
@@ -263,6 +280,42 @@ setup be paper-traded?"). It can never permit, size or place an order, and it ch
   same-date baseline (date-clustered t, Bonferroni, period halves, minimum observations and
   dates, else INSUFFICIENT_SAMPLE). Findings never change rules automatically.
 
+* **Catalyst data (`data/sec_catalysts.py`, `data/news_classify.py`).** Everything SEC-derived is
+  stored in the `events` kind so `DataBundle.truncate` applies the same `available_at` rule:
+  `earnings_release` (8-K item 2.02; available_at = SEC acceptanceDateTime, timing PRE_MARKET /
+  INTRADAY / POST_CLOSE / NON_SESSION; 8-K/A is flagged and never a new reaction), `periodic_report`
+  (10-Q/10-K), `sec_8k` (items other than 2.02/7.01/9.01, with categories), `foreign_report`
+  (20-F/40-F/6-K: earnings timing UNKNOWN), `ownership_13d`, `registration`, `sic_observation`
+  (SIC from each periodic report's own SGML header, as of its acceptance; the submissions `sic` is a
+  current snapshot and is only stored in `sec_registrant` rows whose available_at is the retrieval
+  time). News is ingested market-wide (every tag kept; `n_tags` computed over all stored rows of an
+  article before any symbol filter); headlines are classified by fixed keyword rules (never an LLM),
+  analyst notes and market commentary are not company events. Fundamentals: companyfacts joined to
+  acceptance times; fiscal Q4 is derived as FY - YTD9 from the versions known AS OF each update.
+* **Catalyst discovery (`discovery/catalysts.py`).** Two families, thresholds fixed in
+  `discovery.catalyst`: `post_earnings` (an 8-K 2.02 whose reaction session is within 3 sessions and
+  a measurable response: |abnormal reaction z| >= 1.5 or dollar volume >= 2x) and `material_event`
+  (company-specific material news or a material 8-K usable at D plus |move z| >= 1.5 or volume >= 2x).
+  Direction is recorded (POSITIVE / NEGATIVE / MUTED), never assumed; consensus surprise is always
+  UNKNOWN (no PIT consensus source). Catalysts never change the 0-100 technical score and never make
+  anything paper eligible. Setup class: TECHNICAL + CATALYST, CATALYST-DRIVEN, TECHNICAL-ONLY (catalyst
+  sources cover the symbol and found nothing) or UNKNOWN (they do not cover it). Positive,
+  market-confirmed catalyst setups get a separate capped watchlist allowance (10).
+* **Evidence chain.** Every candidate stores EVENT -> WHEN KNOWN -> PRICE RESPONSE -> VOLUME RESPONSE
+  -> SECTOR/INDUSTRY -> FUNDAMENTALS -> VALIDATION -> RISK -> EV -> PAPER ELIGIBILITY with provenance
+  (source, id, availability time). Stages 7-10 are read from the unchanged decision chain. The run
+  keeps its dataset ids and information cutoff, so the decision state can be reconstructed.
+* **Catalysts overnight.** `overnight_refresh` reads only rows with cutoff < available_at <= now. A
+  post-close / overnight / pre-market 8-K 2.02 for a basic-universe symbol that is not yet a
+  candidate CREATES a WATCH candidate (CATALYST-DRIVEN, price/volume PENDING, `created_by =
+  OVERNIGHT_REFRESH`, info_cutoff_at = the refresh time). Material company news or a material 8-K
+  promotes a DISCOVERED candidate to WATCH; analyst notes / commentary are CONTEXT_ONLY. Neither can
+  create eligibility.
+* **Catalyst research (`discovery/catalyst_research.py`).** Pre-registered groups A-D plus two
+  controls, primary horizons 5 and 20 sessions, Bonferroni over groups x 2, date-clustered t,
+  period halves and per-year results vs the same-date baseline; verdicts PROMISING / NEGATIVE / FLAT /
+  INCONCLUSIVE. Holdout-safe. Findings never change rules.
+
 ## 8. Books & execution
 
 Books: `BOT`, `HUMAN` (both paper), `SHADOW` (hypothetical), `BACKTEST`. The internal ledger
@@ -304,6 +357,30 @@ a reconciliation mismatch, a broker order unknown to QuantLab, a pipeline failur
 unexpected error. Strategy eligibility, EV, no-trade, portfolio and risk stay per-candidate gates
 in the decision chain. With no ACTIVE strategy at stage PAPER/PROMOTED the runner reports
 `NO PAPER-ELIGIBLE STRATEGY` and places no orders.
+
+### 8b. Paper modes: STRICT and EXPLORATION (`exploration/`, `paper.mode`)
+
+* **STRICT** (default): only TRADE decisions of the unchanged chain are traded (validated strategy,
+  EV after costs, risk). Exploration selections are still recorded as SHADOW and tracked.
+* **EXPLORATION**: additionally, a small fixed daily budget (`exploration.max_new_per_session`, 2) of
+  the best-ranked discovery / strategy candidates is PAPER traded WITHOUT requiring validation,
+  significant OOS results or positive historical EV. Always required, in both modes: valid bar and
+  features at D, the research universe plus exploration's own price/ADV floor, no quarantine, kill
+  switch ACTIVE, long-only direction, no existing position, position / session / total exposure caps,
+  and at submission every execution-service gate (the same service strict orders use).
+* **Timing.** The EOD pipeline step `explore` plans (`exploration_decisions`, PLANNED). The paper
+  runner revalidates and submits from `exploration.submit_after_et` until the order cutoff; the
+  actual open is never an input (after it, planned entries are CANCELLED_PREOPEN). Sim replays plan
+  and submit at simulated close + 5 min.
+* **Records.** `exploration_decisions` (complete pre-trade state), `exploration_events`
+  (PLANNED / REVALIDATED / SUBMITTED / CANCELLED_PREOPEN / REFUSED), `exploration_outcomes`
+  (1/3/5/10/20 sessions from the next open, cost-adjusted, MFE/MAE, stop breached, catalyst
+  persisted) are append-only. Exploratory trades carry `strategy_id = EXPLORATION`.
+* **Learning loop.** Exploratory outcomes vs watched-but-not-traded vs rejected vs strict vs SPY
+  (`experiment_results`). Patterns become `research_hypotheses` that move one stage at a time
+  (EXPLORATION_OBSERVED -> HISTORICAL_PIT_TEST -> WALK_FORWARD -> LOCKED_HOLDOUT -> PROSPECTIVE_PAPER ->
+  STRICT_ELIGIBLE), by a named human, with evidence, never automatically; STRICT_ELIGIBLE changes no
+  strategy status.
 
 ## 9. Research validity
 

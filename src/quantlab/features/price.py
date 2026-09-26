@@ -59,6 +59,19 @@ def ret_n(aclose: pd.DataFrame | pd.Series, n: int) -> pd.DataFrame | pd.Series:
     return safe_div(aclose, aclose.shift(n)) - 1.0
 
 
+def active_from(fs: FeatureSet, available_at: pd.Series, frame: pd.DataFrame) -> pd.DataFrame:
+    """``frame`` on sessions at/after the first session the SOURCE had any item available; NaN
+    (UNKNOWN) before. Point in time: whether a source exists at D never depends on rows after D,
+    so a count of 0 can only appear once the source is known to be delivering."""
+    t = pd.to_datetime(available_at, utc=True).dropna()
+    if t.empty:
+        return frame.where(pd.DataFrame(False, index=frame.index, columns=frame.columns))
+    first = fs.bundle.calendar.first_usable_session(t.min())
+    if first is None:
+        return frame.where(pd.DataFrame(False, index=frame.index, columns=frame.columns))
+    return frame.where(pd.Series(frame.index >= first, index=frame.index), axis=0)
+
+
 def full_like_nan(fs: FeatureSet) -> pd.DataFrame:
     return pd.DataFrame(np.nan, index=fs.panel.dates, columns=fs.panel.symbols)
 

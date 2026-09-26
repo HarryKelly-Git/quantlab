@@ -328,6 +328,53 @@ class SyntheticMarket(
         news["provider"] = self.name
         news["retrieved_at"] = self._retrieved
 
+        # --- catalyst-phase additions (a SEPARATE random stream appended last, so every series above
+        #     is unchanged): margins, FY cash flows, SIC header observations and material 8-Ks --------
+        rng2 = np.random.default_rng(s.seed + 7919)
+        sic_of_etf = {"XLB": "2800", "XLC": "4813", "XLE": "1311", "XLF": "6022", "XLI": "3560", "XLK": "3674",
+                      "XLP": "2080", "XLRE": "6798", "XLU": "4911", "XLV": "2834", "XLY": "5812"}
+        extra_f, extra_e = [], []
+        q = fundamentals[fundamentals["concept"] == "Revenues"].drop_duplicates("accession")
+        for sym, grp in q.groupby("symbol", sort=True):
+            gm, om = rng2.uniform(0.2, 0.6), rng2.uniform(-0.05, 0.25)
+            grp = grp.sort_values("period_end")
+            for k_, r in enumerate(grp.itertuples()):
+                base = (r.symbol, r.cik, None, "USD", r.period_start, r.period_end, r.fiscal_year, "Q", "10-Q", None,
+                        r.accession, r.filed_date, r.available_at)
+                for c, m in (("GrossProfit", gm), ("OperatingIncomeLoss", om)):
+                    extra_f.append(base[:2] + (c,) + base[3:9] + (float(r.value) * m,) + base[10:])
+                if k_ % 4 == 3:                          # a fiscal year every 4th quarter
+                    four = grp.iloc[k_ - 3:k_ + 1]
+                    fy_rev = float(four["value"].sum())
+                    fy_start = pd.Timestamp(r.period_end) - pd.Timedelta(days=364)
+                    for c, v in (("Revenues", fy_rev), ("OperatingCashFlow", fy_rev * (om + 0.05)),
+                                 ("Capex", fy_rev * rng2.uniform(0.02, 0.08))):
+                        extra_f.append((r.symbol, r.cik, c, "USD", fy_start, r.period_end, r.fiscal_year, "FY", "10-K",
+                                        float(v), r.accession + "-fy", r.filed_date, r.available_at))
+            # SIC as printed in the first and last filing header; a few symbols change industry
+            etf = SECTOR_ETFS[sector_of[syms.index(sym)]] if sym in syms else "XLI"
+            first, last = grp.iloc[0], grp.iloc[-1]
+            sic_a = sic_of_etf[etf]
+            sic_b = "7372" if rng2.random() < 0.05 else sic_a
+            mid = grp.iloc[len(grp) // 2]
+            for r, sic in ((first, sic_a), (mid, sic_b), (last, sic_b)):
+                extra_e.append((sym, "sic_observation", r.available_at, r.available_at, pd.NaT, f"sic:{r.accession}",
+                                json.dumps({"sic": sic, "form": "10-Q", "accession": r.accession, "synthetic": True})))
+        for i, sym in enumerate(syms):
+            live = np.flatnonzero(~np.isnan(raw[:, i]))
+            for t in live[rng2.random(len(live)) < 0.008]:
+                item = ["1.01", "5.02", "8.01", "2.01", "3.02"][int(rng2.integers(0, 5))]
+                et = _et(cal[t], time(16, 20))
+                extra_e.append((sym, "sec_8k", et, et, cal[t + 1] if t + 1 < T else pd.NaT, f"syn-8kx-{sym}-{t}",
+                                json.dumps({"form": "8-K", "material_items": [item], "synthetic": True})))
+        if extra_f:
+            fundamentals = pd.concat([fundamentals, pd.DataFrame(extra_f, columns=list(fundamentals.columns[:13])).assign(
+                pit_status=PitStatus.PIT.value, provider=self.name, retrieved_at=self._retrieved)], ignore_index=True)
+        if extra_e:
+            events = pd.concat([events, pd.DataFrame(extra_e, columns=["symbol", "event_type", "event_time", "available_at",
+                                                                       "reaction_date", "source_id", "payload_json"]).assign(
+                pit_status=PitStatus.PIT.value, provider=self.name, retrieved_at=self._retrieved)], ignore_index=True)
+
         return {
             "bars": schemas.conform("bars", bars),
             "corporate_actions": schemas.conform("corporate_actions", actions),

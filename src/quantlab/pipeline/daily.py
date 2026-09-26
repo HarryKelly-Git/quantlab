@@ -62,7 +62,7 @@ from quantlab.universe import UniverseEngine
 log = get_logger(__name__)
 
 STEPS = ("preflight", "data", "validate", "execution", "exits", "research", "decide", "orders", "outcomes",
-         "risk", "discover", "report")
+         "risk", "discover", "explore", "report")
 
 
 @dataclass
@@ -78,7 +78,7 @@ class PipelineResult:
 
 class DailyPipeline:
     def __init__(self, ctx: AppContext, synthetic: bool | None = None, broker=None, book: str = Book.BOT.value,
-                 bundle: DataBundle | None = None, order_guard=None):
+                 bundle: DataBundle | None = None, order_guard=None, exploration_submit: str = "now"):
         self.ctx = ctx
         self.cfg = ctx.config
         self.db = ctx.db
@@ -94,6 +94,9 @@ class DailyPipeline:
         self.exec.submission_guard = order_guard
         self.killswitch = KillSwitch(self.db)
         self._full_bundle = bundle
+        # "now": plan and (EXPLORATION mode) submit in this run (sim replays: simulated time just after
+        # the close). "preopen": plan only; the paper runner revalidates and submits before the open.
+        self.exploration_submit = exploration_submit
 
     # -- data ------------------------------------------------------------------------------------
     def full_bundle(self) -> DataBundle:
@@ -129,7 +132,8 @@ class DailyPipeline:
         steps = [("preflight", self._preflight), ("data", self._data), ("validate", self._validate),
                  ("execution", self._execution), ("exits", self._exits), ("research", self._research),
                  ("decide", self._decide), ("orders", self._orders), ("outcomes", self._outcomes),
-                 ("risk", self._risk), ("discover", self._discover), ("report", self._report)]
+                 ("risk", self._risk), ("discover", self._discover), ("explore", self._explore),
+                 ("report", self._report)]
         # in-memory steps are always recomputed on resume (deterministic); durable ones are skipped
         # 'discover' is deliberately NOT durable: it re-runs on resume (its persistence is idempotent
         # per run_id), so a failed discovery is retried and the report always gets its section
@@ -334,7 +338,9 @@ class DailyPipeline:
     def _outcomes(self, run_id, st) -> dict:
         n = ShadowOutcomeTracker(self.db, self.cfg).update(st["view"].panel, as_of=st["as_of"],
                                                             synthetic=st["view"].is_synthetic)
-        return {"outcomes_recorded": int(n)}
+        from quantlab.exploration import ExplorationOutcomeTracker
+        m = ExplorationOutcomeTracker(self.db, self.cfg).update(st["view"].panel, st["as_of"])
+        return {"outcomes_recorded": int(n), "exploration_outcomes": int(m)}
 
     def _risk(self, run_id, st) -> dict:
         mtm = st.get("mtm") or {}
@@ -365,6 +371,29 @@ class DailyPipeline:
         return {"discovery_run_id": dr.discovery_run_id, "discovered": f["discovered"], "high_ranked": f["high_ranked"],
                 "watchlist": f["watchlist"], "paper_eligible": f["paper_eligible"],
                 "diagnostics": len(dr.assessment.diagnostics), "outcomes_written": dr.outcomes_written}
+
+    def _explore(self, run_id, st) -> dict:
+        """PAPER_EXPLORATION planning (and, in EXPLORATION mode with ``exploration_submit="now"``,
+        submission through the same execution service). STRICT mode: selections are tracked as SHADOW
+        and never traded. It never touches the strict decisions or their orders."""
+        from quantlab.exploration import paper_mode, plan_exploration, preopen_submit
+        dr = st.get("discovery")
+        if dr is None:
+            return {"skipped": "no discovery run this session"}
+        mode = paper_mode(self.cfg)
+        sim_now = self.cfg_cutoff(st["as_of"]) + pd.Timedelta(minutes=5)
+        mtm = st.get("mtm") or {}
+        plan = plan_exploration(self.ctx, book=self.book, run_id=dr.discovery_run_id, equity=mtm.get("equity"),
+                                mode=mode, now=sim_now)
+        out = {"mode": mode, **{f"planned_{k.lower()}": v for k, v in (plan.get("counts") or {}).items()}}
+        if mode == "EXPLORATION" and self.exploration_submit == "now":
+            sub_ = preopen_submit(self.ctx, self.exec, now=sim_now, session=plan.get("session"))
+            out.update({"submitted": sub_.get("submitted", 0), "cancelled": sub_.get("cancelled", 0),
+                        "refused": sub_.get("refused", 0)})
+        return out
+
+    def cfg_cutoff(self, d) -> pd.Timestamp:
+        return self.full_bundle().calendar.cutoff(d)
 
     def _report(self, run_id, st) -> dict:
         from quantlab.pipeline.report import write_daily_report

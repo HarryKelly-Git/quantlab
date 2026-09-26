@@ -1,5 +1,21 @@
 # Data expansion plan (discovery context families)
 
+## Status (updated 2026-09-26, after the catalyst phase)
+
+Items 1-5 below are now IMPLEMENTED and ingested on a scratch copy of the database (never the live
+paper DB); item 6 remains UNKNOWN by design. What was built and verified:
+
+| # | Source | Implementation | Real ingestion (scratch copy) | PIT validation |
+|---|---|---|---|---|
+| 1 | SEC 8-K 2.02 earnings | `data/sec_catalysts.py`, `catalysts ingest-sec` | 5,229 symbols, 21 chunks, 88,736 releases 2020-01..2026-09 | AAPL matches the verified acceptance times to the second; mean abs abnormal move peaks on the computed reaction day (5.7% pre-market / 6.7% post-close vs 2.0-2.6% the day before); 0 of 51,770 events available after the reaction they are measured against |
+| 2 | Market-wide news | `get_news_market`, `catalysts ingest-news` | 2021-01..2024-12 and 2026-06..2026-09 (2025-01..2026-05 not ingested: holdout / not needed yet) | available_at = created_at on every row; revisions > 60 s flagged PIT_CONSERVATIVE (5%); no backward leak at a test cutoff |
+| 3 | Point-in-time SIC | `sic_observation` events from filing headers | 4,994 symbols, 11,898 observations, 489 SIC changes (243 de-SPACs from 6770) | the current snapshot is only in `sec_registrant` rows (available_at = retrieval time) |
+| 4 | Fundamentals | `catalysts ingest-facts` (companyfacts + acceptance join) | 3,572,544 facts, 4,954 symbols | as-of values change only from the filing's first usable session; truncation-invariant on real data; fiscal Q4 derived as-of (fixes a pre-existing Q4 drop) |
+| 5 | Other SEC events | same pass as 1 | 178,892 material 8-Ks, 96,425 periodic reports, 107,208 foreign reports, 15,254 SC 13D, 7,739 S-1/S-3 | acceptance time, like 1 |
+| 6 | Estimate revisions | not implemented | - | UNKNOWN: no point-in-time source |
+
+The plan as written before implementation follows.
+
 _Written 2026-09-26. A plan only: nothing here is ingested yet. Facts about providers come from
 [EXTERNAL-SERVICES.md](EXTERNAL-SERVICES.md) (`[An]` = item n of its Alpaca Market Data section, `[Sn]` = item n of its SEC EDGAR section). Anything
 not verified there is marked UNVERIFIED or UNKNOWN._

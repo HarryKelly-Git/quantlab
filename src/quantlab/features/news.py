@@ -10,7 +10,7 @@ import pandas as pd
 
 from quantlab.core.types import PitStatus
 from quantlab.features.base import FEATURES, FeatureSet
-from quantlab.features.price import full_like_nan, memo, safe_div
+from quantlab.features.price import active_from, full_like_nan, memo, safe_div
 
 _SRC_N = "bundle.news (count of items by first usable session of available_at)"
 
@@ -38,14 +38,14 @@ def _daily_counts(fs: FeatureSet) -> pd.DataFrame:
 def news_count_1d(fs: FeatureSet) -> pd.DataFrame:
     if fs.bundle.news.empty:
         return full_like_nan(fs)          # no news source => UNKNOWN, not zero
-    return _daily_counts(fs)
+    return active_from(fs, fs.bundle.news["available_at"], _daily_counts(fs))
 
 
 @FEATURES.feature("news_count_5d", "news", "items usable in the last 5 sessions", _SRC_N, PitStatus.PIT_CONSERVATIVE, lookback=4)
 def news_count_5d(fs: FeatureSet) -> pd.DataFrame:
     if fs.bundle.news.empty:
         return full_like_nan(fs)
-    return _daily_counts(fs).rolling(5, min_periods=5).sum()
+    return active_from(fs, fs.bundle.news["available_at"], _daily_counts(fs).rolling(5, min_periods=5).sum())
 
 
 @FEATURES.feature("news_count_z", "news", "(news_count_1d - mean of previous 60 sessions) / their std",
@@ -53,7 +53,52 @@ def news_count_5d(fs: FeatureSet) -> pd.DataFrame:
 def news_count_z(fs: FeatureSet) -> pd.DataFrame:
     if fs.bundle.news.empty:
         return full_like_nan(fs)
-    c = _daily_counts(fs)
+    c = active_from(fs, fs.bundle.news["available_at"], _daily_counts(fs))
     prev = c.shift(1).rolling(60, min_periods=60)
     sd = prev.std()
     return safe_div(c - prev.mean(), sd.where(sd > 0, np.nan))
+
+
+def _classified_counts(fs: FeatureSet, col: str) -> pd.DataFrame:
+    """Counts of items with ``col`` True (company-specific / material), by first usable session.
+    Tags are counted over ALL stored rows of an article before restricting to panel symbols."""
+    def build() -> dict[str, pd.DataFrame]:
+        from quantlab.data.news_classify import classify_frame
+        p = fs.panel
+        base = pd.DataFrame(0.0, index=p.dates, columns=p.symbols)
+        n = classify_frame(fs.bundle.news)
+        n = n[n["symbol"].isin(p.symbols)]
+        out = {}
+        for c in ("company_specific", "material"):
+            sub = n[n[c]]
+            if sub.empty:
+                out[c] = base.copy()
+                continue
+            sess = fs.bundle.calendar.first_usable_sessions(sub["available_at"])
+            k = pd.DataFrame({"s": sess.to_numpy(), "sym": sub["symbol"].to_numpy()}).dropna()
+            k = k.groupby(["s", "sym"]).size().unstack(fill_value=0).reindex(index=p.dates, columns=p.symbols,
+                                                                              fill_value=0)
+            out[c] = base.add(k.astype("float64"), fill_value=0.0)
+        return out
+    return memo(fs, "news_classified_counts", build)[col]  # type: ignore[index]
+
+
+_SRC_NC = _SRC_N + "; headline rules in quantlab.data.news_classify; tags counted over all rows of an article"
+
+
+@FEATURES.feature("news_company_1d", "news", "company-specific items (article tagged with <= 2 symbols) usable at D",
+                  _SRC_NC, PitStatus.PIT_CONSERVATIVE)
+def news_company_1d(fs: FeatureSet) -> pd.DataFrame:
+    if fs.bundle.news.empty:
+        return full_like_nan(fs)
+    return active_from(fs, fs.bundle.news["available_at"], _classified_counts(fs, "company_specific"))
+
+
+@FEATURES.feature("news_material_1d", "news",
+                  "company-specific items whose headline category is a company event (earnings, guidance, m&a, "
+                  "financing, contract, management, regulatory, legal, product, capital_return) usable at D",
+                  _SRC_NC, PitStatus.PIT_CONSERVATIVE)
+def news_material_1d(fs: FeatureSet) -> pd.DataFrame:
+    if fs.bundle.news.empty:
+        return full_like_nan(fs)
+    return active_from(fs, fs.bundle.news["available_at"], _classified_counts(fs, "material"))

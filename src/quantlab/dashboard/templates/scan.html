@@ -2,15 +2,19 @@
 {% block title %}terminal{% endblock %}
 {% block head %}<meta http-equiv="refresh" content="60">
 <style>
-:root{--panel:#ffffff;--soft:#f1f0ec;--warn:#8a5a00;--warn-bg:#faf1dc;--ok-bg:#e6f2ea;--bad-bg:#f9e6e3;--mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
-@media (prefers-color-scheme:dark){:root{--panel:#1d1d1a;--soft:#232320;--warn:#dcaa4a;--warn-bg:#2e2718;--ok-bg:#1d2b23;--bad-bg:#352120}}
+:root{--panel:#ffffff;--soft:#f1f0ec;--warn:#8a5a00;--warn-bg:#faf1dc;--ok-bg:#e6f2ea;--bad-bg:#f9e6e3;--exp:#6b3fa0;--exp-bg:#f1eaf8;--mono:ui-monospace,"Cascadia Mono",Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--panel:#1d1d1a;--soft:#232320;--warn:#dcaa4a;--warn-bg:#2e2718;--ok-bg:#1d2b23;--bad-bg:#352120;--exp:#b995e6;--exp-bg:#2a2233}}
 main{max-width:1400px}
 .bar{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:8px 12px;margin:0 0 14px;background:var(--panel);border:1px solid var(--line);font-size:13px}
 .bar b{font-family:var(--mono);font-weight:600}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--muted)}
 .dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.warn{background:var(--warn)}
+.mode{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:10px 14px;margin:0 0 12px;border:2px solid var(--ok);background:var(--ok-bg);font-size:13px}
+.mode.EXPLORATION{border-color:var(--exp);background:var(--exp-bg)}
+.mode b.m{font:700 16px/1 var(--mono);letter-spacing:.04em}
 .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:14px}
 .card{background:var(--panel);border:1px solid var(--line);padding:14px 16px;display:grid;gap:8px;align-content:start}
+.card.exp{border-top:3px solid var(--exp)}
 .card h3{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .big{font-size:22px;font-weight:650;letter-spacing:-.01em}
 .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
@@ -19,12 +23,15 @@ main{max-width:1400px}
 .steps{display:flex;flex-wrap:wrap;gap:4px;font-size:12px}
 .steps span{border:1px solid var(--line);padding:3px 7px;background:var(--soft)}.steps span.done{border-color:var(--ok);color:var(--ok)}
 .pill{display:inline-block;font:600 11px/1 var(--mono);padding:3px 6px;border:1px solid currentColor;white-space:nowrap}
-.pill.TRADED,.pill.PAPER_ELIGIBLE{color:var(--ok)}.pill.WATCH{color:var(--accent)}.pill.VALIDATION_PENDING{color:var(--warn)}
-.pill.REJECTED,.pill.INVALIDATED{color:var(--bad)}.pill.DISCOVERED,.pill.UNKNOWN{color:var(--muted)}
+.pill.TRADED,.pill.PAPER_ELIGIBLE,.pill.PASS,.pill.PROMISING{color:var(--ok)}.pill.WATCH{color:var(--accent)}.pill.VALIDATION_PENDING,.pill.PENDING{color:var(--warn)}
+.pill.REJECTED,.pill.INVALIDATED,.pill.FAIL,.pill.NEGATIVE{color:var(--bad)}.pill.DISCOVERED,.pill.UNKNOWN,.pill.NONE,.pill.NOT_REACHED,.pill.NOT_APPLICABLE,.pill.NOT_EVALUATED,.pill.PRESENT,.pill.FLAT,.pill.INCONCLUSIVE{color:var(--muted)}
+.pill.EXPLORATORY,.pill.SELECTED,.pill.SHADOW{color:var(--exp)}
+.cls{font:600 10px/1 var(--mono);padding:3px 5px;border:1px dashed var(--line)}
+.cls.CATALYST-DRIVEN,.cls.TECHNICAL\ \+\ CATALYST{border-style:solid;border-color:var(--accent);color:var(--accent)}
 .origin{font:600 10px/1 var(--mono);padding:3px 5px;background:var(--soft);border:1px solid var(--line)}
 .opps{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin:8px 0 16px}
 .opp{background:var(--panel);border:1px solid var(--line);padding:12px 14px;display:grid;gap:7px;align-content:start}
-.opp.lead{border-top:3px solid var(--accent)}
+.opp.lead{border-top:3px solid var(--accent)}.opp.exp{border-top:3px solid var(--exp)}
 .opp .head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .opp .tk{font:700 20px/1 var(--mono)}.opp .setup{font-weight:600}
 .score{display:flex;align-items:center;gap:8px;font:600 13px/1 var(--mono)}
@@ -36,7 +43,7 @@ main{max-width:1400px}
 .chip.ok{color:var(--ok)}.chip.bad{color:var(--bad)}
 .kv2{display:grid;grid-template-columns:110px 1fr;gap:3px 10px;font-size:12.5px}.kv2 dt{color:var(--muted)}.kv2 dd{margin:0}
 .block{font-size:12.5px;border-left:3px solid var(--bad);padding:4px 8px;background:var(--bad-bg)}
-.block.ok{border-color:var(--ok);background:var(--ok-bg)}
+.block.ok{border-color:var(--ok);background:var(--ok-bg)}.block.exp{border-color:var(--exp);background:var(--exp-bg)}
 .cols2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
 .lst{margin:0;padding-left:18px;font-size:12.5px}.lst li{margin:2px 0}
 .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin:6px 0 14px;font-size:12.5px}
@@ -46,14 +53,27 @@ main{max-width:1400px}
 .funnel b{display:block;font:600 18px/1.2 var(--mono)}.funnel span{font-size:11.5px;color:var(--muted)}
 .barrow{display:grid;grid-template-columns:minmax(150px,240px) 1fr 70px;gap:8px;align-items:center;font-size:12.5px;margin:3px 0}
 .barrow .track{height:10px;background:var(--soft);position:relative}.barrow .track i{position:absolute;left:0;top:0;bottom:0;background:var(--bad)}
+.chain{display:grid;gap:2px;font-size:12px}
+.chain div{display:grid;grid-template-columns:150px 110px 1fr;gap:8px;align-items:baseline;padding:2px 0;border-bottom:1px dotted var(--line)}
+.chain div span:first-child{font:600 11px/1.3 var(--mono);color:var(--muted)}
+.cov{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.cov div{border:1px solid var(--line);background:var(--panel);padding:8px 10px}.cov b{display:block;font:600 20px/1.2 var(--mono)}
+.cov span{font-size:11.5px;color:var(--muted)}
 h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
 .small{font-size:12px}
-@media (max-width:560px){.kv2{grid-template-columns:1fr}.pts{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:560px){.kv2{grid-template-columns:1fr}.pts{grid-template-columns:repeat(3,1fr)}.chain div{grid-template-columns:1fr}}
 </style>{% endblock %}
 {% block body %}
-{% set M = d.market %}{% set N = d.next %}{% set L = d.live or {} %}{% set S = L.system or {} %}{% set F = d.funnel_raw %}
+{% set M = d.market %}{% set N = d.next %}{% set L = d.live or {} %}{% set S = L.system or {} %}{% set F = d.funnel_raw %}{% set X = d.exploration or {} %}
 {% if (d.run and d.run.is_synthetic) or (not d.run and synthetic) %}<div class="banner">SYNTHETIC data: test output, not market evidence.</div>{% endif %}
 {% if d.stale %}<div class="banner">Discovery is not current: {{ d.stale }}.</div>{% endif %}
+
+<div class="mode {{ d.paper_mode }}">
+  <b class="m">PAPER MODE: {{ d.paper_mode }}</b>
+  {% if d.paper_mode == 'EXPLORATION' %}<span>Validated (STRICT) trades plus a small daily budget of <b>exploratory</b> paper trades taken without proven edge, to learn what works. Exploratory trades are never evidence of edge and never count as validated.</span>
+  {% else %}<span>Only TRADE decisions of the unchanged gates are paper traded. Exploratory selections are tracked as SHADOW (never traded) so forward evidence still accumulates. Switch with <code>paper.mode: EXPLORATION</code>.</span>{% endif %}
+  <span class="muted small">Both modes keep every safety control: data quality, kill switch, limits, broker/reconciliation, paper only.</span>
+</div>
 
 <div class="bar">
   <span><span class="dot {{ 'ok' if M.status == 'OPEN' else 'warn' }}"></span>Market <b>{{ M.status }}</b></span>
@@ -67,9 +87,13 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
   <span class="muted small">{{ M.calendar_source }}</span>
 </div>
 
+{% macro chain_view(chain) %}
+<div class="chain">{% for s in chain %}<div><span>{{ s.stage }}</span><span><span class="pill {{ s.state }}">{{ s.state }}</span></span><span>{{ s.text }}</span></div>{% endfor %}</div>
+{% endmacro %}
+
 <div class="hero">
   <div class="card">
-    <h3>Current paper trade</h3>
+    <h3>Current paper trade · STRICT (validated)</h3>
     {% if d.paper.open %}
       {% for t in d.paper.open %}<div class="big">{{ t.symbol }} <span class="muted small">{{ t.qty }} sh since {{ t.entry_date }} @ {{ "%.2f"|format(t.entry_price) }}</span></div>
       <div class="small">Strategy {{ t.strategy_id }} · stop {{ t.stop_price }} · planned exit {{ t.planned_exit_date }}</div>{% endfor %}
@@ -78,12 +102,19 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
       {% if d.paper.working_orders %}<div class="small">{{ d.paper.working_orders|length }} working paper order(s).</div>{% endif %}
       {% set mo = d.monitored %}
       {% if mo %}
-      <div class="small"><b>Strongest candidate being monitored:</b> <span style="font-family:var(--mono);font-weight:700">{{ mo.symbol }}</span> · {{ mo.setup_type }} · score {{ "%.0f"|format(mo.score) if mo.score is number else "UNKNOWN" }} · <span class="pill {{ mo.status }}">{{ mo.status }}</span></div>
+      <div class="small"><b>Strongest candidate being monitored:</b> <span style="font-family:var(--mono);font-weight:700">{{ mo.symbol }}</span> · {{ mo.setup_type }} · score {{ "%.0f"|format(mo.score) if mo.score is number else "UNKNOWN" }} (rank, not a probability) · <span class="pill {{ mo.status }}">{{ mo.status }}</span> <span class="cls {{ mo.setup_class }}">{{ mo.setup_class }}</span></div>
       <div class="block">Why it is not eligible: {{ mo.block_reason or "no validated strategy covers it" }}</div>
-      <div class="small muted">A paper trade needs a strategy that has passed validation, a TRADE decision from the EV/risk gates and the next-open execution window. Nothing is forced.</div>
       {% endif %}
+      <div class="small muted">A STRICT paper trade needs a validated strategy, a TRADE decision from the EV/risk gates and the next-open execution window. Nothing is forced.</div>
     {% endif %}
-    <div class="small muted">Closed paper trades: {{ d.paper.closed_n }} · realised P/L {{ "{:,.2f}".format(d.paper.realized) }}</div>
+    <div class="small muted">Closed strict paper trades: {{ d.paper.closed_n }} · realised P/L {{ "{:,.2f}".format(d.paper.realized) }}</div>
+  </div>
+  <div class="card exp">
+    <h3>Exploratory paper trades · NOT validated</h3>
+    {% if d.paper.exploration_open %}{% for t in d.paper.exploration_open %}<div><span class="pill EXPLORATORY">EXPLORATORY</span> <b style="font-family:var(--mono)">{{ t.symbol }}</b> <span class="small muted">{{ t.qty }} sh since {{ t.entry_date }} @ {{ "%.2f"|format(t.entry_price) }} · stop {{ t.stop_price }} · planned exit {{ t.planned_exit_date }}</span></div>{% endfor %}
+    {% else %}<div class="big">{{ 'NO EXPLORATORY TRADE' if d.paper_mode == 'EXPLORATION' else 'EXPLORATION OFF (STRICT)' }}</div>{% endif %}
+    {% if X.session %}<div class="small">Session {{ X.session }}: {% for k, v in (X.counts or {})|dictsort %}{{ k.replace('_',' ').lower() }} <b>{{ v }}</b>{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+    <div class="small muted">Exploratory trades test experimental setups WITHOUT proven EV. They never make a strategy eligible for STRICT mode.</div>
   </div>
   <div class="card">
     <h3>Next trading session: {{ M.next_session or 'UNKNOWN' }}</h3>
@@ -91,10 +122,11 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
     {% set C = N.counts %}
     <div class="stat">
       <div><b>{{ C.candidates if C else 0 }}</b><span>candidates</span></div>
-      <div><b>{{ C.high_ranked if C else 0 }}</b><span>high-ranked</span></div>
+      <div><b>{{ C.catalyst_setups if C else 0 }}</b><span>catalyst setups</span></div>
       <div><b>{{ C.watchlist if C else 0 }}</b><span>watchlist{% if C and C.promoted_overnight %} (incl. {{ C.promoted_overnight }} promoted overnight){% endif %}</span></div>
+      <div><b>{{ C.new_overnight if C else 0 }}</b><span>new from overnight events</span></div>
       <div><b>{{ C.validation_pending if C else 0 }}</b><span>validation pending</span></div>
-      <div><b>{{ C.paper_eligible if C else 0 }}</b><span>paper eligible</span></div>
+      <div><b>{{ C.paper_eligible if C else 0 }}</b><span>paper eligible (strict)</span></div>
     </div>
     <div class="small muted">From decision session {{ (N.run or {}).as_of_date or '?' }} · information cutoff {{ ((N.run or {}).info_cutoff_at or '?')[:16] }} UTC (the session close)</div>
     <div class="steps">{% for s in N.pipeline %}<span class="{{ 'done' if s.at or (s.state and 'done' in s.state) else '' }}" title="{{ s.at or '' }}">{{ s.stage }}: {{ s.state }}</span>{% endfor %}</div>
@@ -104,18 +136,19 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
 <div class="legend">
   <div><b>Current market opportunity</b><br>a setup in the last completed session's data. Descriptive, not a plan.</div>
   <div><b>Next-session setup</b><br>the same setup as a conditional plan for {{ M.next_session or 'the next session' }}: it needs confirmation and can be invalidated.</div>
-  <div><b>Validated paper trade</b><br>only a TRADE decision from the unchanged gates plus a placed paper order.</div>
+  <div><b>Validated paper trade</b><br>only a TRADE decision from the unchanged gates plus a placed paper order. <span style="color:var(--exp)">Exploratory</span> trades are labelled separately.</div>
+  <div><b>Setup class</b><br>TECHNICAL-ONLY · CATALYST-DRIVEN · TECHNICAL + CATALYST · UNKNOWN (catalyst sources do not cover the symbol: not "no catalyst").</div>
 </div>
 
 {% macro opp_card(c, lead=false) %}
 <div class="opp{{ ' lead' if lead else '' }}">
-  <div class="head"><span class="tk">{{ c.symbol }}</span><span class="setup">{{ c.setup_type }}</span><span class="origin">{{ c.origin }}</span><span class="pill {{ c.status }}">{{ c.status }}</span></div>
+  <div class="head"><span class="tk">{{ c.symbol }}</span><span class="setup">{{ c.setup_type }}</span><span class="origin">{{ c.origin }}</span><span class="cls {{ c.setup_class }}">{{ c.setup_class }}</span><span class="pill {{ c.status }}">{{ c.status }}</span></div>
   <div class="score">Score {{ "%.0f"|format(c.score) if c.score is number else "UNKNOWN" }}<span class="meter"><i style="width:{{ c.score if c.score is number else 0 }}%"></i></span><span class="muted small">rank, not a probability</span></div>
   <div class="pts">{% for p in c.points %}<div>{{ p.short }}<b>{{ "%.0f"|format(p.value) if p.value is number else "UNK" }}</b></div>{% endfor %}</div>
   <div class="chips">{% if c.levels.close %}<span class="chip">last close {{ "%.2f"|format(c.levels.close) }}</span>{% endif %}{% for t in c.tech %}<span class="chip {{ t.tone }}">{{ t.k }} {{ t.v }}</span>{% endfor %}</div>
   <ul class="lst">{% for r in c.reasons %}<li>{{ r }}</li>{% endfor %}</ul>
   <dl class="kv2">
-    <dt>Catalyst</dt><dd>{{ c.catalyst.text }}</dd>
+    <dt>Catalyst</dt><dd>{% if c.cat and c.cat.event %}{{ c.cat.event }} · {{ (c.cat.event_at or '')[:16] }} · {{ c.cat.reaction }}{% else %}{{ c.catalyst.text }}{% endif %}</dd>
     <dt>Data coverage</dt><dd>{{ "%.0f"|format((c.coverage or 0) * 5) }}/5 price families{% if c.unknown_context %}; UNKNOWN: {{ c.unknown_context|join(", ") }}{% endif %}</dd>
     <dt>Strategy</dt><dd>{{ c.strategy }}</dd>
     <dt>Evidence</dt><dd>{% if c.evidence %}{{ c.evidence.group }}: <b>{{ c.evidence.verdict }}</b> ({{ "{:,}".format(c.evidence.n_obs) }} historical setups{% if c.evidence.median_net_5d is number %}, 5d median net {{ "{:+.2%}".format(c.evidence.median_net_5d) }}{% endif %}{% if c.evidence.vs_baseline_5d is number %}, vs baseline {{ "{:+.2%}".format(c.evidence.vs_baseline_5d) }}{% endif %}){% else %}no research on this pattern yet{% endif %}</dd>
@@ -125,13 +158,14 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
 {% endmacro %}
 
 {% macro next_setups() %}
-<h2>Next session setups{% if N.run %}: for {{ N.run.next_session }}{% endif %}</h2>
+<h2>Best next-session setups{% if N.run %} · Next session setups: for {{ N.run.next_session }}{% endif %}</h2>
 {% if N.mismatch %}<div class="banner">STALE: {{ N.mismatch }}.</div>{% endif %}
-<p class="muted small">Conditional plans, not predictions and not orders. Each needs next-session price/volume confirmation; the pre-open recheck never uses the actual open.</p>
+<p class="muted small">Technical discovery and catalyst evidence combined. Ordered by status, then by how many independent evidence types agree (a count, not a probability), then by score. Conditional plans, not predictions and not orders; the pre-open recheck never uses the actual open.</p>
 {% if N.top %}<div class="opps">{% for t in N.top[:6] %}{% set su = t.setup or {} %}
 <div class="opp{{ ' lead' if loop.first else '' }}">
-  <div class="head"><span class="tk">{{ t.symbol }}</span><span class="setup">{{ su.setup_type }}</span><span class="origin">{{ t.origin }}</span><span class="pill {{ t.status }}">{{ t.status }}</span>{% if t.promoted_overnight %}<span class="chip ok">promoted overnight</span>{% endif %}</div>
+  <div class="head"><span class="tk">{{ t.symbol }}</span><span class="setup">{{ su.setup_type }}</span><span class="origin">{{ t.origin }}</span><span class="cls {{ t.setup_class }}">{{ t.setup_class }}</span><span class="pill {{ t.status }}">{{ t.status }}</span>{% if t.promoted_overnight %}<span class="chip ok">promoted overnight</span>{% endif %}{% if t.created_by == 'OVERNIGHT_REFRESH' %}<span class="chip ok">new: overnight event</span>{% endif %}</div>
   <div class="score">Score {{ "%.0f"|format(t.score) if t.score is number else "UNKNOWN" }}<span class="meter"><i style="width:{{ t.score if t.score is number else 0 }}%"></i></span></div>
+  {% if t.catalyst and t.catalyst.event %}<div class="small"><b>{{ t.catalyst.event }}</b> · {{ (t.catalyst.event_at or '')[:16] }} UTC · reaction: {{ t.catalyst.reaction }} · volume: {{ t.catalyst.volume }}</div>{% endif %}
   <div class="cols2">
     <div><b class="small">Why it is interesting</b><ul class="lst">{% for x in su.why or [] %}<li>{{ x }}</li>{% endfor %}</ul></div>
     <div><b class="small">What would confirm it</b><ul class="lst">{% for x in su.confirm or [] %}<li>{{ x }}</li>{% endfor %}</ul></div>
@@ -147,17 +181,54 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
 
 {% if M.status != 'OPEN' %}{{ next_setups() }}{% endif %}
 
+{% if d.monitored and d.monitored.chain %}
+<h2>Evidence chain · strongest candidate {{ d.monitored.symbol }}</h2>
+<p class="muted small">EVENT → WHEN KNOWN → PRICE → VOLUME → SECTOR/INDUSTRY → FUNDAMENTALS → VALIDATION → RISK → EV → PAPER ELIGIBILITY. Stages 7-10 are read from the unchanged decision chain.</p>
+<div class="card">{{ chain_view(d.monitored.chain) }}</div>
+{% endif %}
+
+{% set CP = d.catalysts %}
+<h2>Catalysts{% if CP %} · session {{ CP.as_of }}{% endif %}</h2>
+{% if not CP %}<p class="muted">No catalyst panel for this run (run a new end-of-day scan after ingesting catalyst data).</p>{% else %}
+<p class="muted small">Discovery evidence, not trade signals. Direction is never assumed. EPS/revenue surprise vs consensus: UNKNOWN (no point-in-time consensus source).</p>
+<div class="hero">
+  <div class="card"><h3>New earnings reactions today ({{ CP.n_earnings_reactions_today }})</h3>
+    {% for e in CP.earnings_reactions_today[:8] %}<div class="small"><b style="font-family:var(--mono)">{{ e.symbol }}</b> 8-K {{ e.accepted_at[:16] }} ({{ e.timing }}) · {{ e.direction }} {{ "{:+.1%}".format(e.reaction) if e.reaction is number else "UNKNOWN" }}{% if e.rel_volume is number %} · vol {{ "%.1f"|format(e.rel_volume) }}x{% endif %}</div>{% else %}<div class="small muted">none</div>{% endfor %}</div>
+  <div class="card"><h3>Important company news today ({{ CP.n_company_news_today }})</h3>
+    {% for n in CP.company_news_today[:8] %}<div class="small"><b style="font-family:var(--mono)">{{ n.symbol }}</b> [{{ n.category }}] {{ n.headline or "(headline revised after the cutoff: withheld)" }} <span class="muted">{{ n.created_at[:16] }}</span></div>{% else %}<div class="small muted">none</div>{% endfor %}
+    {% for k in CP.material_8k_today[:4] %}<div class="small"><b style="font-family:var(--mono)">{{ k.symbol }}</b> 8-K: {{ (k.labels or [])|join(", ") }} <span class="muted">{{ k.accepted_at[:16] }}</span></div>{% endfor %}</div>
+  <div class="card"><h3>Unusual price reactions ({{ CP.n_unusual_price_reactions }}) · abnormal volume ({{ CP.n_abnormal_volume }})</h3>
+    {% for u in CP.unusual_price_reactions[:6] %}<div class="small"><b style="font-family:var(--mono)">{{ u.symbol }}</b> {{ "{:+.1%}".format(u.ret_1d) if u.ret_1d is number else "?" }} (z {{ "%+.1f"|format(u.z) if u.z is number else "?" }}) · catalyst: {{ u.catalyst }}</div>{% endfor %}
+    {% for v in CP.abnormal_volume[:5] %}<div class="small"><b style="font-family:var(--mono)">{{ v.symbol }}</b> volume {{ "%.1f"|format(v.rel_volume) }}x · {{ "{:+.1%}".format(v.ret_1d) if v.ret_1d is number else "?" }} · catalyst: {{ v.catalyst }}</div>{% endfor %}</div>
+  <div class="card"><h3>Sector / industry context (point-in-time SIC)</h3>
+    {% for g in CP.industry_leaders %}<div class="small">▲ {{ g.name or ("SIC group " ~ g.code) }} · rank {{ "%.2f"|format(g.rank_63) }} · {{ g.members }} members</div>{% endfor %}
+    {% for g in CP.industry_laggards %}<div class="small">▼ {{ g.name or ("SIC group " ~ g.code) }} · rank {{ "%.2f"|format(g.rank_63) }} · {{ g.members }} members</div>{% endfor %}
+    {% if not CP.industry_leaders %}<div class="small muted">UNKNOWN (no point-in-time SIC groups)</div>{% endif %}</div>
+</div>
+{% if d.catalyst_candidates %}
+<div style="overflow-x:auto"><table><thead><tr><th>Ticker</th><th>Score</th><th>Class</th><th>Event</th><th>Event time</th><th>Price reaction</th><th>Volume</th><th>Industry</th><th>Fundamentals</th><th>Confirms</th><th>Invalidates</th><th>Missing</th><th>Status</th><th>Blocker</th></tr></thead><tbody>
+{% for c in d.catalyst_candidates %}{% set su = c.setup or {} %}<tr>
+<td><b style="font-family:var(--mono)">{{ c.symbol }}</b></td><td style="font-family:var(--mono)">{{ "%.0f"|format(c.score) if c.score is number else "UNK" }}</td><td><span class="cls {{ c.setup_class }}">{{ c.setup_class }}</span></td>
+<td style="white-space:normal;font-size:11.5px">{{ c.cat.event }}</td><td style="font-size:11.5px">{{ (c.cat.event_at or '')[:16] }}</td>
+<td style="white-space:normal;font-size:11.5px">{{ c.cat.reaction }}</td><td style="white-space:normal;font-size:11.5px">{{ c.cat.volume }}</td>
+<td style="white-space:normal;font-size:11.5px">{{ c.cat.industry }}</td><td style="white-space:normal;font-size:11.5px">{{ c.cat.fundamentals }}</td>
+<td style="white-space:normal;font-size:11px;min-width:160px">{{ (su.confirm or [])[:2]|join("; ") }}</td><td style="white-space:normal;font-size:11px;min-width:160px">{{ (su.invalidate or [])[:2]|join("; ") }}</td>
+<td style="white-space:normal;font-size:11px;min-width:160px">{{ (su.missing or [])[:3]|join("; ") }}</td>
+<td><span class="pill {{ c.status }}">{{ c.status }}</span></td><td style="white-space:normal;min-width:180px;font-size:11px">{{ c.block_reason or "" }}</td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+{% endif %}
+
 <h2>Top opportunities{% if d.run %} · session {{ d.run.as_of_date }}{% endif %}</h2>
 {% if not d.run %}<p class="muted">No discovery run yet (quantlab next-session scan, or the daily pipeline).</p>{% else %}
-<p class="muted small">Ordered by status (paper-eligible first), then by discovery score. Score 0-100 ranks five price/volume families (20 points each); UNKNOWN means missing data, never a low value.</p>
+<p class="muted small">Ordered by status (paper-eligible first), then by discovery score. Score 0-100 ranks five price/volume families (20 points each); catalysts never change it. UNKNOWN means missing data, never a low value.</p>
 <div class="opps">{% for c in d.top[:3] %}{{ opp_card(c, loop.first) }}{% endfor %}</div>
-<div style="overflow-x:auto"><table><thead><tr><th>Ticker</th><th>Score</th><th>Origin</th><th>Setup</th><th>Key evidence</th><th>Last close</th><th>Technical</th><th>Catalyst</th><th>Coverage</th><th>Strategy</th><th>Status</th><th>Blocker</th></tr></thead><tbody>
+<div style="overflow-x:auto"><table><thead><tr><th>Ticker</th><th>Score</th><th>Origin</th><th>Class</th><th>Setup</th><th>Key evidence</th><th>Last close</th><th>Technical</th><th>Catalyst</th><th>Coverage</th><th>Strategy</th><th>Status</th><th>Blocker</th></tr></thead><tbody>
 {% for c in d.top[3:] %}<tr>
-<td><b style="font-family:var(--mono)">{{ c.symbol }}</b></td><td style="font-family:var(--mono)">{{ "%.0f"|format(c.score) if c.score is number else "UNK" }}</td><td><span class="origin">{{ c.origin }}</span></td>
+<td><b style="font-family:var(--mono)">{{ c.symbol }}</b></td><td style="font-family:var(--mono)">{{ "%.0f"|format(c.score) if c.score is number else "UNK" }}</td><td><span class="origin">{{ c.origin }}</span></td><td><span class="cls {{ c.setup_class }}">{{ c.setup_class }}</span></td>
 <td style="white-space:normal">{{ c.setup_type }}</td><td style="white-space:normal;min-width:220px;font-size:12px">{{ c.reasons[:2]|join("; ") }}</td>
 <td style="font-family:var(--mono)">{{ "%.2f"|format(c.levels.close) if c.levels.close else "" }}</td>
 <td style="white-space:normal;font-size:11.5px">{% for t in c.tech[:3] %}{{ t.k }} {{ t.v }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
-<td style="white-space:normal;font-size:11.5px">{{ c.catalyst.state }}</td><td>{{ "%.0f"|format((c.coverage or 0) * 5) }}/5</td>
+<td style="white-space:normal;font-size:11.5px">{{ c.cat.event if c.cat and c.cat.event else c.catalyst.state }}</td><td>{{ "%.0f"|format((c.coverage or 0) * 5) }}/5</td>
 <td style="white-space:normal;font-size:11.5px">{{ c.strategy_status or "none" }}</td><td><span class="pill {{ c.status }}">{{ c.status }}</span></td>
 <td style="white-space:normal;min-width:200px;font-size:11.5px">{{ c.block_reason or "" }}</td></tr>{% endfor %}
 </tbody></table></div>
@@ -165,10 +236,32 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
 
 {% if M.status == 'OPEN' %}{{ next_setups() }}{% endif %}
 
+<h2>Exploratory paper trading · {{ 'ON' if d.paper_mode == 'EXPLORATION' else 'tracked as SHADOW (STRICT mode)' }}</h2>
+<p class="muted small">Exploration asks "what happens if we take the best-looking experimental setups?". It does not require validated strategies, significant out-of-sample results or positive historical EV. It still requires valid data, liquidity, no quarantine, the kill switch ACTIVE and the position/exposure limits.</p>
+{% if X.selected %}<div class="opps">{% for e in X.selected %}
+<div class="opp exp"><div class="head"><span class="tk">{{ e.symbol }}</span><span class="pill {{ 'EXPLORATORY' if e.selection == 'SELECTED' else 'SHADOW' }}">{{ 'EXPLORATORY' if e.selection == 'SELECTED' else 'SHADOW (not traded)' }}</span><span class="setup">{{ e.setup_type }}</span><span class="cls {{ e.setup_class }}">{{ e.setup_class }}</span></div>
+<div class="small">Decided for session {{ e.session }} · {{ "%g"|format(e.qty) }} sh @ ~{{ "%.2f"|format(e.ref_price) if e.ref_price is number else "?" }} · stop {{ "%.2f"|format(e.stop) if e.stop is number else "UNKNOWN" }} · hold ≤ {{ e.expected.hold }} sessions · EV {{ ("%+.0f bps"|format(e.ev)) if e.ev is number else "UNKNOWN" }}</div>
+<dl class="kv2">
+<dt>Why we took it</dt><dd>{{ e.why }}</dd>
+<dt>What was unknown</dt><dd>{{ e.unknown[:4]|join("; ") or "nothing recorded" }}</dd>
+<dt>Why STRICT rejects it</dt><dd>{{ e.strict_reject[:3]|join("; ") or "strict chain not reached" }}</dd>
+<dt>What we expected</dt><dd>{{ e.expected.text }}. Confirms: {{ e.expected.confirm[:2]|join("; ") }}. Invalidates: {{ e.expected.invalidate[:2]|join("; ") }}</dd>
+<dt>What happened</dt><dd>{{ e.happened|join(" · ") }}</dd>
+</dl></div>{% endfor %}</div>{% else %}<p class="muted">No exploratory selection yet.</p>{% endif %}
+
+{% set R = X.results or {} %}
+<h2>Experiment results · {{ R.horizon or 5 }}-session outcomes from the next open, net of modelled costs</h2>
+<p class="muted small">Sample counts are shown with every number; small samples prove nothing either way, and no significance is implied. A losing exploratory trade does not prove the filter right; a winning one does not prove it wrong.</p>
+{% set rows = [] %}{% for k, v in (R.groups or {}).items() %}{% set _ = rows.append({"group": k, "n": v.n, "win rate": ("{:.0%}".format(v.win_rate) if v.win_rate is number else "–"), "mean": ("{:+.2%}".format(v.mean) if v.mean is number else "–"), "median": ("{:+.2%}".format(v.median) if v.median is number else "–"), "avg win": ("{:+.2%}".format(v.avg_win) if v.avg_win is number else "–"), "avg loss": ("{:+.2%}".format(v.avg_loss) if v.avg_loss is number else "–"), "MAE": ("{:+.2%}".format(v.mae) if v.mae is number else "–"), "MFE": ("{:+.2%}".format(v.mfe) if v.mfe is number else "–")}) %}{% endfor %}
+{% if rows %}{{ table(rows) }}{% else %}<p class="muted">No outcomes yet.</p>{% endif %}
+{% for dim, parts in (R.by or {}).items() %}{% if parts %}<div class="small"><b>By {{ dim }}:</b> {% for k, v in parts.items() %}{{ k }} n={{ v.n }}{% if v.mean is number %} mean {{ "{:+.2%}".format(v.mean) }}{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}{% endfor %}
+<p class="muted small">Learning loop: discovery → exploratory paper trade → forward outcome → research analysis → pattern → historical PIT test → walk-forward → strict validation → strict paper → only much later real money. Hypotheses move one stage at a time, by a named human, never automatically (<code>quantlab hypothesis</code>).</p>
+
 {% if d.run %}
 <h2>Candidate funnel · session {{ d.run.as_of_date }}</h2>
 <div class="funnel">{% for s in d.funnel %}<div title="{{ s.hint }}"><b>{{ "{:,}".format(s.n) if s.n is not none else "?" }}</b><span>{{ s.label }}</span></div>{% endfor %}</div>
 <div class="small">Candidate origin: discovery only <b>{{ F.discovery_only or 0 }}</b> · strategy only <b>{{ F.strategy_only or 0 }}</b> · both <b>{{ F.both or 0 }}</b>. Missed discovery signals (strategy signals discovery did not select, kept in the pool): <b>{{ F.missed_discovery_signals or 0 }}</b>.</div>
+<div class="small">Setup class: technical only <b>{{ F.technical_only or 0 }}</b> · catalyst-driven <b>{{ F.catalyst_driven or 0 }}</b> · technical + catalyst <b>{{ F.technical_plus_catalyst or 0 }}</b> · UNKNOWN <b>{{ F.class_unknown or 0 }}</b> · post-earnings <b>{{ F.post_earnings or 0 }}</b> · material events <b>{{ F.material_event or 0 }}</b>.</div>
 
 {% if (F.paper_eligible or 0) == 0 and not F.session_orders_placed %}
 <h2>Why no paper trade?</h2>
@@ -180,7 +273,7 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
 
 <h2>Evidence</h2>
 <div class="hero">
-  <div class="card"><h3>Strategies (only PAPER_ELIGIBLE can trade)</h3>
+  <div class="card"><h3>Strategies (only PAPER_ELIGIBLE can trade in STRICT mode)</h3>
   {% for s in d.strategies %}<div class="small"><b>{{ s.strategy_id }}</b> <span class="pill {{ 'PAPER_ELIGIBLE' if s.status == 'PAPER_ELIGIBLE' else ('VALIDATION_PENDING' if s.status in ('WALK_FORWARD','VALIDATED') else 'DISCOVERED') }}">{{ s.status }}</span> {{ s.describe.split(' is ' ~ s.status)[1] if (' is ' ~ s.status) in s.describe else '' }}</div>{% endfor %}</div>
   <div class="card"><h3>Discovery research (forward outcomes)</h3>
   {% if d.research %}
@@ -188,6 +281,13 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
     {% if d.research.baseline %}<div class="small">Baseline (all research-universe symbols): 5d median net {{ "{:+.2%}".format(d.research.baseline.median_net_5d) if d.research.baseline.median_net_5d is number else "n/a" }}, mean net {{ "{:+.2%}".format(d.research.baseline.mean_net_5d) if d.research.baseline.mean_net_5d is number else "n/a" }}</div>{% endif %}
     {% for g in d.research.groups[:8] %}<div class="small"><b>{{ g.group }}</b>: {{ "{:,}".format(g.n_obs) }} obs · 5d median net {{ "{:+.2%}".format(g.median_net_5d) if g.median_net_5d is number else "n/a" }} · vs baseline {{ "{:+.2%}".format(g.vs_baseline_5d) if g.vs_baseline_5d is number else "n/a" }} · <span class="pill {{ 'PAPER_ELIGIBLE' if g.verdict == 'PROMISING' else ('REJECTED' if g.verdict == 'POOR' else 'DISCOVERED') }}">{{ g.verdict }}</span></div>{% endfor %}
   {% else %}<p class="muted small">No research run yet (quantlab discovery-research).</p>{% endif %}
+  </div>
+  <div class="card"><h3>Catalyst research (point-in-time replay)</h3>
+  {% set CR = d.catalyst_research %}
+  {% if CR %}
+    <div class="small muted">{{ CR.period }} · {{ CR.n_dates }} sessions · {{ "{:,}".format(CR.n_obs) }} observations · primary horizons 5d and 20d · Bonferroni z {{ "%.2f"|format(CR.z) }} over {{ CR.n_tests }} tests.</div>
+    {% for g in CR.groups %}<div class="small"><b>{{ g.group }}</b>: n={{ "{:,}".format(g.n_obs) }} · 5d vs baseline {{ "{:+.2%}".format(g.vs_baseline_5d) if g.vs_baseline_5d is number else "n/a" }} (t {{ "%+.2f"|format(g.t_5d) if g.t_5d is number else "n/a" }}) · 20d {{ "{:+.2%}".format(g.vs_baseline_20d) if g.vs_baseline_20d is number else "n/a" }} (t {{ "%+.2f"|format(g.t_20d) if g.t_20d is number else "n/a" }}) · <span class="pill {{ g.verdict }}">{{ g.verdict }}</span></div>{% endfor %}
+  {% else %}<p class="muted small">No catalyst research run yet (quantlab catalyst-research).</p>{% endif %}
   </div>
 </div>
 
@@ -198,6 +298,10 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
 <div class="small muted"><b>Unknown:</b> {{ n.unknown|join("; ") or "none" }}</div></div>{% endfor %}</div>
 
 <h2>Data health</h2>
+<h3 class="small muted" style="margin:6px 0">Catalyst source coverage (scanned symbols, point in time at the decision cutoff)</h3>
+{% if d.source_coverage %}<div class="cov">{% for s in d.source_coverage %}<div><b>{{ ("%.0f%%"|format(s.coverage_pct)) if s.coverage_pct is number else "UNKNOWN" }}</b><span>{{ s.label }} · {{ s.symbols or 0 }}/{{ s.universe }} symbols · {{ 'usable' if s.usable else 'UNKNOWN' }}</span><br><span>{{ s.first or '?' }} → {{ s.latest or '?' }} · {{ s.pit }}</span></div>{% endfor %}</div>
+<p class="muted small">UNKNOWN is not "negative": a symbol a source does not cover has an unknown catalyst state. Timestamps: SEC acceptance time (to the second, UTC); news creation time; SIC from each filing's header at acceptance; fundamentals at their filing's acceptance (never the 'frame' field).</p>
+{% elif d.source_coverage_error %}<p class="warnbox">Source coverage failed: {{ d.source_coverage_error }}</p>{% else %}<p class="muted small">No source coverage recorded for this run.</p>{% endif %}
 {% if d.diagnostics %}{{ table(d.diagnostics, ["level","code","message"]) }}{% endif %}
 {% set cov = [] %}{% for r in d.coverage %}{% set _ = cov.append({"feature": r.label, "coverage": "{:.1%}".format(r.coverage), "symbols": r.known ~ " / " ~ r.n, "invalid": r.invalid, "PIT": r.pit_status, "usable": "yes" if r.usable else "NO", "role": r.role, "source": r.source}) %}{% endfor %}
 {{ table(cov) }}

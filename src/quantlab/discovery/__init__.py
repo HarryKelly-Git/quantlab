@@ -32,6 +32,14 @@ def run_discovery(ctx: Any, bundle, as_of, *, run_id: str | None = None, quarant
     if links is _AUTO:
         links = strategy_links(ctx.db, as_of, run_id, synthetic=scan.is_synthetic)
     a = eng.assess(scan, links, strategy_research_status(ctx.db, ctx.config))
+    if persist_results:
+        try:
+            from quantlab.discovery.source_coverage import source_coverage
+            cut = scan.calendar.cutoff(scan.as_of) if scan.calendar is not None else None
+            scan.source_coverage = source_coverage(ctx, universe=scan.basic_symbols, as_of=cut,
+                                                   synthetic=bool(scan.is_synthetic))
+        except Exception as exc:          # coverage is a report: never blocks discovery
+            scan.source_coverage = {"error": repr(exc)[:500]}
     disc_id = persist(ctx.db, eng, scan, a, run_id) if persist_results else ""
     n = DiscoveryOutcomeTracker(ctx.db, ctx.config).update(bundle, as_of, scan.is_synthetic) if persist_results else 0
     return DiscoveryRun(disc_id, scan, a, n)

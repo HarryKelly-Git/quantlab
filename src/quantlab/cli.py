@@ -301,8 +301,12 @@ def cmd_discover(args) -> int:
     from quantlab.data.validation import quarantine_map
     from quantlab.discovery import run_discovery
     syn = _data_flag(ctx, args.data)
-    bundle = ctx.store.load_bundle(ctx.config.section("benchmarks"), snapshot=ctx.store.snapshot(synthetic=syn),
-                                   synthetic=syn)
+    if syn:
+        bundle = ctx.store.load_bundle(ctx.config.section("benchmarks"), snapshot=ctx.store.snapshot(synthetic=syn),
+                                       synthetic=syn)
+    else:
+        from quantlab.discovery.catalyst_research import scan_bundle
+        bundle = scan_bundle(ctx, args.as_of)
     as_of = args.as_of or bundle.panel.dates[-1]
     dr = run_discovery(ctx, bundle, as_of, quarantine=quarantine_map(ctx.db))
     a = dr.assessment
@@ -335,6 +339,119 @@ def cmd_discovery_research(args) -> int:
     return 0
 
 
+def cmd_catalysts(args) -> int:
+    """Catalyst data ingestion (real providers, chunked, resumable by --offset / --start) + coverage."""
+    import pandas as pd
+    import time as _time
+    from quantlab.secrets import load_dotenv
+    ctx = _ctx(args)
+    load_dotenv(ctx.config.root / ".env")
+    from quantlab.data.sec_catalysts import catalyst_symbols, market_calendar
+    if args.action == "coverage":
+        from quantlab.discovery.source_coverage import source_coverage
+        _print(source_coverage(ctx))
+        return 0
+    syms = args.symbols.split(",") if args.symbols else catalyst_symbols(ctx.store)
+    if args.action == "ingest-news":
+        from quantlab.data.providers.alpaca_data import AlpacaDataProvider
+        prov = AlpacaDataProvider(ctx.config)
+        cur, end = pd.Timestamp(args.start, tz="UTC"), pd.Timestamp(args.end, tz="UTC")
+        while cur < end:
+            nxt = min(cur + pd.DateOffset(months=1), end)
+            t0 = _time.time()
+            df = prov.get_news_market(cur, nxt)
+            ds = ctx.store.write("news", df, "alpaca", params={"what": "market_news", "start": str(cur), "end": str(nxt)},
+                                 pit_notes="market-wide; available_at=created_at; window selected by updated_at; "
+                                           "summary not stored") if len(df) else None
+            print(json.dumps({"window": [str(cur.date()), str(nxt.date())], "rows": len(df),
+                              "articles": int(df["news_id"].nunique()) if len(df) else 0, "dataset": ds,
+                              "secs": round(_time.time() - t0, 1)}), flush=True)
+            cur = nxt
+        return 0
+    from quantlab.data.providers.sec_edgar import SecEdgarProvider
+    cal = market_calendar(ctx.store, ctx.config.get("benchmarks.market", "SPY"))
+    prov = SecEdgarProvider(ctx.config, calendar=cal)
+    since = pd.Timestamp(args.since, tz="UTC")
+    chunks = [syms[i:i + args.chunk] for i in range(0, len(syms), args.chunk)]
+    print(json.dumps({"symbols": len(syms), "chunks": len(chunks), "offset": args.offset}), flush=True)
+    for n, chunk in enumerate(chunks):
+        if n < args.offset:
+            continue
+        t0 = _time.time()
+        if args.action == "ingest-sec":
+            from quantlab.data.sec_catalysts import SecCatalystIngest
+            ing = SecCatalystIngest(prov, cal, since, fetch_sic=not args.no_sic)
+            df = ing.run(chunk, workers=args.workers)
+            kind, info = "events", dict(ing.stats)
+        else:   # ingest-facts
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=args.workers) as pool:
+                parts = list(pool.map(lambda s: prov.get_fundamentals([s], since=since), chunk))
+            parts = [p for p in parts if len(p)]
+            df = pd.concat(parts, ignore_index=True) if parts else None
+            kind, info = "fundamentals", {"symbols_with_facts": len(parts)}
+        ds = ctx.store.write(kind, df, "sec_edgar", params={"what": args.action, "since": str(since.date()), "chunk": n,
+                                                             "n_chunks": len(chunks)}) if df is not None and len(df) else None
+        print(json.dumps({"chunk": n, "rows": 0 if df is None else len(df), "dataset": ds,
+                          "secs": round(_time.time() - t0, 1), "requests": prov.http.request_count, **info}), flush=True)
+    return 0
+
+
+def cmd_catalyst_research(args) -> int:
+    """Point-in-time catalyst replay with forward outcomes (research only; locked holdout respected)."""
+    import pandas as pd
+    ctx = _ctx(args)
+    from quantlab.discovery.catalyst_research import research_bundle, run_catalyst_research
+    syn = _data_flag(ctx, args.data)
+    lb = pd.Timestamp(args.start) - pd.Timedelta(days=int(args.lookback_days))
+    if syn:
+        bundle = ctx.store.load_bundle(ctx.config.section("benchmarks"), synthetic=True)
+    else:
+        bundle = research_bundle(ctx, str(lb.date()), args.end_data)
+    res = run_catalyst_research(ctx, bundle, args.start, args.end, min_obs=args.min_obs, min_dates=args.min_dates)
+    _print({"research_id": res["research_id"], "sessions": res["n_dates"], "observations": res["n_obs"],
+            "z_crit": res["z_crit"], "report": res["report_path"],
+            "groups": [{"group": g["group"], "n": g["n_obs"], "dates": g["n_dates"], "verdict": g["verdict"], "why": g["why"]}
+                       for g in res["groups"]]})
+    return 0
+
+
+def cmd_explore(args) -> int:
+    """PAPER_EXPLORATION: plan (records decisions; never submits) | status | results. Orders are only
+    ever submitted by the pipeline / paper runner, through the unchanged execution service."""
+    ctx = _ctx(args)
+    from quantlab.exploration import experiment_results, paper_mode, plan_exploration
+    if args.action == "plan":
+        res = plan_exploration(ctx, session=args.session, mode=args.mode or paper_mode(ctx.config), now=args.now,
+                               equity=args.equity)
+        _print(res)
+        return 0 if res.get("ok") else 2
+    if args.action == "results":
+        _print(experiment_results(ctx.db, horizon=args.horizon))
+        return 0
+    rows = ctx.db.fetchall("SELECT session_date, mode, selection, COUNT(*) AS n FROM exploration_decisions "
+                           "GROUP BY session_date, mode, selection ORDER BY session_date DESC LIMIT 40")
+    _print({"paper_mode": paper_mode(ctx.config), "decisions": [dict(r) for r in rows]})
+    return 0
+
+
+def cmd_hypothesis(args) -> int:
+    """Exploration -> validation workflow. Human actor required; one stage at a time; never automatic."""
+    ctx = _ctx(args)
+    from quantlab.exploration import advance, create_hypothesis, hypotheses
+    if args.action == "list":
+        _print(hypotheses(ctx.db))
+        return 0
+    if args.action == "create":
+        hid = create_hypothesis(ctx.db, args.name, json.loads(args.definition or "{}"), args.actor, args.evidence)
+        _print({"hypothesis_id": hid, "stage": "EXPLORATION_OBSERVED"})
+        return 0
+    stage = advance(ctx.db, args.id, args.to, args.actor, args.evidence, n_observations=args.n_observations,
+                    min_observations=int(ctx.config.get("exploration.min_observations_to_propose", 30)))
+    _print({"hypothesis_id": args.id, "stage": stage})
+    return 0
+
+
 def cmd_next_session(args) -> int:
     """OVERNIGHT / NEXT-SESSION mode: scan (end of day) | refresh (overnight catalysts) | preopen | status."""
     ctx = _ctx(args)
@@ -344,9 +461,13 @@ def cmd_next_session(args) -> int:
         from quantlab.data.validation import quarantine_map
         from quantlab.discovery import run_discovery
         syn = _data_flag(ctx, args.data)
-        bundle = ctx.store.load_bundle(ctx.config.section("benchmarks"), snapshot=ctx.store.snapshot(synthetic=syn),
-                                       synthetic=syn)
         ms = ns.market_state(now)
+        if syn:
+            bundle = ctx.store.load_bundle(ctx.config.section("benchmarks"), snapshot=ctx.store.snapshot(synthetic=syn),
+                                           synthetic=syn)
+        else:
+            from quantlab.discovery.catalyst_research import scan_bundle
+            bundle = scan_bundle(ctx, args.as_of or ms.get("last_completed_session"))
         as_of = args.as_of or ms.get("last_completed_session") or bundle.panel.dates[-1]
         if str(as_of) not in {str(d.date()) for d in bundle.panel.dates}:
             print(f"NO BAR FOR {as_of}: the latest stored session is {bundle.panel.dates[-1].date()}. "
@@ -499,6 +620,40 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--top", type=int, default=10)
     s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
     s.set_defaults(fn=cmd_next_session)
+
+    s = sub.add_parser("catalysts", help="catalyst data: ingest-sec | ingest-news | ingest-facts | coverage")
+    s.add_argument("action", choices=["ingest-sec", "ingest-news", "ingest-facts", "coverage"])
+    s.add_argument("--since", default="2020-01-01", help="SEC: earliest acceptance/filing date kept")
+    s.add_argument("--start", default="2021-01-01"), s.add_argument("--end", default="2025-01-01")
+    s.add_argument("--symbols", help="comma list (default: stored-bar symbols that are COMMON stock)")
+    s.add_argument("--chunk", type=int, default=250), s.add_argument("--offset", type=int, default=0)
+    s.add_argument("--workers", type=int, default=6, help="threads sharing the SEC 8 req/s limiter")
+    s.add_argument("--no-sic", action="store_true", help="ingest-sec: skip SIC header reads")
+    s.set_defaults(fn=cmd_catalysts)
+
+    s = sub.add_parser("catalyst-research", help="point-in-time catalyst replay with forward outcomes (research only)")
+    s.add_argument("--start", default="2021-03-12"), s.add_argument("--end", default="2024-11-27")
+    s.add_argument("--end-data", default="2024-12-31", help="last bar loaded (outcomes never reach the holdout)")
+    s.add_argument("--lookback-days", type=int, default=300)
+    s.add_argument("--min-obs", type=int, default=200), s.add_argument("--min-dates", type=int, default=50)
+    s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
+    s.set_defaults(fn=cmd_catalyst_research)
+
+    s = sub.add_parser("explore", help="PAPER_EXPLORATION: plan | status | results (never submits orders)")
+    s.add_argument("action", choices=["plan", "status", "results"])
+    s.add_argument("--session", help="decision session (default: latest discovery run)")
+    s.add_argument("--mode", choices=["STRICT", "EXPLORATION"], help="override paper.mode for this plan (dry runs)")
+    s.add_argument("--now", help="decision time (ISO UTC); default wall clock")
+    s.add_argument("--equity", type=float, help="book equity for sizing (default: ledger)")
+    s.add_argument("--horizon", type=int, default=5)
+    s.set_defaults(fn=cmd_explore)
+
+    s = sub.add_parser("hypothesis", help="exploration -> validation workflow (human actor, one stage at a time)")
+    s.add_argument("action", choices=["list", "create", "advance"])
+    s.add_argument("--id"), s.add_argument("--name"), s.add_argument("--definition", help="JSON pattern definition")
+    s.add_argument("--to", help="next stage"), s.add_argument("--actor", help="human:<name>")
+    s.add_argument("--evidence", default=""), s.add_argument("--n-observations", type=int)
+    s.set_defaults(fn=cmd_hypothesis)
 
     s = sub.add_parser("dashboard", help="serve the read-only dashboard on localhost")
     s.add_argument("--port", type=int), s.add_argument("--allow-remote", action="store_true")

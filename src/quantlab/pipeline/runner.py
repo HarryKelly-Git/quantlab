@@ -606,7 +606,8 @@ class PaperRunner:
         if self._stop_requested():
             return "stop requested (quantlab paper stop)"
         for name, fn in (("calendar", self._refresh_calendar), ("account", self._poll_account),
-                         ("orders", self._poll_orders), ("session", self._maybe_process)):
+                         ("orders", self._poll_orders), ("session", self._maybe_process),
+                         ("exploration", self._maybe_explore)):
             try:
                 fn(now)
             except LiveTradingForbidden:
@@ -760,7 +761,7 @@ class PaperRunner:
                                                                   notes=f"paper runner session {self.session_id}")
         self._save_job(d, plan, run_id=run_id)
         pipe = DailyPipeline(self.ctx, synthetic=bundle.is_synthetic, broker=self.broker, bundle=bundle,
-                             order_guard=self._order_guard(plan))
+                             order_guard=self._order_guard(plan), exploration_submit="preopen")
         self.phase = f"processing {d}: pipeline run {run_id}"
         self._heartbeat(force=True)
         res = pipe.run(pd.Timestamp(d), resume_run_id=run_id)
@@ -780,6 +781,36 @@ class PaperRunner:
             self.event("WARN", "strategies", f"NO PAPER-ELIGIBLE STRATEGY for {d}: candidates recorded, no orders")
         self.phase = f"monitoring; {d} processed"
         return {"status": "failed" if res.errors else "succeeded", "run_id": run_id, "counts": counts}
+
+    def _maybe_explore(self, now: datetime) -> dict[str, Any] | None:
+        """PAPER_EXPLORATION pre-open step: from ``exploration.submit_after_et`` on the next session's
+        date until the order cutoff, revalidate the planned exploratory entries of the processed
+        session and submit them through the same execution service and order guard as strict orders.
+        STRICT mode: nothing (selections stay SHADOW)."""
+        from quantlab.exploration import ExplorationPolicy, paper_mode, preopen_submit
+        if paper_mode(self.ctx.config) != "EXPLORATION" or self.plan is None or self.calendar is None:
+            return None
+        plan = self.plan
+        job = self._job(plan.session)
+        if not job or job["status"] != "succeeded" or not plan.orders_allowed:
+            return None
+        pol = ExplorationPolicy.from_config(self.ctx.config)
+        h, m = (int(x) for x in pol.submit_after_et.split(":"))
+        start = datetime.combine(plan.next_session, time(h, m), tzinfo=ET).astimezone(timezone.utc)
+        if now < start or order_window_reason(now, plan.session, plan.next_session, self.process_after, self.order_cutoff):
+            return None
+        from quantlab.execution.ledger import Ledger
+        from quantlab.execution.service import PaperExecutionService
+        book = Book.BOT.value
+        svc = PaperExecutionService(self.db, self.ctx.config, book, self.broker,
+                                    Ledger(self.db, book, config=self.ctx.config, broker_name=self.broker.name))
+        svc.submission_guard = self._order_guard(plan)
+        res = preopen_submit(self.ctx, svc, now=pd.Timestamp(now), session=str(plan.session))
+        if res.get("submitted") or res.get("cancelled") or res.get("refused"):
+            self.event("INFO", "exploration", f"pre-open exploration for {plan.next_session}: {res.get('submitted', 0)} "
+                       f"submitted, {res.get('cancelled', 0)} cancelled, {res.get('refused', 0)} refused",
+                       {k: v for k, v in res.items() if k != "details"})
+        return res
 
     def _order_guard(self, plan: SessionPlan) -> Callable[[str, str], str | None]:
         def guard(purpose: str, symbol: str) -> str | None:

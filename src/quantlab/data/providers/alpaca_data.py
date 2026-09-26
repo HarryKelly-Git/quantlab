@@ -433,6 +433,43 @@ class AlpacaDataProvider(PriceProvider, CorporateActionProvider, NewsProvider):
         return schemas.conform("news", df)
 
 
+    def get_news_market(self, start_ts: pd.Timestamp, end_ts: pd.Timestamp, keep_summary: bool = False) -> pd.DataFrame:
+        """ALL news in [start_ts, end_ts] (no symbol filter), one row per (article, tagged symbol).
+
+        Every tagged symbol is kept, so ``rows per news_id`` = the article's tag count (used to tell
+        company-specific articles from multi-ticker roundups). The API selects the window by
+        ``updated_at`` (sort/pagination fields, docs/EXTERNAL-SERVICES.md Alpaca items 31-33), so an
+        old article edited inside the window is returned too; availability is always ``created_at``.
+        Summaries are dropped by default to keep universe-wide history small in memory."""
+        now = pd.Timestamp(self._clock()).tz_convert("UTC")
+        end_ts = min(pd.Timestamp(end_ts), now)
+        if end_ts <= pd.Timestamp(start_ts):
+            return schemas.empty("news")
+        params = {"start": rfc3339(pd.Timestamp(start_ts)), "end": rfc3339(end_ts), "limit": 50, "sort": "asc",
+                  "include_content": "false", "exclude_contentless": "false"}
+        rows: list[dict[str, Any]] = []
+        for page in self._pages(f"{self.base_url}/v1beta1/news", params, "news"):
+            for art in page["news"] or []:
+                for k in ("id", "created_at", "updated_at"):
+                    if art.get(k) in (None, ""):
+                        raise ProviderResponseError(f"alpaca: news article missing '{k}'")
+                for s in dict.fromkeys(str(x).upper() for x in (art.get("symbols") or [])):
+                    rows.append({"news_id": str(art["id"]), "symbol": s, "headline": art.get("headline") or "",
+                                 "summary": (art.get("summary") or "") if keep_summary else "",
+                                 "source": art.get("source") or "", "url": art.get("url") or "",
+                                 "created_at": art["created_at"], "updated_at": art["updated_at"]})
+        if not rows:
+            return schemas.empty("news")
+        df = pd.DataFrame(rows).drop_duplicates(["news_id", "symbol"], keep="last")
+        created = pd.to_datetime(df["created_at"], utc=True)
+        updated = pd.to_datetime(df["updated_at"], utc=True)
+        revised = updated > created + self.news_revision_tolerance
+        df = df.assign(created_at=created, updated_at=updated, available_at=created,
+                       pit_status=np.where(revised, PitStatus.PIT_CONSERVATIVE.value, PitStatus.PIT.value),
+                       provider=self.name, retrieved_at=now)
+        return schemas.conform("news", df)
+
+
 def ny_open_utc(d: pd.Timestamp) -> pd.Timestamp:
     """09:30 America/New_York on date ``d``, in UTC (DST-aware)."""
     return pd.Timestamp(datetime.combine(pd.Timestamp(d).date(), time(9, 30))).tz_localize(NY).tz_convert("UTC")

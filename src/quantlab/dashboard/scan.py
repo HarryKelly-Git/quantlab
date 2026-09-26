@@ -15,12 +15,16 @@ from typing import Any
 from quantlab.context import AppContext
 from quantlab.db.database import from_json
 from quantlab.discovery.families import LABELS, SCORED
+from quantlab.discovery.catalysts import catalyst_summary
+from quantlab.discovery.source_coverage import coverage_summary
 from quantlab.discovery.status import describe_strategy, strategy_research_status
+from quantlab.exploration.engine import paper_mode
 
 FUNNEL = (
     ("full_universe", "Scanned", "symbols in the stored data"),
     ("basic", "Basic data/liquidity", "bar, price >= $1, median $ volume >= $1M, >= 60 sessions"),
-    ("discovered", "Discovery setups", "at least one family fired"),
+    ("discovered", "Discovery setups", "at least one technical or catalyst family fired"),
+    ("catalyst_setups", "Catalyst setups", "post-earnings or material company event with a market response"),
     ("strategy_signals", "Strategy signals", "a strategy produced a candidate"),
     ("both", "Both", "discovered AND signalled by a strategy"),
     ("watchlist", "Watchlist", "top high-ranked setups passing data + universe checks"),
@@ -108,7 +112,10 @@ def scan_state(ctx: AppContext, live: dict[str, Any] | None = None, now: datetim
     nxt = next_session_state(ctx, now, top=8)
     run = db.fetchone("SELECT * FROM discovery_runs ORDER BY as_of_date DESC, created_at DESC LIMIT 1")
     strategies = strategy_research_status(db, ctx.config)
-    rr = db.fetchone("SELECT * FROM discovery_research_runs ORDER BY created_at DESC LIMIT 1")
+    rr = db.fetchone("SELECT * FROM discovery_research_runs WHERE params_json NOT LIKE '%\"kind\": \"catalyst\"%' "
+                     "ORDER BY created_at DESC LIMIT 1")
+    cr = db.fetchone("SELECT * FROM discovery_research_runs WHERE params_json LIKE '%\"kind\": \"catalyst\"%' "
+                     "ORDER BY created_at DESC LIMIT 1")
     research_summary = from_json(rr["summary_json"], {}) if rr else None
     research = _research_lookup(research_summary)
     out: dict[str, Any] = {
@@ -118,6 +125,8 @@ def scan_state(ctx: AppContext, live: dict[str, Any] | None = None, now: datetim
         "strategies": sorted(({**v, "describe": describe_strategy(v)} for v in strategies.values()),
                              key=lambda x: x["strategy_id"]),
         "research": None, "paper": _paper_panel(db), "monitored": None,
+        "paper_mode": paper_mode(ctx.config), "catalysts": None, "source_coverage": [], "catalyst_candidates": [],
+        "catalyst_research": _catalyst_research(cr), "exploration": _exploration_panel(ctx),
     }
     if rr:
         groups = research_summary.get("groups", [])
@@ -154,6 +163,10 @@ def scan_state(ctx: AppContext, live: dict[str, Any] | None = None, now: datetim
     out["blockers"] = bl
     out["near_misses"] = (bl.get("near_misses") or [])[:5]
     out["coverage"] = fam.get("coverage", [])
+    out["catalysts"] = from_json(run.get("catalysts_json"), None)
+    sc = from_json(run.get("source_coverage_json"), None)
+    out["source_coverage"] = coverage_summary(sc) if sc and "error" not in sc else []
+    out["source_coverage_error"] = (sc or {}).get("error") if sc else None
     out["market_context"] = fam.get("market_context", {})
     out["diagnostics"] = db.fetchall("SELECT level, code, message FROM discovery_diagnostics WHERE discovery_run_id=? "
                                      "ORDER BY CASE level WHEN 'CRITICAL' THEN 0 WHEN 'WARN' THEN 1 ELSE 2 END, id",
@@ -187,6 +200,9 @@ def scan_state(ctx: AppContext, live: dict[str, Any] | None = None, now: datetim
             "strategy": describe_strategy(strategies.get(sid)) if sid else "no strategy covers this setup",
             "strategy_status": (strategies.get(sid) or {}).get("status") if sid else None,
             "evidence": _evidence_for(fired, research), "setup": setup,
+            "setup_class": r.get("setup_class") or "UNKNOWN",
+            "cat": catalyst_summary(from_json(r.get("catalyst_record_json"), None)),
+            "chain": from_json(r.get("evidence_chain_json"), []) or [], "created_by": r.get("created_by") or "EOD_SCAN",
         })
     top.sort(key=lambda x: (STATUS_ORDER.get(x["status"], 9) if x["status"] in ("TRADED", "PAPER_ELIGIBLE") else 5,
                             -(x["score"] if isinstance(x["score"], (int, float)) else -1)))
@@ -195,19 +211,92 @@ def scan_state(ctx: AppContext, live: dict[str, Any] | None = None, now: datetim
     monitored = sorted(top, key=lambda x: (STATUS_ORDER.get(x["status"], 9) if x["status"] != "REJECTED" else 8,
                                            -(x["score"] if isinstance(x["score"], (int, float)) else -1)))
     out["monitored"] = monitored[0] if monitored else None
+    cats = [x for x in top if x["cat"] and x["cat"].get("event")]
+    cats.sort(key=lambda x: (STATUS_ORDER.get(x["status"], 9) if x["status"] != "REJECTED" else 8,
+                             -((x["cat"].get("agreement") or {}).get("n_supporting", 0)
+                               - (x["cat"].get("agreement") or {}).get("n_contradicting", 0)),
+                             -(x["score"] if isinstance(x["score"], (int, float)) else -1)))
+    out["catalyst_candidates"] = cats[:12]
+    return out
+
+
+def _catalyst_research(cr) -> dict[str, Any] | None:
+    if cr is None:
+        return None
+    s = from_json(cr["summary_json"], {}) or {}
+    groups = []
+    for g in s.get("groups", []):
+        h5 = (g.get("horizons") or {}).get("5") or {}
+        h20 = (g.get("horizons") or {}).get("20") or {}
+        groups.append({"group": g["group"], "n_obs": g["n_obs"], "n_dates": g["n_dates"], "verdict": g["verdict"],
+                       "why": g.get("why"), "median_net_5d": h5.get("median_net"), "vs_baseline_5d": h5.get("vs_baseline"),
+                       "t_5d": h5.get("vs_baseline_t_clustered"), "vs_baseline_20d": h20.get("vs_baseline"),
+                       "t_20d": h20.get("vs_baseline_t_clustered"), "win_5d": h5.get("win_rate_net")})
+    return {"research_id": cr["research_id"], "period": f"{cr['period_start']} to {cr['period_end']}",
+            "n_dates": cr["n_dates"], "n_obs": cr["n_observations"], "z": s.get("z_crit"), "n_tests": s.get("n_tests"),
+            "groups": groups, "report_path": cr["report_path"]}
+
+
+def _exploration_panel(ctx) -> dict[str, Any]:
+    """EXPLORATORY vs STRICT paper trading, kept visibly apart. Read-only."""
+    from quantlab.exploration.engine import experiment_results
+    db = ctx.db
+    last = db.fetchone("SELECT session_date FROM exploration_decisions ORDER BY session_date DESC LIMIT 1")
+    out: dict[str, Any] = {"mode": paper_mode(ctx.config), "session": last["session_date"] if last else None,
+                           "selected": [], "counts": {}, "results": experiment_results(db), "trades": []}
+    if last is None:
+        return out
+    rows = db.fetchall("SELECT * FROM exploration_decisions WHERE session_date=? ORDER BY rank", (last["session_date"],))
+    for r in rows:
+        out["counts"][r["selection"]] = out["counts"].get(r["selection"], 0) + 1
+    recent = db.fetchall("SELECT * FROM exploration_decisions WHERE selection IN ('SELECTED','SHADOW') "
+                         "ORDER BY session_date DESC, rank LIMIT 6")
+    for r in recent:
+        pre = from_json(r["pre_trade_json"], {}) or {}
+        ev = db.fetchone("SELECT event, at, details_json FROM exploration_events WHERE decision_id=? ORDER BY id DESC LIMIT 1",
+                         (r["decision_id"],))
+        outc = db.fetchall("SELECT horizon_sessions, net_ret, spy_ret, mae, mfe, thesis_valid FROM exploration_outcomes "
+                           "WHERE decision_id=? ORDER BY horizon_sessions", (r["decision_id"],))
+        tr = db.fetchone("SELECT status, entry_date, entry_price, exit_date, exit_price, exit_reason FROM trades "
+                         "WHERE decision_id=? ORDER BY entry_date DESC LIMIT 1", (r["decision_id"],))
+        happened = []
+        if ev:
+            happened.append(f"{ev['event'].replace('_', ' ').lower()} at {str(ev['at'])[:16]} UTC")
+        if tr:
+            happened.append(f"trade {tr['status'].lower()}: entry {tr['entry_date']} @ {tr['entry_price']}"
+                            + (f", exit {tr['exit_date']} @ {tr['exit_price']} ({tr['exit_reason']})" if tr["exit_date"] else ""))
+        for o in outc:
+            happened.append(f"{o['horizon_sessions']}d net {o['net_ret']:+.2%} (SPY {o['spy_ret']:+.2%})"
+                            if o["spy_ret"] is not None else f"{o['horizon_sessions']}d net {o['net_ret']:+.2%}")
+        out["selected"].append({
+            "symbol": r["symbol"], "session": r["session_date"], "selection": r["selection"], "setup_type": r["setup_type"],
+            "setup_class": r["setup_class"],
+            "qty": r["qty"], "ref_price": r["ref_price"], "stop": r["stop_price"], "why": pre.get("reason_for_entering"),
+            "unknown": pre.get("unknowns") or [], "strict_reject": pre.get("strict_would_reject_because") or [],
+            "expected": {"text": pre.get("expected"), "confirm": pre.get("confirmation") or [],
+                         "invalidate": pre.get("invalidation") or [], "hold": pre.get("expected_holding_sessions")},
+            "happened": happened or ["nothing yet (planned; outcomes appear after the next sessions)"],
+            "ev": (pre.get("ev_estimate") or {}).get("ev_bps_after_costs")})
+    out["trades"] = db.fetchall("SELECT symbol, status, qty, entry_date, entry_price, exit_date, exit_price, exit_reason, "
+                                "net_pnl FROM trades WHERE strategy_id='EXPLORATION' ORDER BY entry_date DESC LIMIT 20")
     return out
 
 
 def _paper_panel(db) -> dict[str, Any]:
-    """CURRENT PAPER TRADE: open BOT trades from the ledger (source of truth) + the latest orders."""
+    """CURRENT PAPER TRADE: open BOT trades from the ledger (source of truth) + the latest orders.
+    Strict (validated) and exploratory trades are listed separately."""
     trades = db.fetchall("SELECT t.trade_id, t.symbol, t.qty, t.entry_date, t.entry_price, t.stop_price, t.target_price, "
                          "t.planned_exit_date, t.strategy_id FROM trades t WHERE t.book='BOT' AND t.status='OPEN' "
-                         "ORDER BY t.entry_date DESC")
+                         "AND COALESCE(t.strategy_id,'') != 'EXPLORATION' ORDER BY t.entry_date DESC")
     orders = db.fetchall("SELECT created_at, symbol, side, qty, purpose, status, filled_avg_price FROM orders "
                          "WHERE book='BOT' AND status IN ('pending_submit','accepted','new','partially_filled') "
                          "ORDER BY created_at DESC LIMIT 10")
-    closed = db.fetchone("SELECT COUNT(*) AS n, COALESCE(SUM(net_pnl),0) AS pnl FROM trades WHERE book='BOT' AND status='CLOSED'")
-    return {"open": trades, "working_orders": orders, "closed_n": closed["n"], "realized": closed["pnl"]}
+    closed = db.fetchone("SELECT COUNT(*) AS n, COALESCE(SUM(net_pnl),0) AS pnl FROM trades WHERE book='BOT' AND status='CLOSED' "
+                         "AND COALESCE(strategy_id,'') != 'EXPLORATION'")
+    exp_open = db.fetchall("SELECT symbol, qty, entry_date, entry_price, stop_price, planned_exit_date FROM trades "
+                           "WHERE book='BOT' AND status='OPEN' AND strategy_id='EXPLORATION' ORDER BY entry_date DESC")
+    return {"open": trades, "working_orders": orders, "closed_n": closed["n"], "realized": closed["pnl"],
+            "exploration_open": exp_open}
 
 
 __all__ = ["FUNNEL", "scan_state"]

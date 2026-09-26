@@ -268,6 +268,22 @@ portfolio:
   risk_per_trade: 0.005
   max_open_risk: 0.04             # sum over positions of (entry - stop) * qty / equity
 
+exploration:                      # PAPER_EXPLORATION controls (simulation hygiene, NOT live-money optimisation;
+                                  # N and limits are fixed, never fitted to results)
+  max_new_per_session: 2          # top-N exploratory entries per session by the existing discovery ranking
+  max_open_positions: 5           # open exploratory positions (= concurrent experiments)
+  max_concurrent_experiments: 5
+  max_position_pct: 0.02          # of book equity per exploratory position
+  max_session_exposure_pct: 0.04  # new exploratory notional per session
+  max_total_exposure_pct: 0.10    # all open exploratory positions together
+  holding_sessions: 10            # expected holding period (time exit)
+  stop_atr: 2.0                   # invalidation stop = decision close - 2 x ATR(14)
+  min_price: 5.0                  # basic liquidity for exploration (stricter than discovery's $1)
+  min_adv: 5000000                # median dollar volume (20 sessions)
+  watched_not_traded: 10          # next-ranked eligible candidates recorded for comparison
+  submit_after_et: "08:30"        # runner: revalidate + submit planned entries from this time until the order cutoff
+  min_observations_to_propose: 30 # a hypothesis needs this many exploratory outcomes before a historical test
+
 risk:
   max_drawdown_pause: 0.20        # bot book drawdown beyond this => SYSTEM_PAUSED
   max_daily_orders: 20
@@ -275,6 +291,12 @@ risk:
   require_reconciliation: true
 
 paper:
+  # STRICT: only TRADE decisions of the unchanged chain (validated strategy + EV + risk) are traded.
+  # EXPLORATION: additionally, a small daily budget of the best-ranked discovery/strategy candidates
+  # is paper traded WITHOUT requiring proven EV, to learn forward what works (see `exploration`).
+  # Both modes keep every safety control (data quality, kill switch, limits, broker/reconciliation,
+  # paper-only). Exploration results never make a strategy eligible for STRICT mode.
+  mode: STRICT
   bot:
     broker: sim                   # sim | alpaca_paper (run-daily/replay); `quantlab paper start` always uses alpaca_paper
     starting_cash: 100000         # sim only: the Alpaca paper runner seeds the BOT ledger from the paper account's cash
@@ -343,6 +365,16 @@ discovery:
     mean_reversion: {max_ret_z_3d: -2.5, max_ret_z_1d: -3.0}
     earnings: {max_days_since: 3, min_abs_ear_z: 1.5, min_event_rel_volume: 2.0}
     news: {min_count_1d: 2, min_count_z: 2.5}
+  catalyst:                       # catalyst discovery (research only). Fixed a priori, never optimised on outcomes
+    max_days_since_earnings: 3    # post-earnings: reaction session within the last N sessions (as triggers.earnings)
+    min_abs_reaction_z: 1.5       # |abnormal reaction| in units of the stock's own 60-session abnormal vol
+    min_rel_volume: 2.0           # volume confirmation: dollar volume vs the mean of the prior 20 sessions
+    min_abs_move_z: 1.5           # material event: |today's move| in units of trailing daily vol
+    strong_industry_rank: 0.7     # industry group's 63-session return rank among groups at D
+    weak_industry_rank: 0.3
+    watchlist_size: 10            # market-confirmed catalyst setups added to the watchlist (after the technical 25)
+    earnings_coverage_days: 400   # a symbol is an 8-K 2.02 filer if it filed one in this window; else UNKNOWN
+    news_coverage_days: 90        # news covers a symbol if it has an article in this window and the feed is current
   diagnostics:
     min_discovery_rate: 0.005     # below this share of scanned symbols -> LOW_DISCOVERY_RATE warning
     max_discovery_rate: 0.5
