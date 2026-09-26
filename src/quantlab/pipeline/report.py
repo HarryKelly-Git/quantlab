@@ -97,6 +97,32 @@ def render_daily_report(ctx: AppContext, run_id: str, st: dict[str, Any]) -> str
                  else "- See ai_calls / ai_assessments for today's reviews.")
     lines.append("")
 
+    # DISCOVERY (research only)
+    dr = st.get("discovery")
+    lines += ["## Market discovery (MODEL_OUTPUT, research only)", "",
+              "_Discovery score 0-100 = cross-sectional ranking, NOT a probability of profit._", ""]
+    if dr is None:
+        lines += [f"- Discovery did not run: {st.get('discovery_error', 'disabled or no data')}", ""]
+    else:
+        f, bl = dr.assessment.funnel, dr.assessment.blockers
+        lines.append(f"- Funnel: {f['full_universe']} universe, {f['basic']} passed basic data/liquidity, "
+                     f"{f['discovered']} discovery setups, {f['high_ranked']} high-ranked, {f['watchlist']} watchlist, "
+                     f"{f['in_validation']} in validation, {f['paper_eligible']} paper eligible, {f['paper_trades']} traded.")
+        if f.get("session_orders_placed") or f.get("session_trade_decisions"):
+            lines.append(f"- Session-wide: {f.get('session_trade_decisions', 0)} TRADE decision(s), "
+                         f"{f.get('session_orders_placed', 0)} paper order(s) placed (all strategy candidates).")
+        if f["paper_eligible"] == 0 and f["discovered"]:
+            lines.append(f"- {f['discovered']} market opportunities discovered, 0 currently paper eligible. Main blocker: "
+                         f"{bl.get('main_text') or 'n/a'} ({', '.join(f'{k} {v}' for k, v in bl['by_stage'].items())}).")
+        for c in dr.assessment.candidates[:5]:
+            score = f"{c['score']:.0f}" if c["score"] is not None else "UNKNOWN"
+            lines.append(f"  - {c['symbol']} score {score} ({', '.join(c['fired'])}): {c['status']}. "
+                         f"{c['block_reason'] or ''}")
+        for x in dr.assessment.diagnostics:
+            if x["level"] in ("WARN", "CRITICAL"):
+                lines.append(f"- Diagnostic {x['level']} {x['code']}: {x['message']}")
+    lines.append("")
+
     # HEALTH
     lines += ["## System health", "", f"- System state: **{state.value}** {('— ' + reason) if reason else ''}"]
     steps = db.fetchall("SELECT step, status FROM pipeline_steps WHERE run_id=? ORDER BY step_order", (run_id,))

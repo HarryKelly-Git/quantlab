@@ -24,6 +24,7 @@ Contracts are in [ARCHITECTURE.md](ARCHITECTURE.md). Verified external-API facts
 | Daily paper pipeline, replay, shadow book + outcomes, daily report, kill switch | working end to end on synthetic data |
 | Dashboard (read-only, localhost) | working + tested |
 | ML (`quantlab/ml/`), AI layer (`quantlab/ai/`), research ledger, health / LLM monitors | **partial, untested, NOT wired in**. Do not rely on them |
+| Market discovery (`discover`, dashboard `/`) | working + tested. Research only: 5 scored price/volume families (momentum, relative strength, volume/activity, breakout/compression, mean reversion). Earnings/news/fundamentals/sector are UNKNOWN for almost all real symbols and never scored. Candidate statuses, near-misses, diagnostics, forward outcomes. Real dry run 2026-09-24: 751 setups, 112 high-ranked, 25 watchlist, 0 paper eligible |
 | Human paper lab, counterfactual engine, human-vs-bot comparison | **not implemented** |
 | Walk-forward OOS runner | working + tested, including a corrupt-the-future no-look-ahead test. First real run: `momentum_trend` on ~5,240 currently listed stocks, 4 OOS windows 2023-2024: **NOT_SIGNIFICANT** (see below) |
 | Real-data audit (`data-audit`) | working. SPY/XLK/AAPL/MSFT 2020-01-02..2026-09-24: **SUITABLE_SMALL_SAMPLE_ONLY**. SIP feed (median SPY volume 70.9M shares/day), 0 missing NYSE sessions, splits and dividends verified, SEC 8-K timing PIT |
@@ -65,7 +66,8 @@ reliable.
 .venv\Scripts\python -m quantlab.cli replay --start 2019-10-01 --end 2019-12-20
 .venv\Scripts\python -m quantlab.cli strategy list|evaluate|promote|status ...
 .venv\Scripts\python -m quantlab.cli status | pause --reason ... | resume --reason ... --actor human:you
-.venv\Scripts\python -m quantlab.cli dashboard               # http://127.0.0.1:8765
+.venv\Scripts\python -m quantlab.cli discover --data real   # market discovery for the latest session (research only)
+.venv\Scripts\python -m quantlab.cli dashboard               # http://127.0.0.1:8765  (/ = market discovery)
 .venv\Scripts\python -m pytest                               # test suite (offline, synthetic data)
 ```
 

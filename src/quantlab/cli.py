@@ -295,6 +295,32 @@ def cmd_paper(args) -> int:
     return 0
 
 
+def cmd_discover(args) -> int:
+    """Market discovery for one session (research only; reads recorded decisions, never trades)."""
+    ctx = _ctx(args)
+    from quantlab.data.validation import quarantine_map
+    from quantlab.discovery import run_discovery
+    syn = _data_flag(ctx, args.data)
+    bundle = ctx.store.load_bundle(ctx.config.section("benchmarks"), snapshot=ctx.store.snapshot(synthetic=syn),
+                                   synthetic=syn)
+    as_of = args.as_of or bundle.panel.dates[-1]
+    dr = run_discovery(ctx, bundle, as_of, quarantine=quarantine_map(ctx.db))
+    a = dr.assessment
+    _print({"discovery_run_id": dr.discovery_run_id, "as_of": str(dr.scan.as_of.date()), "synthetic": syn,
+            "score_meaning": "discovery score 0-100 = cross-sectional ranking, NOT a probability of profit",
+            "funnel": {k: v for k, v in a.funnel.items() if not isinstance(v, list)},
+            "why_no_paper_trades": {k: a.blockers[k] for k in ("by_stage", "main", "main_text", "n_discovered",
+                                                              "n_eligible")},
+            "top": [{"symbol": c["symbol"], "score": round(c["score"], 1) if c["score"] is not None else None,
+                     "coverage": c["coverage"], "families": c["fired"], "status": c["status"],
+                     "block": c["block_reason"]} for c in a.candidates[:args.top]],
+            "coverage": [{"family": r["label"], "coverage": round(r["coverage"], 4), "usable": r["usable"],
+                          "role": r["role"], "pit_status": r["pit_status"]} for r in dr.scan.coverage],
+            "diagnostics": [f"{x['level']} {x['code']}: {x['message']}" for x in a.diagnostics],
+            "outcomes_written": dr.outcomes_written})
+    return 0
+
+
 def cmd_demo(args) -> int:
     """Offline end-to-end run on SYNTHETIC data (planted momentum edge by default)."""
     ctx = _ctx(args)
@@ -401,6 +427,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="order-test: market BUY then SELL (fills; market hours only; before the runner binds the account)")
     s.add_argument("--qty", type=float, default=1, help="order-test --round-trip: shares (default 1)")
     s.set_defaults(fn=cmd_paper)
+
+    s = sub.add_parser("discover", help="market discovery for one session (research only, never trades)")
+    s.add_argument("--as-of"), s.add_argument("--top", type=int, default=15)
+    s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
+    s.set_defaults(fn=cmd_discover)
 
     s = sub.add_parser("dashboard", help="serve the read-only dashboard on localhost")
     s.add_argument("--port", type=int), s.add_argument("--allow-remote", action="store_true")

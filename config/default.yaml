@@ -318,3 +318,33 @@ dashboard:
   host: 127.0.0.1
   port: 8765
   live_refresh_seconds: 15        # /live re-renders itself server-side at this interval
+
+# Market discovery (quantlab/discovery). Research only: it ranks and explains setups; it can never
+# permit, size or place a paper order. Thresholds and weights are FIXED (not fitted to results).
+discovery:
+  enabled: true
+  lookback_sessions: 300          # feature window (every discovery feature needs <= 200 sessions)
+  basic_filter:                   # broad pre-filter; the stricter research universe is applied at validation
+    min_price: 1.0
+    min_median_dollar_volume: 1000000
+    min_history_sessions: 60
+  high_rank_score: 70             # discovery score (0-100, NOT a probability) for "high-ranked"
+  min_score_coverage: 0.8         # share of the 5 scored families that must be known to rank as high
+  watchlist_size: 25
+  near_miss_count: 15
+  context_min_coverage: 0.8       # earnings/news/fundamentals/sector are context only and never scored
+  news_max_age_days: 3
+  outcome_horizons: [1, 3, 5, 10, 20]
+  triggers:
+    momentum: {min_pct_60d: 0.90, min_pct_20d: 0.95}
+    relative_strength: {min_pct_63: 0.90}
+    volume_activity: {min_rel_volume_1d: 3.0, min_rel_volume_5d: 2.0}
+    breakout_compression: {min_rel_volume: 1.5, max_prev_contraction: 0.5, min_range_expansion: 2.0}
+    mean_reversion: {max_ret_z_3d: -2.5, max_ret_z_1d: -3.0}
+    earnings: {max_days_since: 3, min_abs_ear_z: 1.5, min_event_rel_volume: 2.0}
+    news: {min_count_1d: 2, min_count_z: 2.5}
+  diagnostics:
+    min_discovery_rate: 0.005     # below this share of scanned symbols -> LOW_DISCOVERY_RATE warning
+    max_discovery_rate: 0.5
+    one_rule_share: 0.95          # >= this share of blocked setups with one identical reason -> warning
+    min_feature_coverage: 0.8

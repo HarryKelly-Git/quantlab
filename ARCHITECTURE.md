@@ -202,6 +202,39 @@ AI failures produce `UNKNOWN`, never an invented answer. With the default config
 review does not block a trade the quantitative layers accept (the AI layer is an optional filter),
 but it is recorded. `ai.unknown_policy` may be set to `block`.
 
+### 7a. Market discovery (`discovery/`, research only)
+
+Discovery answers "what looks interesting today?" and is kept separate from validation ("may this
+setup be paper-traded?"). It can never permit, size or place an order, and it changes no gate.
+
+* **Funnel.** Full universe, then the basic data/liquidity filter (bar at D, price >= $1, median
+  dollar volume >= $1M, >= 60 sessions), then discovery features, discovery setups (at least one
+  family fired), top-N ranking, watchlist, validation, paper eligible, paper trade. The steps
+  after the watchlist are read from the recorded decisions and orders of the session. They are
+  never recomputed.
+* **Scored families.** Five price/volume families, 0-20 points each, from cross-sectional
+  percentile ranks of existing FeatureSet features: momentum, relative strength vs SPY,
+  volume/activity, breakout/compression and mean reversion. The score is the sum of the known
+  families' points, normalised to 0-100. It is a ranking, not a probability, and it has fixed
+  equal weights.
+* **Context families.** Earnings, news, fundamentals and sector are recorded only where the
+  source covers the symbol, otherwise UNKNOWN (never 0). They are never scored.
+* **Feature states.** VALID; UNKNOWN (not enough history, or the source does not cover the
+  symbol); INVALID (a data-quality issue).
+* **Candidate status.** DISCOVERED, WATCH, VALIDATION_PENDING, REJECTED, PAPER_ELIGIBLE, TRADED.
+  This is separate from the derived strategy research status (SHADOW, WALK_FORWARD, VALIDATED,
+  PAPER_ELIGIBLE, DISABLED). A SHADOW strategy's setups stay visible, but only a TRADE decision
+  from the unchanged chain makes one PAPER_ELIGIBLE.
+* **Near-misses and diagnostics.** Near-misses record what each setup passed and failed, and the
+  exact stage and reason. Diagnostics flag zero or low discovery, unavailable or invalid
+  features, and one rule blocking everything.
+* **Pipeline step.** `discover` runs after `risk` and before `report`. It is durable, and a
+  failure is recorded without blocking risk or reporting.
+* **Forward outcomes.** Recorded at 1/3/5/10/20 sessions (`discovery_outcomes`) and never fed
+  back into rules.
+* **PIT.** `scan` sees only `bundle.truncate(D)` (truncation-invariance and corrupt-the-future
+  tests).
+
 ## 8. Books & execution
 
 Books: `BOT`, `HUMAN` (both paper), `SHADOW` (hypothetical), `BACKTEST`. The internal ledger

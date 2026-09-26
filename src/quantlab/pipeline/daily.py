@@ -12,7 +12,11 @@ Order of work for session D (information cutoff = D 16:00 ET; every step sees bu
   8. orders         paper entry orders for TRADE decisions (refused if SYSTEM_PAUSED)
   9. outcomes       matured shadow outcomes (what happened to everything we did / did not trade)
  10. risk           book drawdown breach -> SYSTEM_PAUSED
- 11. report         daily Markdown report
+ 11. discover       market discovery (research only): what looks interesting today, ranked and explained,
+                    with what the unchanged decision chain decided for each setup. Never places orders;
+                    a discovery failure is recorded and never blocks risk or the report; it re-runs
+                    on resume (idempotent per run)
+ 12. report         daily Markdown report
 
 Paper trading only: the broker is SimBroker (default) or AlpacaPaperBroker (paper endpoint only).
 """
@@ -58,7 +62,7 @@ from quantlab.universe import UniverseEngine
 log = get_logger(__name__)
 
 STEPS = ("preflight", "data", "validate", "execution", "exits", "research", "decide", "orders", "outcomes",
-         "risk", "report")
+         "risk", "discover", "report")
 
 
 @dataclass
@@ -125,8 +129,10 @@ class DailyPipeline:
         steps = [("preflight", self._preflight), ("data", self._data), ("validate", self._validate),
                  ("execution", self._execution), ("exits", self._exits), ("research", self._research),
                  ("decide", self._decide), ("orders", self._orders), ("outcomes", self._outcomes),
-                 ("risk", self._risk), ("report", self._report)]
+                 ("risk", self._risk), ("discover", self._discover), ("report", self._report)]
         # in-memory steps are always recomputed on resume (deterministic); durable ones are skipped
+        # 'discover' is deliberately NOT durable: it re-runs on resume (its persistence is idempotent
+        # per run_id), so a failed discovery is retried and the report always gets its section
         durable = {"execution", "exits", "decide", "orders", "outcomes", "report"}
         for name, fn in steps:
             if name in done and name in durable:
@@ -338,6 +344,27 @@ class DailyPipeline:
             self.killswitch.pause(f"{self.book} book drawdown {dd:.1%} breached {limit:.0%}", trigger="drawdown",
                                   details={"drawdown": dd})
         return {"drawdown": float(dd) if dd is not None and np.isfinite(dd) else 0.0}
+
+    def _discover(self, run_id, st) -> dict:
+        """Research-only market discovery for this session (quantlab/discovery). It reads the
+        decisions and orders this run already made; it cannot create or change either."""
+        if not bool(self.cfg.get("discovery.enabled", True)):
+            return {"skipped": "discovery.enabled is false"}
+        if "view" not in st:
+            self._data(run_id, st)
+        from quantlab.discovery import run_discovery, strategy_links
+        try:
+            dr = run_discovery(self.ctx, st["view"], st["as_of"], run_id=run_id, quarantine=st.get("quarantine"),
+                               links=strategy_links(self.db, st["as_of"], run_id))
+        except Exception as exc:          # research layer: record loudly, never block risk/report
+            log_event(log, "discovery failed", level=40, error=repr(exc))
+            st["discovery_error"] = repr(exc)
+            return {"error": repr(exc)[:500]}
+        st["discovery"] = dr
+        f = dr.assessment.funnel
+        return {"discovery_run_id": dr.discovery_run_id, "discovered": f["discovered"], "high_ranked": f["high_ranked"],
+                "watchlist": f["watchlist"], "paper_eligible": f["paper_eligible"],
+                "diagnostics": len(dr.assessment.diagnostics), "outcomes_written": dr.outcomes_written}
 
     def _report(self, run_id, st) -> dict:
         from quantlab.pipeline.report import write_daily_report
