@@ -870,7 +870,7 @@ class PaperRunner:
         not the path for session decisions."""
         def guard(purpose: str, symbol: str) -> str | None:
             now = self._now()
-            if purpose != "entry_fallback":
+            if purpose not in ("entry_fallback", "exit_fallback"):
                 return (f"the runner's execution service only submits the open-fill fallback, not {purpose!r}")
             if self.calendar is None or not self.calendar.is_open(now):
                 return "the market is not open: no open-fill fallback"
@@ -904,6 +904,9 @@ class PaperRunner:
         if session is None or now.astimezone(ET).time() >= self.fallback_until:
             return None
         opened_at = self.calendar.open_dt(session)
+        # exits are checked independently of entries: either can expire in the same auction
+        out = {"considered": 0, "submitted": 0, "refused": 0}
+        out.update(self._exit_fallbacks(opened_at))
         rows = self.db.fetchall(
             "SELECT o.order_id, o.symbol, o.qty, o.candidate_id, o.decision_id, o.human_decision_id, i.session_date, "
             "i.intent_json FROM orders o JOIN order_intents i ON i.order_id = o.order_id "
@@ -911,8 +914,8 @@ class PaperRunner:
             "AND o.last_update_at >= ? ORDER BY o.created_at",
             (BOOK, OrderStatus.EXPIRED.value, opened_at.astimezone(timezone.utc).isoformat()))
         if not rows:
-            return None
-        out = {"considered": len(rows), "submitted": 0, "refused": 0}
+            return out if out["exits_considered"] else None
+        out["considered"] = len(rows)
         for r in rows:
             live = self.db.fetchone(
                 "SELECT 1 FROM orders o JOIN order_intents i ON i.order_id=o.order_id WHERE o.book=? AND o.symbol=? "
@@ -944,6 +947,34 @@ class PaperRunner:
                 self.event("INFO", "order", f"open-fill fallback: {r['symbol']} {r['qty']:g} market-day after the "
                            f"opg order expired unfilled", {"expired_order_id": r["order_id"],
                                                             "order_id": res.get("order_id")})
+        return out
+
+    def _exit_fallbacks(self, opened_at: datetime) -> dict[str, Any]:
+        """Same fallback for EXITS: an opg exit that expired unfilled would leave the position open
+        with its stop already breached. Only for trades that are still OPEN."""
+        assert self.exec is not None
+        rows = self.db.fetchall(
+            "SELECT o.order_id, o.trade_id, i.session_date, i.intent_json FROM orders o "
+            "JOIN order_intents i ON i.order_id = o.order_id JOIN trades t ON t.trade_id = o.trade_id "
+            "WHERE o.book=? AND o.purpose='exit' AND o.status=? AND o.time_in_force='opg' AND o.filled_qty=0 "
+            "AND o.last_update_at >= ? AND t.status='OPEN' ORDER BY o.created_at",
+            (BOOK, OrderStatus.EXPIRED.value, opened_at.astimezone(timezone.utc).isoformat()))
+        out = {"exits_considered": len(rows), "exits_submitted": 0, "exits_refused": 0}
+        for r in rows:
+            intent = from_json(r["intent_json"], {}) or {}
+            res = self.exec.submit_exit(r["trade_id"], str(intent.get("reason") or "stop"),
+                                        detail={**{k: v for k, v in intent.items() if k not in ("trade_id", "reason")},
+                                                "fallback_for_order_id": r["order_id"],
+                                                "fallback_reason": "the opg exit expired unfilled"},
+                                        session_date=r["session_date"], exit_style="market_day")
+            if res.get("refused"):
+                out["exits_refused"] += 1
+                self.event("WARN", "order", f"exit fallback refused for trade {r['trade_id']}: {res.get('reason')}",
+                           {"order_id": r["order_id"]})
+            else:
+                out["exits_submitted"] += 1
+                self.event("INFO", "order", f"exit fallback: trade {r['trade_id']} market-day after the opg exit "
+                           f"expired unfilled", {"expired_order_id": r["order_id"], "order_id": res.get("order_id")})
         return out
 
     def _preopen_information(self, plan: SessionPlan, now: datetime) -> None:

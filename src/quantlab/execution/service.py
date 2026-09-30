@@ -258,8 +258,14 @@ class PaperExecutionService:
         return self._send(order_id, request, purpose="entry")
 
     def submit_exit(self, trade_id: str, reason: str, *, detail: dict[str, Any] | None = None,
-                   session_date: str | None = None) -> dict[str, Any]:
-        """Submit the exit order for an OPEN trade (full position, opg / next-open)."""
+                   session_date: str | None = None, exit_style: str = "opg") -> dict[str, Any]:
+        """Submit the exit order for an OPEN trade (full position).
+
+        ``exit_style`` mirrors :meth:`submit_entry`: ``"opg"`` for the next opening auction, or
+        ``"market_day"`` as the recorded fallback when an opg exit expired unfilled in the cross.
+        An exit that silently expires would leave the position open with its stop already breached."""
+        if exit_style not in ("opg", "market_day"):
+            raise ExecutionError(f"unknown exit_style {exit_style!r}")
         trade = self.journal.get_trade(trade_id)
         if trade is None:
             raise ExecutionError(f"unknown trade {trade_id}")
@@ -271,7 +277,8 @@ class PaperExecutionService:
         decision_session = to_session(session_date).date().isoformat() if session_date is not None else (
             getattr(self.broker, "last_session", None) or trade["entry_date"])
         # one exit order per (trade, decision session): a retry the next session gets a new id
-        client_order_id = _client_order_id(self.book, "exit", f"{trade_id}|{decision_session}")
+        basis = f"{trade_id}|{decision_session}" + ("" if exit_style == "opg" else f"#{exit_style}")
+        client_order_id = _client_order_id(self.book, "exit", basis)
         existing = self._local_order(client_order_id)
         if existing is not None and existing["status"] != OrderStatus.PENDING_SUBMIT.value:
             return self._summary(existing, duplicate=True)
@@ -295,7 +302,8 @@ class PaperExecutionService:
                                        human_decision_id=trade["human_decision_id"], trade_id=trade_id,
                                        session_date=decision_session)
         if refusal is None:
-            refusal = self._guard_refusal("exit", trade["symbol"], qty, candidate_id=trade["candidate_id"],
+            refusal = self._guard_refusal("exit" if exit_style == "opg" else "exit_fallback",
+                                          trade["symbol"], qty, candidate_id=trade["candidate_id"],
                                           decision_id=trade["decision_id"],
                                           human_decision_id=trade["human_decision_id"], trade_id=trade_id,
                                           session_date=decision_session)
@@ -305,7 +313,8 @@ class PaperExecutionService:
             return refusal
 
         request = OrderRequest(client_order_id=client_order_id, symbol=trade["symbol"], side=side, qty=qty,
-                               order_type="market", time_in_force="opg", decision_session=decision_session)
+                               order_type="market", time_in_force="opg" if exit_style == "opg" else "day",
+                               decision_session=decision_session)
         if existing is not None:
             return self._send(existing["order_id"], request, purpose="exit", trade_id=trade_id)
         order_id = new_id("order")

@@ -254,3 +254,48 @@ def test_restart_at_each_lifecycle_stage_never_duplicates(world, stage):
     assert all(t["stop_price"] and t["stop_price"] > 0 for t in trades)   # stop survives restart
     assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM fills")["n"] == n_opg
     r.shutdown("test")
+
+
+def test_expired_exit_is_replaced_so_a_stopped_position_is_not_left_open(world):
+    """An exit is submitted opg too. If it expires in the auction the position would stay open with
+    its stop already breached, so the exit gets the same one-shot market-day fallback."""
+    ctx = world
+    b = ctx.store.load_bundle(ctx.config.section("benchmarks"), synthetic=True)
+    sessions = [x.date() for x in b.panel.dates]
+    broker = FakeAlpacaBroker(sessions)
+    clock = Clock(at(sessions[-30], 19, 10))
+    r, _, nxt, cids, _ = _submit_opg(ctx, broker, clock)
+    _expire(broker, r, cids)
+    clock.t = at(nxt, 9, 35)
+    r.tick()
+    _fill_new(broker, r, len(cids))
+    open_trades = ctx.db.fetchall("SELECT trade_id, symbol FROM trades WHERE status='OPEN'")
+    assert open_trades
+    assert r.exec is not None and r.ledger is not None
+    n_before = len(broker.submits)
+    # the ORIGINAL exit is submitted by the daily pipeline's service, as in production
+    from quantlab.execution.service import PaperExecutionService
+    pipe_exec = PaperExecutionService(ctx.db, ctx.config, "BOT", broker, r.ledger)
+    ex = pipe_exec.submit_exit(open_trades[0]["trade_id"], "stop", session_date=str(nxt))
+    assert not ex.get("refused"), ex
+    exit_cid = broker.submits[-1]
+    assert broker.orders[exit_cid]["time_in_force"] == "opg"
+    r.on_trade_update(broker.event(exit_cid, "expired", "2026-01-02T13:31:00Z", status="expired"))
+    assert ctx.db.fetchone("SELECT status FROM trades WHERE trade_id=?",
+                           (open_trades[0]["trade_id"],))["status"] == "OPEN"     # still exposed
+
+    clock.t = at(nxt, 9, 45)
+    r.tick()                                                                       # polls the broker, then scans
+    fb_cid = broker.submits[-1]
+    assert broker.orders[fb_cid]["time_in_force"] == "day" and broker.orders[fb_cid]["side"] == "sell"
+    r.on_trade_update(broker.fill(fb_cid, float(broker.orders[fb_cid]["qty"]), 51.0, "2026-01-02T13:46:00Z"))
+    assert ctx.db.fetchone("SELECT status FROM trades WHERE trade_id=?",
+                           (open_trades[0]["trade_id"],))["status"] == "CLOSED"   # position actually closed
+
+    n_after = len(broker.submits)
+    clock.t = at(nxt, 9, 55)
+    r.tick()
+    r.tick()
+    assert len(broker.submits) == n_after                                          # never resubmitted
+    assert n_after == n_before + 2                                                 # opg exit + one fallback
+    r.shutdown("test")
