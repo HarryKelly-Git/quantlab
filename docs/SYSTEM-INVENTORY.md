@@ -128,7 +128,7 @@ These tables have zero rows. Each represents real code with no evidence behind i
 | Area | Tables at 0 | Read |
 |---|---|---|
 | **Trading outcomes** | `trades`, `fills`, `positions`, `position_log`, `trade_events`, `trade_plans` | Never traded. The whole point. |
-| **Shadow outcomes** | `shadow_outcomes`, `shadow_outcome_details` — while `shadow_opportunities` has 570 | **The forward-evidence loop never closes.** 570 recorded opportunities, zero scored outcomes. |
+| **Shadow outcomes** | `shadow_outcomes`, `shadow_outcome_details` — while `shadow_opportunities` has 570 | **Not yet, not broken** (corrected 2026-10-01). The `outcomes` step runs every evening; the 570 were recorded 2026-09-24/28/29, and an outcome is written only once its 5-60 session horizon has passed. First maturities ~2026-10-02, the longest in December. |
 | **AI/LLM layer** | `ai_assessments`, `ai_calls`, `ai_objections`, `llm_cache` | Scaffolding only. Never called. |
 | **ML layer** | `models`, `ml_predictions`, `model_status_log` | Scaffolding only. |
 | **Hypothesis ladder** | `hypotheses`, `hypothesis_events`, `research_hypotheses`, `research_ledger` | The promotion workflow exists but has never been walked. |
@@ -146,11 +146,14 @@ unexercised. That is not automatically waste — but it is complexity you are ca
 
 Ranked by expected value, most valuable first.
 
-### 1. Confirm a fill happens, then close the outcome loop
-The system has never held a position. Until it does, every other improvement is speculative. After
-the first fills: score them, and — more importantly — **backfill `shadow_outcomes` for the 570
-existing `shadow_opportunities`.** That single job converts 570 dormant rows into the first real
-answer to "does the discovery score predict anything?" It needs no new data and no new trades.
+### 1. Confirm a fill happens, then read the outcome loop as it matures
+The system has never held a position. Until it does, every other improvement is speculative.
+(Done 2026-09-30: HALO and TBBB filled.) *Correction 2026-10-01:* an earlier version of this item
+called the 570 `shadow_opportunities` dormant and proposed a backfill. That was wrong. The
+evening pipeline's `outcomes` step already scores them; none had matured when this was written.
+The work is to **read** them as they mature from ~2026-10-02, not to build anything. The question
+"does the discovery score predict anything?" was meanwhile answered historically on 334,904
+observations: it does not (docs/SELECTION-EVIDENCE.md).
 
 ### 2. The stop is not a real stop
 `OrderRequest` has no `stop_loss`, `order_class`, or bracket field. Nothing submits a stop order to
@@ -232,6 +235,6 @@ efficiently arbitraged search space that exists.
 
 So the top of the improvement list is not "more strategies." It is: (1) make the machine actually
 hold positions and score them, (2) give positions real risk management — a broker-held stop and some
-form of profit-taking, (3) close the loop on the 570 opportunities already recorded, and (4) decide
+form of profit-taking, (3) read the 570 recorded opportunities as their outcomes mature, and (4) decide
 whether to keep searching the same space or change data. Items 1–3 are days of work with certain
 value. Item 4 is the only one that could change the answer.
