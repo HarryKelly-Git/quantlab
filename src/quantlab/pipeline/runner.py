@@ -465,6 +465,9 @@ class PaperRunner:
                                 "use a separate project.db_path for the Alpaca paper runner")
         self.ledger = Ledger(self.db, BOOK, config=self.cfg, broker_name=BROKER_NAME)
         self.exec = PaperExecutionService(self.db, self.cfg, BOOK, self.broker, self.ledger)
+        # the ONLY order this service submits is the open-fill fallback; the session pipeline builds
+        # its own service with the order-window guard
+        self.exec.submission_guard = self._fallback_guard()
 
     def _report_eligibility(self) -> list[dict[str, Any]]:
         elig = paper_eligible_strategies(self.db)
@@ -859,6 +862,28 @@ class PaperRunner:
                        f"submitted, {res.get('cancelled', 0)} cancelled, {res.get('refused', 0)} refused",
                        {k: v for k, v in res.items() if k != "details"})
         return res
+
+    def _fallback_guard(self) -> Callable[[str, str], str | None]:
+        """Gate for orders the RUNNER itself submits. Same broker/state conditions as the session
+        guard (reconciliation passed, broker verified recently, trading not blocked), plus the
+        fallback's own window. Anything other than the fallback is refused outright: this service is
+        not the path for session decisions."""
+        def guard(purpose: str, symbol: str) -> str | None:
+            now = self._now()
+            if purpose != "entry_fallback":
+                return (f"the runner's execution service only submits the open-fill fallback, not {purpose!r}")
+            if self.calendar is None or not self.calendar.is_open(now):
+                return "the market is not open: no open-fill fallback"
+            if now.astimezone(ET).time() >= self.fallback_until:
+                return f"after the open-fill fallback cutoff ({self.fallback_until:%H:%M} ET)"
+            if not self.reconciled_ok:
+                return "state reconciliation has not passed: no new orders"
+            if self.broker_ok_at is None or (now - self.broker_ok_at).total_seconds() > self.broker_fresh_seconds:
+                return "broker connection not verified recently: no new orders"
+            if self.broker_snapshot.get("trading_blocked"):
+                return "broker reports trading_blocked"
+            return None
+        return guard
 
     def _maybe_fill_after_open(self, now: datetime) -> dict[str, Any] | None:
         """An ``opg`` entry that expired unfilled in the opening auction gets ONE market-day order,

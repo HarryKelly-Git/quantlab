@@ -181,3 +181,41 @@ def test_failing_catalyst_refresh_never_blocks_the_session_and_restart_never_dup
     assert {t: ctx.db.fetchone(f"SELECT COUNT(*) AS n FROM {t}")["n"] for t in counts} == counts
     r2.shutdown("test")
     ctx.close()
+
+
+def test_catalyst_refresh_is_not_repeated_while_the_session_bars_are_missing(config):
+    """The refresh used to run BEFORE the staleness check, so a session waiting for bars re-crawled
+    SEC/news on every retry (2026-09-29: ~12 min of requests x 4 attempts)."""
+    from datetime import timedelta
+    from quantlab.pipeline.runner import SessionPlan
+    ctx = _world(config, "EXPLORATION")
+    b = ctx.store.load_bundle(ctx.config.section("benchmarks"), synthetic=True)
+    sessions = [x.date() for x in b.panel.dates]
+    calls: list = []
+
+    def refresh(c, session, scope="daily", symbols=None):
+        calls.append((str(session), scope))
+        return {"news": {"ok": True, "rows": 1}}
+    missing = sessions[-1] + timedelta(days=1)                       # no stored bars for this session
+    broker = FakeAlpacaBroker(sessions + [missing])
+    clock = Clock(at(missing, 19, 10))
+    streams: list = []
+
+    def factory(on_event, on_state):
+        streams.append(FakeStream(on_event, on_state))
+        return streams[-1]
+    r = PaperRunner(ctx, broker=broker, stream_factory=factory, now=clock, ingest=lambda c, d: {"skipped": True},
+                    bundle_loader=lambda c: b, env=PAPER_ENV, heartbeat_thread=False, allow_synthetic=True,
+                    catalyst_refresh=refresh)
+    r.reconcile_retry_seconds = 0.0
+    r.start()
+    plan = SessionPlan(session=missing, next_session=missing + timedelta(days=1),
+                       process_at=clock.t, order_deadline=clock.t + timedelta(hours=12), due=True,
+                       orders_allowed=True, reason="test")
+    for _ in range(3):                                               # three retries of the same session
+        assert r.process_session(plan)["status"] == "stale_data"
+    job = ctx.db.fetchone("SELECT status FROM paper_session_jobs WHERE as_of_date=?", (str(missing),))
+    assert job and job["status"] == "stale_data"                     # recorded, never silently skipped
+    assert calls == [], f"catalyst data was re-fetched while the bars were missing: {calls}"
+    r.shutdown("test")
+    ctx.close()

@@ -168,3 +168,89 @@ def test_fallback_respects_the_gates(world, case):
     assert len(broker.submits) == n_sub               # no fallback order left the runner
     assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM trades")["n"] == 0
     r.shutdown("test")
+
+
+@pytest.mark.parametrize("case", ["reconciliation_failed", "broker_stale", "trading_blocked", "wrong_purpose"])
+def test_fallback_respects_broker_and_state_gates(world, case):
+    """The runner submits the fallback through its OWN execution service, so that service must carry
+    the same broker/state gates as the session pipeline's."""
+    ctx = world
+    b = ctx.store.load_bundle(ctx.config.section("benchmarks"), synthetic=True)
+    sessions = [x.date() for x in b.panel.dates]
+    broker = FakeAlpacaBroker(sessions)
+    clock = Clock(at(sessions[-30], 19, 10))
+    r, _, nxt, cids, _ = _submit_opg(ctx, broker, clock)
+    _expire(broker, r, cids)
+    n_sub = len(broker.submits)
+    clock.t = at(nxt, 9, 35)
+    if case == "reconciliation_failed":
+        r.reconciled_ok = False
+    elif case == "broker_stale":
+        r.broker_ok_at = clock.t - pd.Timedelta(seconds=r.broker_fresh_seconds + 60).to_pytimedelta()
+    elif case == "trading_blocked":
+        r.broker_snapshot = {**r.broker_snapshot, "trading_blocked": True}
+    elif case == "wrong_purpose":
+        pass
+    else:
+        assert r.exec is not None                       # the service refuses non-fallback purposes
+        res = r.exec.submit_entry("SYN001", 1.0, session_date=str(sessions[-30]), decision_id="x")
+        assert res["refused"] and "only submits the open-fill fallback" in res["reason"]
+        r.shutdown("test")
+        return
+    r._maybe_fill_after_open(clock.t)                   # tick() would re-poll and refresh this state
+    assert len(broker.submits) == n_sub                 # no fallback order left the runner
+    assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM trades")["n"] == 0
+    refusals = [x["reason"] for x in ctx.db.fetchall("SELECT reason FROM execution_refusals")]
+    assert refusals, "the refusal must be recorded, not silent"
+    r.shutdown("test")
+
+
+@pytest.mark.parametrize("stage", ["after_opg_submit", "after_expiry", "after_fallback_submit", "after_fill"])
+def test_restart_at_each_lifecycle_stage_never_duplicates(world, stage):
+    ctx = world
+    b = ctx.store.load_bundle(ctx.config.section("benchmarks"), synthetic=True)
+    sessions = [x.date() for x in b.panel.dates]
+    broker = FakeAlpacaBroker(sessions)
+    clock = Clock(at(sessions[-30], 19, 10))
+    r, _, nxt, cids, _ = _submit_opg(ctx, broker, clock)
+    n_opg = len(cids)
+
+    def restart(run):
+        run.shutdown("restart test")
+        r2, _ = _runner(ctx, broker, clock)
+        r2.start()
+        return r2
+    if stage == "after_opg_submit":
+        r = restart(r)
+        _expire(broker, r, cids)
+    elif stage == "after_expiry":
+        _expire(broker, r, cids)
+        r = restart(r)
+    else:
+        _expire(broker, r, cids)
+        clock.t = at(nxt, 9, 35)
+        r.tick()
+        assert len(broker.submits) == 2 * n_opg
+        if stage == "after_fallback_submit":
+            r = restart(r)
+            _fill_new(broker, r, n_opg)
+        else:
+            _fill_new(broker, r, n_opg)
+            r = restart(r)
+    clock.t = at(nxt, 9, 40)
+    r.tick()
+    r.tick()
+    unfilled = [cid for cid in broker.submits[n_opg:] if broker.orders[cid]["status"] != "filled"]
+    if unfilled:
+        for cid in unfilled:
+            r.on_trade_update(broker.fill(cid, float(broker.orders[cid]["qty"]), 50.0, "2026-01-02T13:36:00Z"))
+    clock.t = at(nxt, 10, 5)
+    r.tick()
+    orders = ctx.db.fetchall("SELECT symbol, time_in_force, status FROM orders")
+    assert len(broker.submits) == 2 * n_opg, f"{stage}: duplicate broker submission"
+    assert len(orders) == 2 * n_opg, f"{stage}: duplicate local order"
+    trades = ctx.db.fetchall("SELECT symbol, qty, status, stop_price FROM trades")
+    assert len(trades) == n_opg, f"{stage}: duplicate position"
+    assert all(t["stop_price"] and t["stop_price"] > 0 for t in trades)   # stop survives restart
+    assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM fills")["n"] == n_opg
+    r.shutdown("test")
