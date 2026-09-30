@@ -101,3 +101,44 @@ def test_scored_features_are_unchanged():
     """The correction is to score composition only: no feature definition moved."""
     assert SCORED_FEATURES["momentum"] == (("ret_20d", 1), ("ret_60d", 1), ("ret_120d", 1))
     assert SCORED_FEATURES["relative_strength"] == (("rs_spy_20", 1), ("rs_spy_63", 1))
+
+
+# -- selection score (what exploration trades by) ---------------------------------------------------
+from quantlab.discovery.families import SELECTION_FEATURES, selection_score          # noqa: E402
+from quantlab.testing.pit import assert_truncation_invariant                         # noqa: E402
+
+
+def test_selection_score_uses_fixed_published_priors():
+    assert SELECTION_FEATURES == (("mom_12_1", 1), ("atr14_pct", -1), ("adv20", 1))
+
+
+def test_selection_score_direction_and_unknown_handling():
+    xs = pd.DataFrame({"mom_12_1": [0.5, 0.1, 0.3, np.nan], "atr14_pct": [0.02, 0.02, 0.08, 0.02],
+                       "adv20": [5e7, 5e7, 5e7, 5e7]}, index=list("ABCD"))
+    s = selection_score(xs)
+    assert s["A"] > s["B"]                     # stronger 12-1 momentum, same vol and liquidity
+    assert s["B"] > 0 and np.isnan(s["D"])     # a missing input is UNKNOWN, never zero
+    xs2 = xs.assign(atr14_pct=[0.02, 0.02, 0.02, 0.02], mom_12_1=[0.3, 0.3, 0.3, 0.3])
+    xs2.loc["C", "atr14_pct"] = 0.08
+    s2 = selection_score(xs2)
+    assert s2["A"] > s2["C"]                   # higher volatility ranks lower
+    assert s.dropna().between(0, 1).all()
+
+
+def test_selection_score_is_carried_on_every_scanned_candidate(cfg, cb):
+    scan = DiscoveryEngine(cfg).scan(cb, cb.panel.dates[-1])
+    assert "selection_score" in scan.table.columns
+    a = DiscoveryEngine(cfg).assess(scan, {}, {})
+    scored = [c for c in a.candidates if c["selection_score"] is not None]
+    assert scored and all(c["setup"]["selection_score"] == c["selection_score"] for c in a.candidates)
+
+
+def test_selection_score_is_truncation_invariant(cfg, cb):
+    eng = DiscoveryEngine(cfg)
+    dates = cb.panel.dates
+    check = [dates[-60], dates[-25], dates[-1]]
+
+    def compute(b):
+        rows = {d: eng.scan(b, d).table["selection_score"] for d in check if d <= b.panel.dates[-1]}
+        return pd.DataFrame(rows).T
+    assert_truncation_invariant(compute, cb, check_dates=check, name="selection score")

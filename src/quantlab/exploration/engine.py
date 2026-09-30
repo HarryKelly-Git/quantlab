@@ -20,7 +20,9 @@ notional cap, duplicates, the runner's order window, broker verified, reconcilia
 
 Decisions are append-only (``exploration_decisions``); lifecycle changes and outcomes are new rows
 (``exploration_events``, ``exploration_outcomes``). A decision is never rewritten after the fact.
-Ranking = the existing discovery ranking (watchlist first, then discovery rank); N is fixed in
+Ranking = the SELECTION score carried on each discovered candidate (discovery.families.selection_score:
+12-1 momentum, low volatility, liquidity -- fixed from published priors; the descriptive discovery score
+predicts nothing, see docs/SELECTION-EVIDENCE.md), UNKNOWN last, discovery rank as tie-break. N is fixed in
 config and never fitted to results.
 """
 from __future__ import annotations
@@ -139,8 +141,8 @@ def held_industries(db, book: str) -> collections.Counter:
     rows = db.fetchall(
         "SELECT d.pre_trade_json FROM exploration_decisions d WHERE d.selection='SELECTED' AND d.mode='EXPLORATION' AND ("
         " EXISTS (SELECT 1 FROM trades t WHERE t.decision_id=d.decision_id AND t.book=? AND t.status='OPEN')"
-        " OR (EXISTS (SELECT 1 FROM exploration_events e JOIN orders o ON o.order_id=e.order_id"
-        f"   WHERE e.decision_id=d.decision_id AND e.event='SUBMITTED' AND o.status IN ({','.join('?' for _ in OPEN_ORDER_STATES)}))"
+        " OR (EXISTS (SELECT 1 FROM orders o WHERE o.decision_id=d.decision_id AND o.purpose='entry'"
+        f"   AND o.status IN ({','.join('?' for _ in OPEN_ORDER_STATES)}))"
         "  AND NOT EXISTS (SELECT 1 FROM trades t2 WHERE t2.decision_id=d.decision_id)))",
         (book, *OPEN_ORDER_STATES))
     out: collections.Counter = collections.Counter()
@@ -164,10 +166,21 @@ def pending_entries(db) -> dict[str, Any]:
 
 
 def _pending_symbols(db, mode: str) -> set[str]:
-    """Selected exploratory entries not yet terminal (planned or submitted but not filled)."""
-    rows = db.fetchall("SELECT d.symbol FROM exploration_decisions d WHERE d.selection='SELECTED' AND d.mode=? AND NOT EXISTS "
-                       "(SELECT 1 FROM exploration_events e WHERE e.decision_id=d.decision_id AND e.event IN "
-                       "('CANCELLED_PREOPEN','REFUSED'))", (mode,))
+    """Selected exploratory entries that may still become a position: planned and not yet at a
+    terminal pre-open event, or with an entry order still working (the opg order or its fallback).
+
+    A decision whose entry orders all ended unfilled (expired / cancelled / rejected) is no longer
+    pending, and neither is one whose trade exists (an open trade is caught by the open-position
+    check; a closed one frees the symbol). Before this, every symbol ever selected stayed blocked
+    for good, shrinking the tradeable pool with every session."""
+    states = ",".join("?" for _ in OPEN_ORDER_STATES)
+    rows = db.fetchall(
+        "SELECT d.symbol FROM exploration_decisions d WHERE d.selection='SELECTED' AND d.mode=? "
+        "AND NOT EXISTS (SELECT 1 FROM trades t WHERE t.decision_id=d.decision_id) AND ("
+        " NOT EXISTS (SELECT 1 FROM exploration_events e WHERE e.decision_id=d.decision_id AND e.event IN "
+        "  ('SUBMITTED','CANCELLED_PREOPEN','REFUSED'))"
+        f" OR EXISTS (SELECT 1 FROM orders o WHERE o.decision_id=d.decision_id AND o.purpose='entry' AND o.status IN ({states})))",
+        (mode, *OPEN_ORDER_STATES))
     return {r["symbol"] for r in rows}
 
 
@@ -178,6 +191,17 @@ def _catalyst_direction(cat: dict[str, Any]) -> str:
     if me.get("state") == "FIRED":
         return me.get("direction") or "UNKNOWN"
     return "NONE"
+
+
+def _selection_of(r) -> float | None:
+    """The candidate's selection score from its setup record (None = UNKNOWN)."""
+    return _f((from_json(r["setup_json"], {}) or {}).get("selection_score"))
+
+
+def _selection_key(r) -> tuple:
+    """Highest selection score first; UNKNOWN after every scored candidate; discovery rank breaks ties."""
+    s = _selection_of(r)
+    return (0 if s is not None else 1, -(s or 0.0), r["rank"] if r["rank"] is not None else 10 ** 9, r["symbol"])
 
 
 def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None = None, equity: float | None = None,
@@ -211,14 +235,18 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
     if equity is None:
         from quantlab.execution.ledger import Ledger
         led = Ledger(db, book, config=cfg).state()
-        equity = float(led.get("cash") or 0.0) + sum(float((p.get("qty") or 0) * (p.get("avg_price") or p.get("price") or 0))
-                                                     for p in (led.get("positions") or {}).values()
-                                                     if isinstance(p, dict))
+        # Ledger.positions() is a list of position rows (qty, avg_cost); positions at cost -- the
+        # live pipeline passes mark-to-market equity and never reaches this fallback
+        pos = led.get("positions") or []
+        pos = list(pos.values()) if isinstance(pos, dict) else list(pos)
+        equity = float(led.get("cash") or 0.0) + sum(float((p.get("qty") or 0) * (p.get("avg_cost") or 0))
+                                                     for p in pos if isinstance(p, dict))
     equity = float(equity or 0.0)
     max_notional = float(cfg.get("risk.max_order_notional", 15000))
     rows = db.fetchall("SELECT * FROM discovery_candidates WHERE discovery_run_id=? AND status NOT IN ('TRADED','PAPER_ELIGIBLE')",
                        (run["discovery_run_id"],))
-    rows = sorted(rows, key=lambda r: (0 if r["on_watchlist"] else 1, r["rank"] if r["rank"] is not None else 10 ** 9))
+    rows = sorted(rows, key=_selection_key)
+    order = {r["symbol"]: i + 1 for i, r in enumerate(rows)}
     dataset_ids = from_json(run["dataset_ids_json"], [])
     selected = watched = 0
     session_notional = 0.0
@@ -296,8 +324,10 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
         strict_fail = [f"{x['stage']}: {x['text']}" for x in chain if x.get("state") in ("FAIL", "NOT_REACHED")
                        and x.get("stage") in ("VALIDATION", "RISK", "EV", "PAPER ELIGIBILITY")]
         best = next((x for x in links if x.get("decision") == "TRADE"), links[0] if links else None)
-        reason = (f"top-ranked experimental setup #{selected} of {pol.max_new_per_session} for {d} "
-                  f"({setup.get('setup_type')}; {r['setup_class'] or 'class UNKNOWN'}; discovery rank {r['rank']})"
+        sel_s = _selection_of(r)
+        reason = (f"experimental setup #{selected} of up to {pol.max_new_per_session} for {d} "
+                  f"({setup.get('setup_type')}; {r['setup_class'] or 'class UNKNOWN'}; selection score "
+                  f"{f'{sel_s:.2f}' if sel_s is not None else 'UNKNOWN'}, order {order.get(s)}; discovery rank {r['rank']})"
                   if selection in ("SELECTED", "SHADOW") else
                   ("eligible but beyond the session budget: tracked for comparison" if selection == "WATCHED_NOT_TRADED"
                    else "skipped: " + "; ".join(f"{c['name']}: {c['reason']}" for c in failed)))
@@ -306,6 +336,7 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
             "session_date": d, "next_session": run["next_session"], "information_cutoff_at": run["info_cutoff_at"],
             "discovery_run_id": run["discovery_run_id"], "discovery_id": r["discovery_id"],
             "candidate": {"origin": r["origin"], "discovery_score": r["discovery_score"], "rank": r["rank"],
+                          "selection_score": _selection_of(r), "selection_order": order.get(r["symbol"]),
                           "status": r["status"], "on_watchlist": bool(r["on_watchlist"]),
                           "setup_type": setup.get("setup_type"), "setup_class": r["setup_class"],
                           "families": (from_json(r["families_json"], {}) or {}).get("fired", []),

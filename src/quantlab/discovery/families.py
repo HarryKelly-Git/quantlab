@@ -52,6 +52,34 @@ POINTS = 20.0
 # Only its contribution to the score was degenerate. See docs/DISCOVERY-SCORE-DEFECT.md.
 SCORED_POINTS = ("momentum", "volume_activity", "breakout_compression", "mean_reversion")
 
+# SELECTION score: how exploration orders the discovered candidates it may paper trade.
+#
+# The composite discovery score above DESCRIBES what looks interesting; measured against forward
+# returns it predicts nothing (2021-03..2024-11 PIT replay, 334,904 obs: top-vs-bottom quintile
+# t = 0.55 / 0.64 in the two halves, no monotonicity). Ranking trades by it selected last month's
+# hottest movers -- the short-term-reversal side of the ledger -- with fat left tails.
+#
+# The selection score is fixed from PUBLISHED priors, not fitted: equal-weight mean of per-session
+# percentile ranks of
+#     mom_12_1   (+)  12-1 momentum, skips the latest month        Jegadeesh & Titman 1993
+#     atr14_pct  (-)  lower volatility                              Ang et al. 2006; Frazzini & Pedersen 2014
+#     adv20      (+)  more liquid: lower round-trip cost             (cost 30 -> 14 bps by liquidity quintile)
+# Same replay, top-5 discovered candidates per day, 5-session hold, net of costs:
+#     current rule (discovery score)  -29 / +9 bps per trade,  worst decile -749 / -697 bps
+#     selection score                 +10 / +23 bps per trade, worst decile -365 / -351 bps
+# Not statistically significant against the universe (t 1.1-1.2) and still below SPY after costs.
+# The second half is not a clean out-of-sample test; forward paper trading and the locked 2025+
+# holdout are. A hypothesis under test, recorded with every decision. All three components must be
+# KNOWN (a missing one is UNKNOWN, never zero): such a candidate sorts after every scored one.
+# See docs/SELECTION-EVIDENCE.md.
+SELECTION_FEATURES: tuple[tuple[str, int], ...] = (("mom_12_1", 1), ("atr14_pct", -1), ("adv20", 1))
+
+
+def selection_score(xs: pd.DataFrame) -> pd.Series:
+    """0..1 selection score per symbol of one session's cross-section (NaN when any input is unknown)."""
+    parts = [pct_rank(pd.to_numeric(xs[f], errors="coerce") * sign) for f, sign in SELECTION_FEATURES]
+    return pd.concat(parts, axis=1).mean(axis=1, skipna=False)
+
 LABELS = {
     "momentum": "Momentum", "relative_strength": "Relative strength", "volume_activity": "Volume/activity",
     "breakout_compression": "Breakout/compression", "mean_reversion": "Mean reversion", "earnings": "Earnings",
@@ -303,5 +331,5 @@ def fire_context(fam: str, r: pd.Series, t: Triggers) -> tuple[bool, list[str]]:
 
 
 __all__ = ["AUX_FEATURES", "CONTEXT", "CONTEXT_FEATURES", "FIRE", "LABELS", "POINTS", "SCORED", "SCORED_FEATURES",
-           "SCORED_POINTS", "fired_masks", "stabilising",
+           "SCORED_POINTS", "SELECTION_FEATURES", "fired_masks", "selection_score", "stabilising",
            "SOURCES", "Triggers", "fire_context", "pct_rank"]

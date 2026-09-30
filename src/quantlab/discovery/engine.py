@@ -26,8 +26,8 @@ from quantlab.core.types import PitStatus, new_id
 from quantlab.data.panel import DataBundle, Panel
 from quantlab.db.database import Database, from_json, to_json, utcnow_iso
 from quantlab.discovery.families import (
-    AUX_FEATURES, CONTEXT, CONTEXT_FEATURES, FIRE, LABELS, POINTS, SCORED, SCORED_FEATURES, SCORED_POINTS, SOURCES,
-    Triggers, fire_context, fired_masks, pct_rank,
+    AUX_FEATURES, CONTEXT, CONTEXT_FEATURES, FIRE, LABELS, POINTS, SCORED, SCORED_FEATURES, SCORED_POINTS,
+    SELECTION_FEATURES, SOURCES, Triggers, fire_context, fired_masks, pct_rank, selection_score,
 )
 from quantlab.discovery.status import describe_strategy
 from quantlab.features.base import FeatureSet
@@ -167,7 +167,7 @@ class DiscoveryEngine:
                  & (hist >= self.s.min_history_sessions) & ~close.index.isin(list(benches)))
         syms = close.index[basic.fillna(False).to_numpy()]
         scored_feats = [f for fam in SCORED for f, _ in SCORED_FEATURES[fam]]
-        need = list(dict.fromkeys(scored_feats + list(AUX_FEATURES)))
+        need = list(dict.fromkeys(scored_feats + list(AUX_FEATURES) + [f for f, _ in SELECTION_FEATURES]))
         xs = fs.cross_section(d, need).loc[syms]
         ac, ah, al = p.aclose, p.ahigh, p.alow
 
@@ -211,6 +211,7 @@ class DiscoveryEngine:
         pct_raw = pd.DataFrame({f: pct_rank(xs[f]) for f in scored_feats}, index=syms)
         masks = fired_masks(xs, pct_raw, comp, self.s.triggers)
         return {"syms": syms, "xs": xs, "states": states, "comp": comp, "score": score,
+                "selection": selection_score(xs),
                 "coverage": n_known / len(SCORED), "pct_raw": pct_raw, "masks": masks, "close": close, "hist": hist,
                 "adv20": adv20, "p": p, "scored_feats": scored_feats,
                 "counts": {"bar_on_session": int(close.notna().sum()), "basic": int(len(syms))}}
@@ -252,6 +253,7 @@ class DiscoveryEngine:
         uni = UniverseEngine(self.config).explain(view, d, exclude=quarantine).set_index("symbol")["reason"]
         table = pd.DataFrame(index=syms)
         table["score"] = c["score"]
+        table["selection_score"] = c["selection"]
         table["coverage"] = c["coverage"]
         for fam in SCORED:
             table[f"c_{fam}"] = comp[fam]
@@ -499,6 +501,7 @@ class DiscoveryEngine:
                     c["setup"][k] = extra[k] + c["setup"][k]
                 c["setup"]["missing"] = extra["missing"] + [m for m in c["setup"]["missing"] if m not in extra["missing"]]
             c["setup"]["setup_class"] = c["setup_class"]
+            c["setup"]["selection_score"] = c.get("selection_score")
             c["chain"] = evidence_chain(c)
         return Assessment(cands, self._funnel(scan, cands, links), self._blockers(cands),
                           self._near_misses(cands), self._diagnostics(scan, cands))
@@ -507,7 +510,8 @@ class DiscoveryEngine:
         """A strategy signal on a symbol outside the discovery scan: no score (UNKNOWN), and the
         reason it was not scanned. It still enters the pool."""
         why = scan.not_scanned.get(sym, "not in the stored data for this session")
-        r = {"score": np.nan, "coverage": 0.0, **{f"c_{f}": np.nan for f in SCORED}, "fired": [], "reasons": {},
+        r = {"score": np.nan, "selection_score": np.nan, "coverage": 0.0, **{f"c_{f}": np.nan for f in SCORED},
+             "fired": [], "reasons": {},
              "bias": "NEUTRAL", "context": {f: {"state": UNKNOWN, "why": f"not in the discovery scan ({why})"}
                                             for f in CONTEXT},
              "universe_reason": f"not scanned: {why}", "close": np.nan, "adv20": np.nan, "history": np.nan,
@@ -591,6 +595,7 @@ class DiscoveryEngine:
                 block_key = f"{block}|{first['reason']}"          # universe reasons are already rule names
         return {
             "symbol": s, "score": _num(r["score"]), "coverage": _num(r["coverage"]), "rank": int(r["rank"]),
+            "selection_score": _num(r.get("selection_score")),
             "components": {fam: _num(r[f"c_{fam}"]) for fam in SCORED}, "fired": list(r["fired"]),
             "reasons": r["reasons"], "bias": r["bias"], "context": ctx, "factors": r["factors"],
             "unknown_features": r["unknown"], "invalid_features": inv, "high_quality": high,

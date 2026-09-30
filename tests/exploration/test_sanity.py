@@ -309,3 +309,81 @@ def test_selection_spreads_across_industries(tmp_path):
     pol = ExplorationPolicy.from_config(ctx.config)
     assert 1 <= len(sel) <= pol.max_per_industry
     ctx.close()
+
+
+def test_exploration_trades_the_highest_selection_scores_first(tmp_path):
+    """Exploration orders eligible candidates by the selection score, not the descriptive discovery
+    score; the score used is recorded on every decision so accepted and rejected stay comparable."""
+    ctx = _ctx(tmp_path)
+    cb = crafted_bundle()
+    _store(ctx)
+    run_discovery(ctx, cb, cb.panel.dates[-1], links={})
+    plan_exploration(ctx, equity=100_000.0, now=PRE_OPEN)
+    rows = ctx.db.fetchall("SELECT selection, pre_trade_json FROM exploration_decisions WHERE session_date=?", (SESSION,))
+    cand = {r["selection"]: [] for r in rows}
+    for r in rows:
+        cand[r["selection"]].append(json.loads(r["pre_trade_json"])["candidate"])
+    assert all("selection_score" in c and "selection_order" in c for cs in cand.values() for c in cs)
+    sel = [c["selection_score"] for c in cand.get("SELECTED", [])]
+    watched = [c["selection_score"] for c in cand.get("WATCHED_NOT_TRADED", [])]
+    assert sel, "nothing selected on the crafted world"
+    known_w = [w for w in watched if w is not None]
+    if known_w and all(s is not None for s in sel):
+        assert min(sel) >= max(known_w), (sel, watched)     # eligible and passed over only when scored lower
+    ctx.close()
+
+
+# -- pending symbols: only decisions that can still become a position ---------------------------------
+def _entry_order(ctx, oid, did, symbol, status):
+    ctx.db.insert("orders", {"order_id": oid, "client_order_id": f"c_{oid}", "book": "BOT", "broker": "alpaca_paper",
+                             "candidate_id": None, "decision_id": did, "human_decision_id": None, "trade_id": None,
+                             "purpose": "entry", "symbol": symbol, "side": "buy", "qty": 10, "order_type": "market",
+                             "time_in_force": "opg", "limit_price": None, "created_at": utcnow_iso(),
+                             "submitted_at": utcnow_iso(), "status": status, "broker_order_id": None,
+                             "filled_qty": 0, "filled_avg_price": None, "last_update_at": utcnow_iso()})
+    ctx.db.insert("exploration_events", {"decision_id": did, "event": "SUBMITTED", "at": utcnow_iso(), "order_id": oid,
+                                         "details_json": "{}", "created_at": utcnow_iso()})
+
+
+def test_expired_or_closed_decisions_free_their_symbol(tmp_path):
+    """Before the fix every symbol ever selected stayed 'pending' for good (an expired entry, or a
+    trade that already closed), so the tradeable pool shrank with every session."""
+    from quantlab.exploration.engine import _pending_symbols
+    ctx = _ctx(tmp_path)
+    _decision(ctx, symbol="PLAN")                                          # planned, not yet submitted
+    _entry_order(ctx, "o_work", _decision(ctx, symbol="WORK"), "WORK", "accepted")      # still working
+    _entry_order(ctx, "o_exp", _decision(ctx, symbol="EXPD"), "EXPD", "expired")        # died unfilled
+    did = _decision(ctx, symbol="DONE")
+    _entry_order(ctx, "o_done", did, "DONE", "filled")
+    ctx.db.insert("trades", {"trade_id": "t_done", "book": "BOT", "decision_id": did, "symbol": "DONE",
+                             "direction": "LONG", "strategy_id": "EXPLORATION", "status": "CLOSED", "qty": 10,
+                             "created_at": utcnow_iso(), "updated_at": utcnow_iso()})
+    # an expired opg entry whose fallback is still working is pending through the fallback order
+    fb = _decision(ctx, symbol="FALL")
+    _entry_order(ctx, "o_fall_opg", fb, "FALL", "expired")
+    ctx.db.insert("orders", {"order_id": "o_fall_day", "client_order_id": "c_fall_day", "book": "BOT",
+                             "broker": "alpaca_paper", "candidate_id": None, "decision_id": fb, "human_decision_id": None,
+                             "trade_id": None, "purpose": "entry", "symbol": "FALL", "side": "buy", "qty": 10,
+                             "order_type": "limit", "time_in_force": "day", "limit_price": 51.0, "created_at": utcnow_iso(),
+                             "submitted_at": utcnow_iso(), "status": "new", "broker_order_id": None, "filled_qty": 0,
+                             "filled_avg_price": None, "last_update_at": utcnow_iso()})
+    assert _pending_symbols(ctx.db, "EXPLORATION") == {"PLAN", "WORK", "FALL"}
+    ctx.close()
+
+
+def test_equity_fallback_counts_open_positions_at_cost(tmp_path):
+    """Without an equity figure the plan sizes from the ledger: cash plus open positions at cost.
+    Ledger.positions() is a LIST of rows with avg_cost (the fallback used to call .values() on it)."""
+    ctx = _ctx(tmp_path)
+    cb = crafted_bundle()
+    _store(ctx)
+    from quantlab.execution.ledger import Ledger
+    cash = Ledger(ctx.db, "BOT", config=ctx.config).cash()
+    ctx.db.insert("positions", {"book": "BOT", "symbol": "HELD", "qty": 100, "avg_cost": 50.0, "trade_id": None,
+                                "opened_at": utcnow_iso(), "updated_at": utcnow_iso()})
+    run_discovery(ctx, cb, cb.panel.dates[-1], links={})
+    plan_exploration(ctx, now=PRE_OPEN)                                  # no equity passed: ledger fallback
+    r = ctx.db.fetchone("SELECT pre_trade_json FROM exploration_decisions WHERE selection='SELECTED' LIMIT 1")
+    assert r is not None
+    assert json.loads(r["pre_trade_json"])["sizing"]["equity"] == pytest.approx(cash + 100 * 50.0)
+    ctx.close()
