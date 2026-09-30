@@ -67,7 +67,8 @@ def test_exploration_trades_an_unvalidated_candidate_that_strict_blocks(both):
     assert {r["decision"] for r in sd} == {"NO_TRADE"}                          # nothing validated -> strict trades nothing
     assert strict.db.fetchone("SELECT COUNT(*) AS n FROM orders")["n"] == 0
     sel = explore.db.fetchall("SELECT * FROM exploration_decisions WHERE selection='SELECTED'")
-    assert sel and len(sel) <= 2 * 6                                            # fixed budget: N per session
+    n_sessions = len({r["session_date"] for r in sel})
+    assert sel and len(sel) <= ExplorationPolicy.from_config(explore.config).max_new_per_session * max(n_sessions, 1)
     orders = explore.db.fetchall("SELECT * FROM orders WHERE purpose='entry'")
     assert orders and {o["decision_id"] for o in orders} <= {s["decision_id"] for s in sel}
     t = explore.db.fetchone("SELECT strategy_id FROM trades LIMIT 1")
@@ -217,7 +218,7 @@ def test_modes_are_paper_only_and_validated():
     assert "api.alpaca.markets" not in src.replace("paper-api.alpaca.markets", "")     # no live endpoint
     assert "AlpacaPaperBroker" not in src and "SimBroker" not in src and ".submit_order(" not in src
     assert "exec_service.submit_entry(" in src          # orders only via the injected PAPER execution service
-    assert ExplorationPolicy.from_config(cfg).max_new_per_session == 2
+    assert ExplorationPolicy.from_config(cfg).max_new_per_session == 5
 
 
 from quantlab.dashboard.app import create_app  # noqa: E402  (after fixtures: keeps imports light above)

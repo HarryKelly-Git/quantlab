@@ -270,12 +270,15 @@ portfolio:
 
 exploration:                      # PAPER_EXPLORATION controls (simulation hygiene, NOT live-money optimisation;
                                   # N and limits are fixed, never fitted to results)
-  max_new_per_session: 2          # top-N exploratory entries per session by the existing discovery ranking
-  max_open_positions: 5           # open exploratory positions (= concurrent experiments)
-  max_concurrent_experiments: 5
+  # Approved 2026-10-01 for the forward-evidence phase. Do NOT raise beyond 5/day and 10 open
+  # without evidence and explicit approval (tests/exploration/test_sanity.py enforces the ceiling).
+  max_new_per_session: 5          # up to N exploratory entries per session -- only VALID candidates, never a quota
+  max_open_positions: 10          # open exploratory positions (= concurrent experiments)
+  max_concurrent_experiments: 10
+  max_per_industry: 2             # open + pending + same-session picks per PIT SIC industry group
   max_position_pct: 0.02          # of book equity per exploratory position
-  max_session_exposure_pct: 0.04  # new exploratory notional per session
-  max_total_exposure_pct: 0.10    # all open exploratory positions together
+  max_session_exposure_pct: 0.10  # new exploratory notional per session (5 x 2%)
+  max_total_exposure_pct: 0.20    # all open exploratory positions together (10 x 2%)
   holding_sessions: 10            # expected holding period (time exit)
   stop_atr: 2.0                   # invalidation stop = decision close - 2 x ATR(14)
   min_price: 5.0                  # basic liquidity for exploration (stricter than discovery's $1)

@@ -3,6 +3,7 @@ cutoff and revalidation, restart/duplicate safety, paper-only, dashboard lifecyc
 SYNTHETIC data and stub / fake brokers only."""
 from __future__ import annotations
 
+import collections
 import json
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from quantlab.dashboard.app import create_app
 from quantlab.db.database import to_json, utcnow_iso
 from quantlab.discovery import run_discovery
 from quantlab.exploration import ExplorationPolicy, paper_mode, plan_exploration, preopen_submit
-from quantlab.exploration.engine import OPTIONAL_INPUTS, REQUIRED_AT_SUBMIT, pending_entries
+from quantlab.exploration.engine import OPTIONAL_INPUTS, REQUIRED_AT_SUBMIT, industry_code, pending_entries
 
 from tests.discovery.world import BENCH, crafted_bundle
 
@@ -58,10 +59,11 @@ class StubExec:
         return {"refused": False, "order_id": f"order-{len(self.calls)}"}
 
 
-def _decision(ctx, symbol="AAA", qty=10.0, ref=50.0, stop=45.0, session=SESSION, run_id=None, unknowns=None):
+def _decision(ctx, symbol="AAA", qty=10.0, ref=50.0, stop=45.0, session=SESSION, run_id=None, unknowns=None,
+              pre_trade=None):
     did = f"expl_{symbol}_{session}"
     pre = {"unknowns": unknowns or ["news: UNKNOWN (no article in 90 days)", "fundamentals: UNKNOWN"],
-           "invalidation": ["closes below 45"], "features": {}}
+           "invalidation": ["closes below 45"], "features": {}, **(pre_trade or {})}
     ctx.db.insert("exploration_decisions", {
         "decision_id": did, "session_date": session, "next_session": NEXT, "symbol": symbol, "mode": "EXPLORATION",
         "selection": "SELECTED", "rank": 1, "discovery_run_id": run_id, "discovery_id": None, "origin": "DISCOVERY",
@@ -83,7 +85,11 @@ PRE_OPEN = pd.Timestamp(f"{NEXT} 08:45", tz="America/New_York").tz_convert(UTC)
 def test_configured_limits_and_modes():
     cfg = load_config(root=ROOT)                 # repo defaults (tests ignore config/local.yaml)
     p = ExplorationPolicy.from_config(cfg)
-    assert (p.max_new_per_session, p.max_position_pct, p.max_open_positions) == (2, 0.02, 5)
+    assert (p.max_new_per_session, p.max_position_pct, p.max_open_positions) == (5, 0.02, 10)
+    # approved ceiling for this phase: raising any of these needs evidence and explicit approval
+    assert p.max_new_per_session <= 5 and p.max_open_positions <= 10 and p.max_concurrent_experiments <= 10
+    assert p.max_position_pct <= 0.02 and p.max_total_exposure_pct <= 0.20 and p.max_session_exposure_pct <= 0.10
+    assert 1 <= p.max_per_industry <= 2          # more positions must be more independent bets
     assert paper_mode(cfg) == "STRICT"           # STRICT stays the repo default; EXPLORATION is an explicit opt-in
     assert cfg.get("safety.paper_only") is True
 
@@ -96,7 +102,10 @@ def test_plan_limits_sizing_required_inputs_and_pending_orders(tmp_path):
     res = plan_exploration(ctx, equity=100_000.0, now=PRE_OPEN)
     rows = ctx.db.fetchall("SELECT * FROM exploration_decisions")
     sel = [r for r in rows if r["selection"] == "SELECTED"]
-    assert 1 <= len(sel) <= 2                                                  # at most 2 new per session
+    pol = ExplorationPolicy.from_config(ctx.config)
+    assert 1 <= len(sel) <= pol.max_new_per_session                          # at most N new per session
+    inds = collections.Counter(industry_code(json.loads(r["pre_trade_json"])) for r in sel)
+    assert all(n <= pol.max_per_industry for k, n in inds.items() if k is not None)   # no sector pile-up
     for r in sel:
         assert r["qty"] * r["ref_price"] <= 0.02 * 100_000 + 1e-6              # <= 2% of equity
         assert r["qty"] >= 1 and 0 < r["stop_price"] < r["ref_price"]
@@ -114,11 +123,12 @@ def test_plan_limits_sizing_required_inputs_and_pending_orders(tmp_path):
     ctx.close()
 
 
-def test_working_exploratory_orders_count_toward_the_five_position_cap(tmp_path):
+def test_working_exploratory_orders_count_toward_the_open_position_cap(tmp_path):
     ctx = _ctx(tmp_path)
     cb = crafted_bundle()
     _store(ctx)
-    for i in range(5):                                                         # 5 submitted, not yet filled
+    cap = ExplorationPolicy.from_config(ctx.config).max_open_positions
+    for i in range(cap):                                                       # cap submitted, not yet filled
         did = _decision(ctx, symbol=f"P{i}", session="2024-03-21")
         ctx.db.insert("orders", {"order_id": f"o{i}", "client_order_id": f"c{i}", "book": "BOT", "broker": "alpaca_paper",
                                  "candidate_id": None, "decision_id": did, "human_decision_id": None, "trade_id": None,
@@ -128,7 +138,7 @@ def test_working_exploratory_orders_count_toward_the_five_position_cap(tmp_path)
                                  "filled_qty": 0, "filled_avg_price": None, "last_update_at": utcnow_iso()})
         ctx.db.insert("exploration_events", {"decision_id": did, "event": "SUBMITTED", "at": utcnow_iso(), "order_id": f"o{i}",
                                              "details_json": "{}", "created_at": utcnow_iso()})
-    assert pending_entries(ctx.db)["n"] == 5
+    assert pending_entries(ctx.db)["n"] == cap
     run_discovery(ctx, cb, cb.panel.dates[-1], links={})
     plan_exploration(ctx, equity=100_000.0, now=PRE_OPEN)
     assert not ctx.db.fetchall("SELECT 1 FROM exploration_decisions WHERE session_date=? AND selection='SELECTED'", (SESSION,))
@@ -234,4 +244,68 @@ def test_dashboard_shows_planned_vs_submitted_state(tmp_path):
     preopen_submit(ctx, StubExec(), now=PRE_OPEN)
     page = c.get("/").text
     assert "SUBMITTED (paper order" in page and "PLANNED (not submitted yet" not in page
+    ctx.close()
+
+
+# -- industry concentration -----------------------------------------------------------------------------
+def test_industry_code_reads_the_pit_sic_group_and_unknown_stays_unknown():
+    assert industry_code({"industry": {"code": 283.0}}) == "283"
+    assert industry_code({"industry": {"code": "541"}}) == "541"
+    for rec in ({"industry": {"code": None}}, {"industry": {"code": float("nan")}}, {"industry": None}, {}, None):
+        assert industry_code(rec) is None
+
+
+def test_no_more_than_the_industry_cap_across_open_pending_and_new(tmp_path):
+    """Open and working positions in an industry count toward its cap, so the next plan skips a
+    same-industry candidate with a recorded reason instead of piling into one sector."""
+    from quantlab.exploration.engine import held_industries
+    ctx = _ctx(tmp_path)
+    cb = crafted_bundle()
+    _store(ctx)
+    run_discovery(ctx, cb, cb.panel.dates[-1], links={})
+    rows = ctx.db.fetchall("SELECT symbol, catalyst_record_json FROM discovery_candidates")
+    assert rows
+    pol = ExplorationPolicy.from_config(ctx.config)
+    # every candidate the crafted world produces is placed in ONE industry that is already full
+    fill = pol.max_per_industry
+    for i in range(fill):
+        did = _decision(ctx, symbol=f"H{i}", session="2024-03-21",
+                        pre_trade={"industry": {"code": 999.0}})
+        ctx.db.insert("orders", {"order_id": f"h{i}", "client_order_id": f"hc{i}", "book": "BOT", "broker": "alpaca_paper",
+                                 "candidate_id": None, "decision_id": did, "human_decision_id": None, "trade_id": None,
+                                 "purpose": "entry", "symbol": f"H{i}", "side": "buy", "qty": 10, "order_type": "market",
+                                 "time_in_force": "opg", "limit_price": None, "created_at": utcnow_iso(),
+                                 "submitted_at": utcnow_iso(), "status": "accepted", "broker_order_id": None,
+                                 "filled_qty": 0, "filled_avg_price": None, "last_update_at": utcnow_iso()})
+        ctx.db.insert("exploration_events", {"decision_id": did, "event": "SUBMITTED", "at": utcnow_iso(),
+                                             "order_id": f"h{i}", "details_json": "{}", "created_at": utcnow_iso()})
+    assert held_industries(ctx.db, "BOT")["999"] == fill
+    # throwaway test DB only: lift the immutability trigger to place every candidate in one industry
+    ctx.db.execute("DROP TRIGGER IF EXISTS trg_discovery_candidates_no_update")
+    ctx.db.execute("UPDATE discovery_candidates SET catalyst_record_json=json_set(COALESCE(catalyst_record_json,'{}'),"
+                   "'$.industry', json('{\"code\": 999.0}'))")
+    plan_exploration(ctx, equity=100_000.0, now=PRE_OPEN)
+    decided = ctx.db.fetchall("SELECT selection, pre_trade_json FROM exploration_decisions WHERE session_date=?", (SESSION,))
+    assert not [d for d in decided if d["selection"] == "SELECTED"], "an already-full industry was bought again"
+    blocked = [d for d in decided if any(c["name"] == "industry_concentration" and not c["passed"]
+                                         for c in json.loads(d["pre_trade_json"])["risk_checks"])]
+    assert blocked, "the skip must be recorded with its reason"
+    ctx.close()
+
+
+def test_selection_spreads_across_industries(tmp_path):
+    """With room for N new positions, at most max_per_industry of them share an industry."""
+    ctx = _ctx(tmp_path)
+    cb = crafted_bundle()
+    _store(ctx)
+    run_discovery(ctx, cb, cb.panel.dates[-1], links={})
+    # throwaway test DB only: lift the immutability trigger to place every candidate in one industry
+    ctx.db.execute("DROP TRIGGER IF EXISTS trg_discovery_candidates_no_update")
+    ctx.db.execute("UPDATE discovery_candidates SET catalyst_record_json=json_set(COALESCE(catalyst_record_json,'{}'),"
+                   "'$.industry', json('{\"code\": 777.0}'))")
+    plan_exploration(ctx, equity=100_000.0, now=PRE_OPEN)
+    sel = ctx.db.fetchall("SELECT pre_trade_json FROM exploration_decisions WHERE session_date=? AND selection='SELECTED'",
+                          (SESSION,))
+    pol = ExplorationPolicy.from_config(ctx.config)
+    assert 1 <= len(sel) <= pol.max_per_industry
     ctx.close()

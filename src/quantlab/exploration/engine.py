@@ -25,6 +25,7 @@ config and never fitted to results.
 """
 from __future__ import annotations
 
+import collections
 import math
 from dataclasses import dataclass
 from datetime import datetime, time, timezone
@@ -50,7 +51,8 @@ NOT_REQUIRED = ("strategy validation / promotion", "statistically significant ou
 TERMINAL_EVENTS = ("SUBMITTED", "CANCELLED_PREOPEN", "REFUSED")
 # REQUIRED inputs: missing or stale -> the candidate is SKIPPED (plan) or CANCELLED_PREOPEN (submit).
 REQUIRED_AT_PLAN = ("valid_price_volume", "research_universe", "basic_liquidity", "data_quality", "kill_switch",
-                    "long_only_direction", "no_open_position", "stop_computable", "max_open_positions", "position_size")
+                    "long_only_direction", "no_open_position", "stop_computable", "max_open_positions",
+                    "industry_concentration", "position_size")
 REQUIRED_AT_SUBMIT = ("before_pre_open_cutoff", "after_decision_close", "kill_switch", "data_quality", "no_open_position",
                       "bars_for_decision_session", "corporate_action_data", "no_corporate_action_at_open",
                       "preopen_recheck_not_invalid", "plan_values", "execution_guard")
@@ -69,12 +71,13 @@ def paper_mode(config) -> str:
 
 @dataclass(frozen=True)
 class ExplorationPolicy:
-    max_new_per_session: int = 2
-    max_open_positions: int = 5
-    max_concurrent_experiments: int = 5
+    max_new_per_session: int = 5
+    max_open_positions: int = 10
+    max_concurrent_experiments: int = 10
+    max_per_industry: int = 2
     max_position_pct: float = 0.02
-    max_session_exposure_pct: float = 0.04
-    max_total_exposure_pct: float = 0.10
+    max_session_exposure_pct: float = 0.10
+    max_total_exposure_pct: float = 0.20
     holding_sessions: int = 10
     stop_atr: float = 2.0
     min_price: float = 5.0
@@ -116,6 +119,36 @@ def open_exposure(db, book: str) -> dict[str, Any]:
     exp = [r for r in rows if r["strategy_id"] == STRATEGY_ID]
     return {"symbols": {r["symbol"] for r in rows}, "exploration_open": len(exp),
             "exploration_notional": float(sum((r["qty"] or 0) * (r["entry_price"] or 0) for r in exp))}
+
+
+def industry_code(record: dict[str, Any] | None) -> str | None:
+    """The point-in-time SIC industry group of a candidate (``{"industry": {"code": 283.0, ...}}``),
+    or None when it is UNKNOWN."""
+    ind = (record or {}).get("industry")
+    code = ind.get("code") if isinstance(ind, dict) else None
+    try:
+        v = float(code)
+    except (TypeError, ValueError):
+        return None
+    return str(int(v)) if math.isfinite(v) else None
+
+
+def held_industries(db, book: str) -> collections.Counter:
+    """Industry of every OPEN or still-working exploratory position, read from its own decision
+    record (the industry known when it was chosen, never re-derived later)."""
+    rows = db.fetchall(
+        "SELECT d.pre_trade_json FROM exploration_decisions d WHERE d.selection='SELECTED' AND d.mode='EXPLORATION' AND ("
+        " EXISTS (SELECT 1 FROM trades t WHERE t.decision_id=d.decision_id AND t.book=? AND t.status='OPEN')"
+        " OR (EXISTS (SELECT 1 FROM exploration_events e JOIN orders o ON o.order_id=e.order_id"
+        f"   WHERE e.decision_id=d.decision_id AND e.event='SUBMITTED' AND o.status IN ({','.join('?' for _ in OPEN_ORDER_STATES)}))"
+        "  AND NOT EXISTS (SELECT 1 FROM trades t2 WHERE t2.decision_id=d.decision_id)))",
+        (book, *OPEN_ORDER_STATES))
+    out: collections.Counter = collections.Counter()
+    for r in rows:
+        code = industry_code(from_json(r["pre_trade_json"], {}) or {})
+        if code is not None:
+            out[code] += 1
+    return out
 
 
 def pending_entries(db) -> dict[str, Any]:
@@ -174,6 +207,7 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
     ox = {**ox, "exploration_open": ox["exploration_open"] + pend["n"],
           "exploration_notional": ox["exploration_notional"] + pend["notional"]}
     pending = _pending_symbols(db, "EXPLORATION")
+    ind_held = held_industries(db, book)          # open + working positions, by PIT industry group
     if equity is None:
         from quantlab.execution.ledger import Ledger
         led = Ledger(db, book, config=cfg).state()
@@ -230,6 +264,12 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
             n_open = ox["exploration_open"] + selected
             chk("max_open_positions", n_open < min(pol.max_open_positions, pol.max_concurrent_experiments),
                 f"{n_open} open exploratory position(s) (max {min(pol.max_open_positions, pol.max_concurrent_experiments)})")
+            # more positions must mean more independent bets, not one sector bought five times
+            ind = industry_code(cat)
+            n_ind = ind_held[ind] if ind is not None else 0
+            chk("industry_concentration", ind is None or n_ind < pol.max_per_industry,
+                (f"industry {ind}: {n_ind} open/pending/selected (max {pol.max_per_industry})" if ind is not None
+                 else "industry UNKNOWN: concentration cannot be measured, not a reason to skip"))
             cap = min(pol.max_position_pct * equity, pol.max_session_exposure_pct * equity - session_notional,
                       pol.max_total_exposure_pct * equity - ox["exploration_notional"] - session_notional, max_notional)
             qty = int(math.floor(max(cap, 0.0) / close)) if close else 0
@@ -241,6 +281,8 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
                 selected += 1
                 session_notional += qty * close
                 stop = round(close - pol.stop_atr * atr, 4)
+                if ind is not None:
+                    ind_held[ind] += 1
             else:
                 selection, qty = "SKIPPED", 0
         elif eligible and watched < pol.watched_not_traded:
