@@ -92,6 +92,11 @@ def _num(v: Any) -> float | None:
         return None
 
 
+def _stop_price_str(price: float) -> str:
+    """Alpaca rejects sub-penny prices at or above $1 (2 decimals; 4 below $1)."""
+    return f"{price:.2f}" if price >= 1.0 else f"{price:.4f}"
+
+
 def _qty_str(qty: float) -> str:
     s = f"{qty:.9f}".rstrip("0").rstrip(".")
     return s or "0"
@@ -267,6 +272,8 @@ class AlpacaPaperBroker(PaperBroker):
         }
         if request.order_type == "limit":
             body["limit_price"] = f"{request.limit_price:.4f}"
+        if request.order_type == "stop":
+            body["stop_price"] = _stop_price_str(request.stop_price)
         try:
             raw = self._request("POST", "/v2/orders", json_body=body)
         except AlpacaRejected as exc:
@@ -275,7 +282,8 @@ class AlpacaPaperBroker(PaperBroker):
             return BrokerOrder(client_order_id=request.client_order_id, broker_order_id=None,
                                status=OrderStatus.REJECTED, symbol=request.symbol, side=request.side,
                                qty=request.qty, order_type=request.order_type,
-                               time_in_force=request.time_in_force, limit_price=request.limit_price, reason=desc)
+                               time_in_force=request.time_in_force, limit_price=request.limit_price,
+                               stop_price=request.stop_price, reason=desc)
         except BrokerUnavailable as exc:
             # Ambiguous outcome (timeout / connection error / 5xx): never blindly resubmit.
             log_event(log, "alpaca_paper submit ambiguous; checking by client_order_id",
@@ -290,6 +298,7 @@ class AlpacaPaperBroker(PaperBroker):
                                status=OrderStatus.UNKNOWN, symbol=request.symbol, side=request.side,
                                qty=request.qty, order_type=request.order_type,
                                time_in_force=request.time_in_force, limit_price=request.limit_price,
+                               stop_price=request.stop_price,
                                reason=f"submit outcome unknown after network error: {exc}")
         except BrokerError as exc:
             # Alpaca refuses a reused client_order_id (HTTP 422): the order already exists (e.g. it
@@ -365,5 +374,5 @@ class AlpacaPaperBroker(PaperBroker):
             submitted_at=raw.get("submitted_at"), raw=raw, symbol=raw.get("symbol"), side=side,
             qty=_num(raw.get("qty")), order_type=raw.get("type") or raw.get("order_type"),
             time_in_force=raw.get("time_in_force"), limit_price=_num(raw.get("limit_price")),
-            filled_at=raw.get("filled_at"), reason=reason,
+            filled_at=raw.get("filled_at"), reason=reason, stop_price=_num(raw.get("stop_price")),
         )

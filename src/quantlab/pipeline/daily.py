@@ -207,7 +207,7 @@ class DailyPipeline:
         for sig in signals:
             r = self.exec.submit_exit(sig.trade_id, sig.reason.value, detail=sig.detail,
                                       session_date=str(st["as_of"].date()))
-            n += 0 if r.get("refused") else 1
+            n += 0 if (r.get("refused") or r.get("skipped")) else 1
         return {"exit_signals": len(signals), "exit_orders": n}
 
     def _research(self, run_id, st) -> dict:
@@ -279,8 +279,9 @@ class DailyPipeline:
         rej_by = {r.candidate_id: r for r in rejections}
         mtm = st.get("mtm") or {}
         # orders decided for THIS session (not wall-clock today: replays run many sessions in one day)
-        daily_orders = self.db.fetchone("SELECT COUNT(*) AS n FROM order_intents WHERE book=? AND session_date=?",
-                                        (self.book, str(d.date())))["n"]
+        # (broker-held protective stops are not decisions and never use up the budget)
+        daily_orders = self.db.fetchone("SELECT COUNT(*) AS n FROM order_intents WHERE book=? AND session_date=? "
+                                        "AND purpose<>'protective_stop'", (self.book, str(d.date())))["n"]
         shadow = ShadowBook(self.db)
         broker_ok = self.broker.is_available()     # once per session, not once per candidate
         decisions, counts = [], {"TRADE": 0, "NO_TRADE": 0, "WATCH": 0, "UNKNOWN": 0}

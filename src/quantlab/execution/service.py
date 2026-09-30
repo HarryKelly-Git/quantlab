@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import time as _time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -28,7 +29,7 @@ from quantlab.core.calendar import to_session, to_utc
 from quantlab.core.types import OrderStatus, Side, SystemState, TradePlan, new_id
 from quantlab.data.panel import Panel
 from quantlab.db.database import Database, from_json, to_json, utcnow_iso
-from quantlab.execution.broker import BrokerError, MAX_CLIENT_ORDER_ID_LEN, OrderRequest, PaperBroker
+from quantlab.execution.broker import BrokerError, MAX_CLIENT_ORDER_ID_LEN, OrderRequest, PaperBroker, is_whole
 from quantlab.execution.ledger import Ledger
 from quantlab.execution.sim_broker import paper_book
 from quantlab.logging_setup import get_logger, log_event
@@ -42,6 +43,10 @@ _OPEN_LOCAL = (OrderStatus.PENDING_SUBMIT.value, OrderStatus.ACCEPTED.value, Ord
 _STATUS_RANK = {OrderStatus.PENDING_SUBMIT: 0, OrderStatus.UNKNOWN: 0, OrderStatus.ACCEPTED: 1,
                 OrderStatus.NEW: 2, OrderStatus.PARTIALLY_FILLED: 3, OrderStatus.FILLED: 4,
                 OrderStatus.CANCELED: 4, OrderStatus.EXPIRED: 4, OrderStatus.REJECTED: 4}
+# A broker-held protective stop is an EXIT order (orders.purpose='exit', so its fill closes the trade
+# through the ledger like any exit) of type 'stop'/'gtc'. Its order_intents row carries this purpose.
+PROTECTIVE_STOP = "protective_stop"
+_TERMINAL = (OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.EXPIRED, OrderStatus.REJECTED)
 
 
 def _fill_session(filled_at: str | None) -> str | None:
@@ -105,6 +110,9 @@ class PaperExecutionService:
 
         self.max_daily_orders = int(cfg("risk.max_daily_orders", 20))
         self.max_order_notional = float(cfg("risk.max_order_notional", 15000.0))
+        # how long an exit waits for the broker to CONFIRM the protective stop's cancellation
+        self.stop_cancel_wait_seconds = float(cfg("execution.protective_stop.cancel_wait_seconds", 15.0))
+        self._sleep: Callable[[float], None] = _time.sleep
         # (purpose, symbol) -> refusal reason or None. Set by the paper runner; None = no extra gate.
         self.submission_guard: Callable[[str, str], str | None] | None = None
 
@@ -135,8 +143,10 @@ class PaperExecutionService:
                                 decision_id=decision_id, human_decision_id=human_decision_id, trade_id=trade_id,
                                 session_date=session_date)
         if session_date is not None:
-            n = self.db.fetchone("SELECT COUNT(*) AS n FROM order_intents WHERE book=? AND session_date=?",
-                                 (self.book, session_date))["n"]
+            # protective stops are bounded by the open trades (one per trade) and never count
+            # against the decision budget: a full cap must never leave a position unprotected
+            n = self.db.fetchone("SELECT COUNT(*) AS n FROM order_intents WHERE book=? AND session_date=? "
+                                 "AND purpose<>?", (self.book, session_date, PROTECTIVE_STOP))["n"]
             if n >= self.max_daily_orders:
                 return self._refuse(purpose, symbol, qty,
                                     f"risk.max_daily_orders reached ({n} >= {self.max_daily_orders}) for "
@@ -304,6 +314,34 @@ class PaperExecutionService:
                                     decision_id=trade["decision_id"], human_decision_id=trade["human_decision_id"],
                                     trade_id=trade_id, session_date=decision_session, ref_price=None)
         if refusal is None:
+            refusal = self._guard_refusal("exit" if exit_style == "opg" else "exit_fallback",
+                                          trade["symbol"], qty, candidate_id=trade["candidate_id"],
+                                          decision_id=trade["decision_id"],
+                                          human_decision_id=trade["human_decision_id"], trade_id=trade_id,
+                                          session_date=decision_session)
+        if refusal is None:
+            # The broker holds the position's shares for a resting protective stop: selling them
+            # again would be rejected at best and a double sell at worst. Release it first, and
+            # only on a CONFIRMED cancel go on (a gate refusal above keeps the stop in place).
+            released = self.release_protective_stop(trade_id, reason=f"exit ({reason})")
+            if released == "filled":
+                if existing is not None:
+                    self._abandon_pending(existing, "the protective stop filled first")
+                self.journal.record_event(trade_id, "exit_skipped", {"reason": reason,
+                                                                      "why": "the protective stop filled first"})
+                return {"refused": False, "skipped": True, "trade_id": trade_id, "symbol": trade["symbol"],
+                        "reason": "the protective stop filled first: the trade is already closed"}
+            if released == "pending":
+                refusal = self._refuse("exit", trade["symbol"], qty,
+                                       "protective stop cancel not confirmed by the broker: exit not sent "
+                                       "(never double-sell); retried next cycle",
+                                       candidate_id=trade["candidate_id"], decision_id=trade["decision_id"],
+                                       human_decision_id=trade["human_decision_id"], trade_id=trade_id,
+                                       session_date=decision_session)
+            else:
+                pos = self.ledger.get_position(trade["symbol"])      # a partial stop fill shrinks it
+                qty = float(trade["qty"]) if pos is None else min(float(trade["qty"]), float(pos["qty"]))
+        if refusal is None:
             pending = self.db.fetchone(
                 f"SELECT order_id FROM orders WHERE book=? AND trade_id=? AND purpose='exit' AND client_order_id<>? "
                 f"AND status IN ({','.join('?' * len(_OPEN_LOCAL))})",
@@ -314,12 +352,6 @@ class PaperExecutionService:
                                        candidate_id=trade["candidate_id"], decision_id=trade["decision_id"],
                                        human_decision_id=trade["human_decision_id"], trade_id=trade_id,
                                        session_date=decision_session)
-        if refusal is None:
-            refusal = self._guard_refusal("exit" if exit_style == "opg" else "exit_fallback",
-                                          trade["symbol"], qty, candidate_id=trade["candidate_id"],
-                                          decision_id=trade["decision_id"],
-                                          human_decision_id=trade["human_decision_id"], trade_id=trade_id,
-                                          session_date=decision_session)
         if refusal is not None:
             if existing is not None:
                 self._abandon_pending(existing, refusal["reason"])
@@ -342,6 +374,158 @@ class PaperExecutionService:
                              trade_id=trade_id, now=now)
         self.journal.record_event(trade_id, "exit_submitted", {"order_id": order_id, "reason": reason})
         return self._send(order_id, request, purpose="exit", trade_id=trade_id)
+
+    # ------------------------------------------------------------------------------------------
+    # broker-held protective stop
+    # ------------------------------------------------------------------------------------------
+    def active_protective_stop(self, trade_id: str) -> dict[str, Any] | None:
+        """The trade's protective stop that may still be working at the broker (newest first)."""
+        return self.db.fetchone(
+            f"SELECT * FROM orders WHERE book=? AND trade_id=? AND purpose='exit' AND order_type='stop' "
+            f"AND status IN ({','.join('?' * len(_OPEN_LOCAL))}) ORDER BY created_at DESC",
+            (self.book, trade_id, *_OPEN_LOCAL))
+
+    def working_entry(self, symbol: str) -> dict[str, Any] | None:
+        """An entry order for ``symbol`` still working at the broker (e.g. a partly filled fallback)."""
+        return self.db.fetchone(
+            f"SELECT * FROM orders WHERE book=? AND symbol=? AND purpose='entry' "
+            f"AND status IN ({','.join('?' * len(_OPEN_LOCAL))})", (self.book, symbol, *_OPEN_LOCAL))
+
+    def working_exit(self, trade_id: str) -> dict[str, Any] | None:
+        """A non-stop exit order (opg / market-day) still working for the trade."""
+        return self.db.fetchone(
+            f"SELECT * FROM orders WHERE book=? AND trade_id=? AND purpose='exit' AND order_type<>'stop' "
+            f"AND status IN ({','.join('?' * len(_OPEN_LOCAL))})", (self.book, trade_id, *_OPEN_LOCAL))
+
+    def submit_protective_stop(self, trade_id: str, stop_price: float, *, session_date: str | None = None,
+                               detail: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Place the broker-held stop for an OPEN long trade: a GTC stop-market SELL of the whole
+        position at ``stop_price`` (RAW, rounded DOWN to the cent). The broker then protects the
+        position intraday and while QuantLab is not running; its fill closes the trade (STOP).
+
+        Idempotent like every order here: one deterministic client_order_id per stop version, the
+        local row is written before the broker call. Refused (recorded) when the system is paused,
+        the runner's guard says no, there is no whole-share position, or another exit is working.
+        A DIFFERENT active stop must be released first (:meth:`release_protective_stop`)."""
+        trade = self.journal.get_trade(trade_id)
+        if trade is None:
+            raise ExecutionError(f"unknown trade {trade_id}")
+        if trade["book"] != self.book:
+            raise ExecutionError(f"trade {trade_id} belongs to book {trade['book']!r}, not {self.book!r}")
+        symbol = trade["symbol"]
+        ids = {"candidate_id": trade["candidate_id"], "decision_id": trade["decision_id"],
+               "human_decision_id": trade["human_decision_id"], "trade_id": trade_id}
+        s = to_session(session_date).date().isoformat() if session_date is not None else (
+            _fill_session(utcnow_iso()) or trade["entry_date"])
+        if trade["status"] != "OPEN" or trade["direction"] != "LONG":
+            return self._refuse(PROTECTIVE_STOP, symbol, 0.0, f"trade is not an OPEN long (status={trade['status']}, "
+                                f"direction={trade['direction']})", session_date=s, **ids)
+        price = float(stop_price)
+        if not (math.isfinite(price) and price > 0):
+            return self._refuse(PROTECTIVE_STOP, symbol, 0.0, f"invalid stop price {stop_price!r}", session_date=s, **ids)
+        price = math.floor(price * 100 + 1e-6) / 100 if price >= 1.0 else round(price, 4)
+        pos = self.ledger.get_position(symbol)
+        qty = float(pos["qty"]) if pos else 0.0
+        if qty <= _EPS or not is_whole(qty):
+            return self._refuse(PROTECTIVE_STOP, symbol, qty, "no whole-share position to protect", session_date=s, **ids)
+        qty = float(round(qty))
+
+        active = self.active_protective_stop(trade_id)
+        if active is not None:
+            if abs(float(active["qty"]) - qty) <= _EPS and abs(float(active["stop_price"] or 0.0) - price) < 0.005:
+                return self._summary(active, duplicate=True)
+            return self._refuse(PROTECTIVE_STOP, symbol, qty, f"a different protective stop is active "
+                                f"({active['order_id']}): release it first", session_date=s, **ids)
+        working = self.working_exit(trade_id)
+        if working is not None:
+            return self._refuse(PROTECTIVE_STOP, symbol, qty, f"an exit order is working ({working['order_id']}): "
+                                "no protective stop on shares already being sold", session_date=s, **ids)
+
+        # version = stops of this trade that are already finished: a replacement gets a new id, a
+        # crash-resumed pending row gets the SAME id (never two stops for one version)
+        version = self.db.fetchone(
+            "SELECT COUNT(*) AS n FROM orders WHERE book=? AND trade_id=? AND purpose='exit' AND order_type='stop' "
+            "AND status IN (?,?,?,?)", (self.book, trade_id, OrderStatus.FILLED.value, OrderStatus.CANCELED.value,
+                                        OrderStatus.EXPIRED.value, OrderStatus.REJECTED.value))["n"]
+        client_order_id = _client_order_id(self.book, PROTECTIVE_STOP, f"{trade_id}|v{version}")
+        existing = self._local_order(client_order_id)
+        if existing is not None and existing["status"] != OrderStatus.PENDING_SUBMIT.value:
+            return self._summary(existing, duplicate=True)
+
+        refusal = self._check_gates(PROTECTIVE_STOP, symbol, qty, session_date=None, ref_price=None, **ids)
+        if refusal is None:
+            refusal = self._guard_refusal(PROTECTIVE_STOP, symbol, qty, session_date=s, **ids)
+        if refusal is not None:
+            if existing is not None:
+                self._abandon_pending(existing, refusal["reason"])
+            return refusal
+
+        request = OrderRequest(client_order_id=client_order_id, symbol=symbol, side=Side.SELL, qty=qty,
+                               order_type="stop", time_in_force="gtc", stop_price=price, decision_session=s)
+        if existing is not None:
+            return self._send(existing["order_id"], request, purpose="exit", trade_id=trade_id)
+        order_id = new_id("order")
+        now = utcnow_iso()
+        self.db.insert("order_intents", {
+            "order_id": order_id, "book": self.book, "session_date": s, "purpose": PROTECTIVE_STOP,
+            "intent_json": to_json({"trade_id": trade_id, "reason": "STOP", "kind": PROTECTIVE_STOP,
+                                    "stop_price": price, "qty": qty, **(detail or {})}),
+            "created_at": now,
+        })
+        self._insert_pending(order_id, request, purpose="exit", candidate_id=trade["candidate_id"],
+                             decision_id=trade["decision_id"], human_decision_id=trade["human_decision_id"],
+                             trade_id=trade_id, now=now)
+        self.journal.record_event(trade_id, "protective_stop_submitted",
+                                  {"order_id": order_id, "stop_price": price, "qty": qty, "version": version})
+        return self._send(order_id, request, purpose="exit", trade_id=trade_id)
+
+    def release_protective_stop(self, trade_id: str, reason: str = "release") -> str:
+        """Cancel the trade's protective stop and wait (``stop_cancel_wait_seconds``) until the broker
+        CONFIRMS it. Returns ``"none"`` (no stop), ``"canceled"``, ``"filled"`` (the stop executed
+        first: the trade is closed) or ``"pending"`` (not confirmed: the caller must NOT sell).
+        Every broker state seen on the way is applied to the ledger (a fill closes the trade)."""
+        row = self.active_protective_stop(trade_id)
+        if row is None:
+            return "none"
+        cid = row["client_order_id"]
+        s_str = _fill_session(utcnow_iso()) or row["created_at"][:10]
+        deadline = _time.monotonic() + self.stop_cancel_wait_seconds
+        cancel_sent = False
+        while True:
+            fetched, bo = True, None
+            try:
+                bo = self.broker.get_order_by_client_id(cid)
+            except BrokerError as exc:
+                fetched = False
+                log_event(log, "protective stop release: broker unreachable", client_order_id=cid, error=str(exc))
+            if fetched and bo is None:
+                # the broker never received it (a pending_submit that did not get out): nothing rests
+                self.ledger.record_order_status(row["order_id"], OrderStatus.CANCELED, f"not at the broker: released "
+                                                f"for {reason}")
+                return "canceled"
+            if bo is not None:
+                self._apply_broker_order(bo, s_str, SyncResult(session_date=s_str, book=self.book))
+                trade = self.journal.get_trade(trade_id)
+                if trade is not None and trade["status"] != "OPEN":
+                    return "filled"
+                if bo.status in _TERMINAL:     # canceled / expired / rejected (a partial fill is applied)
+                    self.journal.record_event(trade_id, "protective_stop_released",
+                                              {"order_id": row["order_id"], "status": bo.status.value,
+                                               "reason": reason})
+                    return "canceled"
+                if not cancel_sent:
+                    try:
+                        self.broker.cancel_order(cid)
+                        cancel_sent = True
+                        continue             # read the state right after the request
+                    except BrokerError as exc:
+                        log_event(log, "protective stop cancel request failed; retrying", client_order_id=cid,
+                                  error=str(exc))
+            if _time.monotonic() >= deadline:
+                log_event(log, "protective stop cancel NOT confirmed in time", client_order_id=cid, trade_id=trade_id,
+                          waited=self.stop_cancel_wait_seconds)
+                return "pending"
+            self._sleep(0.25)
 
     # ------------------------------------------------------------------------------------------
     # submission internals (idempotent)
@@ -392,7 +576,7 @@ class PaperExecutionService:
             "human_decision_id": human_decision_id, "trade_id": trade_id, "purpose": purpose,
             "symbol": request.symbol, "side": request.side.value, "qty": request.qty,
             "order_type": request.order_type, "time_in_force": request.time_in_force,
-            "limit_price": request.limit_price, "created_at": now, "submitted_at": None,
+            "limit_price": request.limit_price, "stop_price": request.stop_price, "created_at": now, "submitted_at": None,
             "status": OrderStatus.PENDING_SUBMIT.value, "broker_order_id": None, "filled_qty": 0.0,
             "filled_avg_price": None, "last_update_at": now, "raw_json": to_json({}),
         })

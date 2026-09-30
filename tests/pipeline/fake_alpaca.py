@@ -36,6 +36,7 @@ class FakeAlpacaBroker(PaperBroker):
         self.market_open = True
         self.auto_fill_market: float | None = None     # fill market orders at this price on submit
         self.listeners: list = []                      # trade_updates subscribers (see FakeStream)
+        self.cancel_stuck = False                      # cancels stay 'pending_cancel' (never confirmed)
 
     # -- helpers --------------------------------------------------------------------------------
     def _check(self) -> None:
@@ -65,12 +66,23 @@ class FakeAlpacaBroker(PaperBroker):
         if request.client_order_id in self.orders:
             raise BrokerError("alpaca_paper: HTTP 422 at /v2/orders: client_order_id must be unique")
         status = "rejected" if self.reject_next else "accepted"
+        reason = "insufficient buying power" if status == "rejected" else None
         self.reject_next = False
+        if status == "accepted" and request.side.value == "sell":
+            # like Alpaca: shares reserved by open sell orders (e.g. a resting stop) are not available
+            term = {"filled", "canceled", "expired", "rejected"}
+            held = sum(float(o["qty"]) - float(o["filled_qty"]) for o in self.orders.values()
+                       if o["symbol"] == request.symbol and o["side"] == "sell" and o["status"] not in term)
+            have = self.pos.get(request.symbol, [0.0, 0.0])[0]
+            if request.qty > have - held + 1e-9:
+                status = "rejected"
+                reason = f"insufficient qty available for order (requested: {request.qty:g}, available: {have - held:g})"
         o = {"id": str(uuid.uuid4()), "client_order_id": request.client_order_id, "symbol": request.symbol,
              "side": request.side.value, "qty": str(request.qty), "type": request.order_type,
-             "time_in_force": request.time_in_force, "limit_price": request.limit_price, "status": status,
+             "time_in_force": request.time_in_force, "limit_price": request.limit_price,
+             "stop_price": request.stop_price, "status": status,
              "filled_qty": "0", "filled_avg_price": None, "submitted_at": "2000-01-01T00:00:00Z", "filled_at": None,
-             "reject_reason": "insufficient buying power" if status == "rejected" else None}
+             "reject_reason": reason}
         self.orders[request.client_order_id] = o
         if status == "accepted" and request.order_type == "market" and self.auto_fill_market is not None:
             for listener in list(self.listeners):
@@ -98,7 +110,7 @@ class FakeAlpacaBroker(PaperBroker):
         self._check()
         o = self.orders.get(client_order_id)
         if o and o["status"] not in ("filled", "canceled", "rejected", "expired"):
-            o["status"] = "canceled"
+            o["status"] = "pending_cancel" if self.cancel_stuck else "canceled"
         return self.parse_order(o) if o else None
 
     def is_available(self) -> bool:

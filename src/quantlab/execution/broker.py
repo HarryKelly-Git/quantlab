@@ -19,8 +19,10 @@ from typing import Any
 
 from quantlab.core.types import OrderStatus, Side
 
-ORDER_TYPES = frozenset({"market", "limit"})
-TIME_IN_FORCE = frozenset({"opg", "day"})
+ORDER_TYPES = frozenset({"market", "limit", "stop"})
+# gtc exists ONLY for the broker-held protective stop (a stop-market sell resting at the broker);
+# entries and exits stay opg/day.
+TIME_IN_FORCE = frozenset({"opg", "day", "gtc"})
 ORDER_LIST_STATUSES = frozenset({"open", "closed", "all"})
 MAX_CLIENT_ORDER_ID_LEN = 48          # Alpaca allows 128; we keep ids short and readable
 _CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9._:-]+$")
@@ -71,6 +73,7 @@ class OrderRequest:
     time_in_force: str = "opg"
     limit_price: float | None = None
     decision_session: str | None = None
+    stop_price: float | None = None          # order_type "stop" only: the RAW trigger price
 
     def __post_init__(self) -> None:
         if not self.client_order_id or len(self.client_order_id) > MAX_CLIENT_ORDER_ID_LEN:
@@ -91,7 +94,18 @@ class OrderRequest:
             if self.limit_price is None or not math.isfinite(self.limit_price) or self.limit_price <= 0:
                 raise ValueError("limit orders need a positive limit_price")
         elif self.limit_price is not None:
-            raise ValueError("market orders must not carry a limit_price")
+            raise ValueError(f"{self.order_type} orders must not carry a limit_price")
+        if self.order_type == "stop":
+            if self.stop_price is None or not math.isfinite(self.stop_price) or self.stop_price <= 0:
+                raise ValueError("stop orders need a positive stop_price")
+            if self.time_in_force not in ("gtc", "day"):
+                raise ValueError("stop orders are gtc or day")
+            if not is_whole(self.qty):
+                raise ValueError("stop orders must be whole shares")
+        elif self.stop_price is not None:
+            raise ValueError(f"{self.order_type} orders must not carry a stop_price")
+        if self.time_in_force == "gtc" and self.order_type != "stop":
+            raise ValueError("gtc is reserved for the broker-held protective stop")
         # Alpaca: fractional orders are DAY-only (no opg). Enforced here so the simulated and the
         # Alpaca book accept exactly the same orders.
         if self.time_in_force == "opg" and not is_whole(self.qty):
@@ -121,6 +135,7 @@ class BrokerOrder:
     modeled_cost: float = 0.0                 # cumulative modeled spread+slippage (simulated broker only)
     fill_session: str | None = None           # session date of the (last) fill
     delisting_settlement: bool = False        # sim: settled at last close x (1 + delisting_return)
+    stop_price: float | None = None           # stop orders only
 
     @property
     def is_open(self) -> bool:

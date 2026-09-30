@@ -25,6 +25,14 @@ class CostModel:
     # flagged uses the worse of open and close. Shared with data validation and the paper SimBroker.
     suspicious_open_threshold: float = 0.25
     suspicious_open_min_reversion: float = 0.5
+    # How core.tradesim fills a stop: "close" (checked on the close, exit next open) or "intraday"
+    # (a broker-held stop-market order: gap through -> the open, touch -> the stop price). Shared by
+    # every caller of simulate_plan so backtests, shadow outcomes and the paper runner agree.
+    stop_model: str = "close"
+
+    def __post_init__(self) -> None:
+        if self.stop_model not in ("close", "intraday"):
+            raise ValueError(f"stop_model must be 'close' or 'intraday', got {self.stop_model!r}")
 
     @classmethod
     def from_config(cls, config: Config) -> "CostModel":
@@ -34,7 +42,8 @@ class CostModel:
                    float(c.get("commission_min_per_order", 0.0)), float(c.get("delisting_return", -0.30)),
                    int(config.get("execution.delisting_missing_sessions", 5)),
                    float(config.get("validation.data.suspicious_open.threshold", 0.25)),
-                   float(config.get("validation.data.suspicious_open.min_reversion", 0.5)))
+                   float(config.get("validation.data.suspicious_open.min_reversion", 0.5)),
+                   str(config.get("execution.stop_model", "close")))
 
     def half_spread_bps(self, median_dollar_volume: float | None) -> float:
         """Unknown liquidity is charged the WORST tier (conservative)."""

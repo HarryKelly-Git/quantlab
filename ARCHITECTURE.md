@@ -194,8 +194,15 @@ correlation between strategies. It does **not** count votes.
 
 ## 6. Trade semantics (`core/tradesim.py`). One definition everywhere.
 
-Signal at close D -> entry at open D+1. Stops/targets are evaluated on each held session's
-**close**, and the exit fills at the next open (gaps are paid in full). A time exit comes after
+Signal at close D -> entry at open D+1. Targets are evaluated on each held session's **close**,
+and the exit fills at the next open (gaps are paid in full). STOPS follow `execution.stop_model`:
+`intraday` (the default, because the paper runner keeps a broker-held GTC stop-market sell resting
+for every open long trade; `execution/protective_stops.py`) exits on the session the stop is hit:
+at that session's open when it opened through the stop, otherwise at the stop price. On the entry
+session only the low counts, and only when the entry was above the stop. `close` is the old rule:
+stop checked on the close, exit at the next open. The exit engine's close-based STOP remains the
+live backstop, used when no broker stop could be placed. Any exit first releases the resting stop
+and waits for a CONFIRMED cancel, so the same shares are never sold twice. A time exit comes after
 `holding_sessions` sessions. Delisting applies `costs.delisting_return`. Costs come from
 `core.costs.CostModel` (a half-spread tier by 20-session median dollar volume, plus slippage and
 commission). Unknown liquidity is charged the worst tier. The backtester, shadow outcomes,

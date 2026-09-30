@@ -5,8 +5,13 @@ evaluation and EV calibration — so "what would have happened" means the same t
 
 EXECUTION SEMANTICS (identical in backtest and live paper trading):
   * Decision at the close of the signal session D (information cutoff), entry at the OPEN of D+1.
-  * Stops and targets are evaluated on the CLOSE of each held session; a triggered exit executes at
-    the NEXT session's open. (No intraday-order assumptions; overnight gaps are paid in full.)
+  * Targets are evaluated on the CLOSE of each held session; a triggered exit executes at the NEXT
+    session's open (overnight gaps are paid in full).
+  * Stops follow ``costs.stop_model`` (config ``execution.stop_model``). ``"intraday"``: a
+    broker-held stop-market order, as the paper runner places one: a held session that OPENS
+    through the stop exits at that open, one whose low (high for shorts) touches it exits at the
+    stop, both on that session; on the entry session only the low/high counts and only if the entry
+    was on the right side of the stop. ``"close"``: the stop is checked on the close like a target.
   * Time exit: after ``holding_sessions`` sessions held (entry session counts as 1), exit at the
     next open.
   * A held symbol with no bar for ``costs.delisting_missing_sessions`` consecutive sessions (while
@@ -169,6 +174,16 @@ def simulate_plan(
     exit_i = exit_a = exit_raw = None
     reason: ExitReason | None = None
     pending_trigger = False
+    intraday_exit_at_open: bool | None = None       # None = not an intraday stop exit
+
+    def stop_armed(j: int) -> bool:
+        """Is a broker-held stop resting during session j? (costs.stop_model == "intraday")
+        Placed right after the opening entry fill, so on the entry session it rests only if the
+        entry price is on the right side of the stop; from the next session on it always rests (a
+        close through the stop would already have exited by the close rule)."""
+        if costs.stop_model != "intraday" or a_stop is None:
+            return False
+        return j > ie or (entry_a - a_stop) * sign > 0
     for j in range(ie, n):
         if not np.isfinite(aclose[j]):
             missing += 1
@@ -186,6 +201,19 @@ def simulate_plan(
             hi_ex = max(hi_ex, ahigh[j] / entry_a - 1)
         if np.isfinite(alow[j]):
             lo_ex = min(lo_ex, alow[j] / entry_a - 1)
+        if stop_armed(j):
+            px = None
+            if j > ie and np.isfinite(aopen[j]) and (aopen[j] - a_stop) * sign <= 0:
+                px, at_open = aopen[j], True            # opened through the stop: filled at that open
+            else:
+                extreme = alow[j] if sign > 0 else ahigh[j]
+                if np.isfinite(extreme) and (extreme - a_stop) * sign <= 0:
+                    px, at_open = a_stop, False         # touched intraday: filled at the stop
+            if px is not None:
+                exit_i, exit_a, reason = j, px, ExitReason.STOP
+                exit_raw = px * close_raw[j] / aclose[j] if np.isfinite(close_raw[j]) and close_raw[j] > 0 else None
+                intraday_exit_at_open = at_open
+                break
         c = aclose[j]
         trig = None
         if a_stop is not None and (c - a_stop) * sign <= 0:
@@ -229,7 +257,9 @@ def simulate_plan(
     if benchmark and benchmark in panel.symbols:
         b_open = panel.aopen[benchmark].to_numpy()
         b_close = panel.aclose[benchmark].to_numpy()
-        b_exit = b_close[exit_i] if reason is ExitReason.DELISTED else b_open[exit_i]
+        # an intraday stop fill is timed at the open when it gapped through, else by the close
+        b_exit = (b_close[exit_i] if reason is ExitReason.DELISTED or intraday_exit_at_open is False
+                  else b_open[exit_i])
         if np.isfinite(b_open[ie]) and np.isfinite(b_exit):
             out.benchmark_ret = _f(b_exit / b_open[ie] - 1)
             if out.net_ret is not None and out.benchmark_ret is not None:

@@ -236,7 +236,12 @@ class SimBroker(PaperBroker):
             decision_session=request.decision_session, eligible_after=eligible_after,
             status=OrderStatus.ACCEPTED.value, seq=self.seq, submitted_at=utcnow_iso(),
         )
-        if eligible_after is not None and self.last_session is not None and eligible_after < self.last_session:
+        if request.order_type == "stop":
+            # The simulated book evaluates stops on closes through the exit engine; a resting
+            # stop here would otherwise be filled like a market order at the next open.
+            order.status = OrderStatus.REJECTED.value
+            order.reason = "the simulated broker does not model resting stop orders"
+        elif eligible_after is not None and self.last_session is not None and eligible_after < self.last_session:
             # The broker already processed a later session: filling now would silently execute
             # later than the decision implied. Refuse instead of pretending.
             order.status = OrderStatus.REJECTED.value

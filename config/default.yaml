@@ -102,6 +102,22 @@ costs:
   # Return assumed when a held security stops trading without a known exit price (delisting bias).
   delisting_return: -0.30
 
+execution:
+  # How simulations fill a STOP (core.tradesim, via CostModel.stop_model):
+  #   intraday -- a broker-held stop-market order, as the paper runner now places: a held session that
+  #               OPENS through the stop exits at that open; otherwise a session whose low touches it
+  #               exits at the stop. On the entry session only the low counts (the stop is placed after
+  #               the opening fill; an entry that opens below its stop gets no broker stop and falls
+  #               back to the close rule).
+  #   close    -- the old rule: stop checked on the close, exit at the next open.
+  # Changing this moves every historical stop fill: compare before/after, never switch silently.
+  stop_model: intraday
+  protective_stop:                # broker-held stops (execution/protective_stops.py), paper runner only
+    enabled: true
+    poll_seconds: 30              # how often the runner checks/places stops and polls resting ones
+    cancel_wait_seconds: 15       # an exit waits this long for a CONFIRMED stop cancel, else it is not sent
+    max_replacements_per_session: 3
+
 backtest:
   initial_capital: 100000
   execution: next_open            # signal at close D -> fill at open D+1

@@ -47,11 +47,12 @@ import pandas as pd
 
 from quantlab.config import PAPER_TRADING_BASE_URL
 from quantlab.context import AppContext
-from quantlab.core.types import Book, OrderStatus, TradePlan, new_id
+from quantlab.core.types import Book, OrderStatus, SystemState, TradePlan, new_id
 from quantlab.data.panel import DataBundle
 from quantlab.db.database import from_json, open_db, to_json, utcnow_iso
 from quantlab.execution.broker import BrokerError, LiveTradingForbidden
 from quantlab.execution.ledger import Ledger, bind_book, book_binding
+from quantlab.execution import protective_stops
 from quantlab.execution.preflight import PreflightResult, run_preflight
 from quantlab.execution.reconcile import Reconciler
 from quantlab.execution.service import PaperExecutionService
@@ -299,6 +300,14 @@ class PaperRunner:
         self.fallback_poll_seconds = float(g("open_fill_fallback_poll_seconds", 30))
         self._last_fallback_scan: datetime | None = None
         self.max_job_attempts = int(g("max_job_attempts", 3))
+        # broker-held protective stops (execution/protective_stops.py): a GTC stop-market sell rests at
+        # the broker for every open long trade, so a stop fires intraday and while QuantLab is down
+        ps = lambda k, d: self.cfg.get(f"execution.protective_stop.{k}", d)   # noqa: E731
+        self.protective_stops = bool(ps("enabled", True))
+        self.stop_poll_seconds = float(ps("poll_seconds", 30))
+        self.stop_max_replacements = int(ps("max_replacements_per_session", 3))
+        self._last_stop_scan: datetime | None = None
+        self._stop_notes: dict[str, str] = {}          # trade_id -> last skip reason (logged on change only)
         # a mismatch is re-checked once after this delay before pausing (fills racing the snapshot)
         self.reconcile_retry_seconds = float(g("reconcile_retry_seconds", 3))
 
@@ -640,7 +649,8 @@ class PaperRunner:
             return "stop requested (quantlab paper stop)"
         for name, fn in (("calendar", self._refresh_calendar), ("account", self._poll_account),
                          ("orders", self._poll_orders), ("open_fill", self._maybe_fill_after_open),
-                         ("session", self._maybe_process), ("exploration", self._maybe_explore)):
+                         ("stops", self._maintain_stops), ("session", self._maybe_process),
+                         ("exploration", self._maybe_explore)):
             try:
                 fn(now)
             except LiveTradingForbidden:
@@ -705,10 +715,14 @@ class PaperRunner:
         if self._last_order_poll and (now - self._last_order_poll).total_seconds() < self.order_poll_seconds:
             return
         self._last_order_poll = now
+        # a protective stop RESTING at the broker (accepted/new, nothing filled) is polled by
+        # _maintain_stops; it must not force a full reconciliation every minute for its whole life
         n = self.db.fetchone(
-            "SELECT COUNT(*) AS n FROM orders WHERE book=? AND status IN (?,?,?,?,?)",
+            "SELECT COUNT(*) AS n FROM orders WHERE book=? AND status IN (?,?,?,?,?) AND NOT (order_type='stop' "
+            "AND status IN (?,?) AND filled_qty=0)",
             (BOOK, OrderStatus.PENDING_SUBMIT.value, OrderStatus.ACCEPTED.value, OrderStatus.NEW.value,
-             OrderStatus.PARTIALLY_FILLED.value, OrderStatus.UNKNOWN.value))["n"]
+             OrderStatus.PARTIALLY_FILLED.value, OrderStatus.UNKNOWN.value, OrderStatus.ACCEPTED.value,
+             OrderStatus.NEW.value))["n"]
         if n:
             self.reconcile("order poll")
 
@@ -871,20 +885,72 @@ class PaperRunner:
         not the path for session decisions."""
         def guard(purpose: str, symbol: str) -> str | None:
             now = self._now()
+            if purpose == "protective_stop":
+                # a resting stop reduces risk and the broker queues it outside market hours: any
+                # time of day, under the same broker/state conditions as every other order
+                return self._state_refusal(now)
             if purpose not in ("entry_fallback", "exit_fallback"):
-                return (f"the runner's execution service only submits the open-fill fallback, not {purpose!r}")
+                return (f"the runner's execution service only submits the open-fill fallback and protective "
+                        f"stops, not {purpose!r}")
             if self.calendar is None or not self.calendar.is_open(now):
                 return "the market is not open: no open-fill fallback"
             if now.astimezone(ET).time() >= self.fallback_until:
                 return f"after the open-fill fallback cutoff ({self.fallback_until:%H:%M} ET)"
-            if not self.reconciled_ok:
-                return "state reconciliation has not passed: no new orders"
-            if self.broker_ok_at is None or (now - self.broker_ok_at).total_seconds() > self.broker_fresh_seconds:
-                return "broker connection not verified recently: no new orders"
-            if self.broker_snapshot.get("trading_blocked"):
-                return "broker reports trading_blocked"
-            return None
+            return self._state_refusal(now)
         return guard
+
+    def _state_refusal(self, now: datetime) -> str | None:
+        """Broker/state conditions every runner-submitted order needs."""
+        if not self.reconciled_ok:
+            return "state reconciliation has not passed: no new orders"
+        if self.broker_ok_at is None or (now - self.broker_ok_at).total_seconds() > self.broker_fresh_seconds:
+            return "broker connection not verified recently: no new orders"
+        if self.broker_snapshot.get("trading_blocked"):
+            return "broker reports trading_blocked"
+        return None
+
+    def _maintain_stops(self, now: datetime) -> dict[str, Any] | None:
+        """Keep one broker-held protective stop resting for every open long trade (see
+        execution/protective_stops.py). Also the REST poll for resting stops: a stop fill missed by
+        the stream is picked up here and triggers a reconciliation."""
+        if not self.protective_stops or self.exec is None or self.ledger is None:
+            return None
+        if self._last_stop_scan and (now - self._last_stop_scan).total_seconds() < self.stop_poll_seconds:
+            return None
+        self._last_stop_scan = now
+        if self.killswitch.state()[0] is SystemState.PAUSED or self._state_refusal(now):
+            return None                  # resting stops stay at the broker; nothing new is sent
+        session = self._session_for(now)
+        sync = self.exec.sync(session)
+        if sync.filled or sync.canceled or sync.expired or sync.rejected:
+            for x in sync.filled:
+                self.event("INFO", "fill", f"protective stop poll: {x.get('symbol')} {x.get('qty'):g} @ "
+                           f"{x.get('price')}", x)
+            self._reconcile_due = "protective stop poll saw an order change"
+        if sync.unknown:
+            self.pause("broker reported an UNKNOWN order state", "broker_unknown_state", {"orders": sync.unknown})
+            return None
+        snap = self.broker_snapshot.get("positions")
+        positions = None if snap is None else {p["symbol"]: p for p in snap}
+        res = protective_stops.maintain(self.exec, broker_positions=positions, session_date=str(session),
+                                        max_replacements=self.stop_max_replacements)
+        for x in res["placed"]:
+            self.event("INFO", "order", f"protective stop placed: {x.get('symbol')} {x.get('qty'):g} "
+                       f"(trade {x['trade_id']})", x)
+        for x in res["replaced"]:
+            self.event("INFO", "order", f"protective stop replaced (qty/price changed): trade {x['trade_id']}", x)
+        for x in res["refused"]:
+            self.event("WARN", "order", f"protective stop refused for trade {x['trade_id']}: {x.get('reason')}", x)
+        seen = set()
+        for trade_id, why in res["skipped"]:
+            seen.add(trade_id)
+            if self._stop_notes.get(trade_id) != why:
+                self._stop_notes[trade_id] = why
+                self.event("WARN", "order", f"no protective stop for trade {trade_id}: {why}")
+        for trade_id in list(self._stop_notes):
+            if trade_id not in seen:
+                del self._stop_notes[trade_id]
+        return res
 
     def _maybe_fill_after_open(self, now: datetime) -> dict[str, Any] | None:
         """An ``opg`` entry that expired unfilled in the opening auction gets ONE market-day order,
@@ -1007,6 +1073,9 @@ class PaperRunner:
             if res.get("refused"):
                 out["exits_refused"] += 1
                 self.event("WARN", "order", f"exit fallback refused for trade {r['trade_id']}: {res.get('reason')}",
+                           {"order_id": r["order_id"]})
+            elif res.get("skipped"):
+                self.event("INFO", "order", f"exit fallback not needed for trade {r['trade_id']}: {res.get('reason')}",
                            {"order_id": r["order_id"]})
             else:
                 out["exits_submitted"] += 1

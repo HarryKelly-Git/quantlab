@@ -8,6 +8,10 @@ SEMANTICS (identical to :func:`quantlab.core.tradesim.simulate_plan`, tested aga
   * Stops/targets are compared with each held session's CLOSE in tri-scaled ("a") prices — the RAW
     stop at D is converted with aclose[D]/close[D] — and the exit fills at the next open. Time exit
     after ``plan.holding_sessions`` held sessions (the entry session counts as 1).
+  * ``costs.stop_model == "intraday"`` (a broker-held stop-market order, as the paper runner places):
+    a held session that OPENS through the stop exits at that open, one whose low/high touches it
+    exits at the stop, both on that same session; on the entry session only the low/high counts and
+    only when the entry was on the right side of the stop. Targets and time exits are unchanged.
   * A held symbol with no bar for ``costs.delisting_missing_sessions`` consecutive sessions is
     DELISTED on that session: exit value = last close x (1 + costs.delisting_return), still charged
     the sell cost. Decided only from sessions already seen; a gap still open at ``end`` is closed as
@@ -344,7 +348,11 @@ class BacktestEngine:
                 if np.isfinite(c):
                     lot.last_close, lot.last_valid = float(c), i
                     if lot.pending_exit is None:
-                        self._on_close(A, lot, i)
+                        hit = self._on_close(A, lot, i)
+                        if hit is not None:              # intraday stop: filled on this session
+                            ref, a_px, at_open = hit
+                            trades.append(self._close(pf, lot, i, ref, a_px, ExitReason.STOP.value, dates, i,
+                                                      bench_at_close=not at_open))
                 elif i - lot.last_valid >= self.costs.delisting_missing_sessions:
                     diag["delistings"] += 1
                     lv = lot.last_valid
@@ -426,8 +434,10 @@ class BacktestEngine:
         pf.lots[pe.symbol] = lot
         return lot
 
-    def _on_close(self, A, lot: Lot, i: int) -> None:
-        """simulate_plan's per-session loop: count the session, update excursions, check exits."""
+    def _on_close(self, A, lot: Lot, i: int) -> tuple[float, float, bool] | None:
+        """simulate_plan's per-session loop: count the session, update excursions, check exits.
+        Returns (raw price, tri price, filled at the open) when an intraday stop fills on this
+        session; otherwise sets ``pending_exit`` for a close-triggered exit (or nothing)."""
         lot.held += 1
         h, l = A["ahigh"][i, lot.col], A["alow"][i, lot.col]
         if np.isfinite(h):
@@ -436,6 +446,16 @@ class BacktestEngine:
             lot.lo_ex = min(lot.lo_ex, l / lot.entry_a - 1)
         c = A["aclose"][i, lot.col]
         m = lot.meta
+        a_stop = m["a_stop"]
+        if (self.costs.stop_model == "intraday" and a_stop is not None
+                and (i > lot.entry_idx or (lot.entry_a - a_stop) * lot.sign > 0)):
+            ao = A["aopen"][i, lot.col]
+            ratio = A["close"][i, lot.col] / c           # raw / tri at this session
+            if i > lot.entry_idx and np.isfinite(ao) and (ao - a_stop) * lot.sign <= 0:
+                return float(A["open"][i, lot.col]), float(ao), True
+            extreme = l if lot.sign > 0 else h
+            if np.isfinite(extreme) and (extreme - a_stop) * lot.sign <= 0:
+                return float(a_stop * ratio), float(a_stop), False
         if m["a_stop"] is not None and (c - m["a_stop"]) * lot.sign <= 0:
             lot.pending_exit = ExitReason.STOP.value
         elif m["a_target"] is not None and (c - m["a_target"]) * lot.sign >= 0:
@@ -444,7 +464,7 @@ class BacktestEngine:
             lot.pending_exit = ExitReason.TIME.value
 
     def _close(self, pf: Portfolio, lot: Lot, exit_idx: int, ref: float, a_exit: float, reason: str,
-               dates: pd.DatetimeIndex, book_idx: int) -> dict[str, Any]:
+               dates: pd.DatetimeIndex, book_idx: int, bench_at_close: bool = False) -> dict[str, Any]:
         exit_qty = abs(lot.shares)
         fill = pf.trade(lot, -lot.shares, ref)
         del pf.lots[lot.symbol]
@@ -458,7 +478,8 @@ class BacktestEngine:
             bc = self.panel.symbols.get_loc(self.market_symbol)
             A = self.arrays
             b0 = A["aopen"][lot.entry_idx, bc]
-            b1 = A["aclose"][exit_idx, bc] if reason in (ExitReason.DELISTED.value, ExitReason.END_OF_TEST.value) \
+            b1 = A["aclose"][exit_idx, bc] if (bench_at_close or reason in (ExitReason.DELISTED.value,
+                                                                              ExitReason.END_OF_TEST.value)) \
                 else A["aopen"][exit_idx, bc]
             if np.isfinite(b0) and np.isfinite(b1) and b0 > 0:
                 bench_ret = float(b1 / b0 - 1)
