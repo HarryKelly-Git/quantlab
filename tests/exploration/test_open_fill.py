@@ -104,8 +104,13 @@ def test_expired_opening_order_is_replaced_once_and_fills(world):
     fb = ctx.db.fetchall("SELECT symbol, qty, time_in_force, status, filled_qty FROM orders WHERE time_in_force='day'")
     assert len(fb) == n_opg and all(o["status"] == OrderStatus.FILLED.value for o in fb)
     assert len(broker.submits) == 2 * n_opg
-    trades = ctx.db.fetchall("SELECT symbol, qty, status FROM trades")
+    trades = ctx.db.fetchall("SELECT symbol, qty, status, stop_price, strategy_id FROM trades")
     assert len(trades) == n_opg and all(t["status"] == "OPEN" for t in trades)  # positions actually taken
+    # the original plan survives the fallback: an unmanaged position (no stop) would be unsafe
+    assert all(t["stop_price"] and t["stop_price"] > 0 for t in trades), trades
+    assert {t["strategy_id"] for t in trades} == {"EXPLORATION"}
+    plans = ctx.db.fetchall("SELECT holding_sessions FROM trade_plans")
+    assert plans and all(p["holding_sessions"] == 10 for p in plans)
     for o in fb:                                                                # same size as the expired order
         assert o["qty"] == next(x["qty"] for x in ctx.db.fetchall(
             "SELECT symbol, qty FROM orders WHERE time_in_force='opg'") if x["symbol"] == o["symbol"])

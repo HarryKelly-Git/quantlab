@@ -46,7 +46,7 @@ import pandas as pd
 
 from quantlab.config import PAPER_TRADING_BASE_URL
 from quantlab.context import AppContext
-from quantlab.core.types import Book, OrderStatus, new_id
+from quantlab.core.types import Book, OrderStatus, TradePlan, new_id
 from quantlab.data.panel import DataBundle
 from quantlab.db.database import from_json, open_db, to_json, utcnow_iso
 from quantlab.execution.broker import BrokerError, LiveTradingForbidden
@@ -880,8 +880,8 @@ class PaperRunner:
             return None
         opened_at = self.calendar.open_dt(session)
         rows = self.db.fetchall(
-            "SELECT o.order_id, o.symbol, o.qty, o.candidate_id, o.decision_id, o.human_decision_id, i.session_date "
-            "FROM orders o JOIN order_intents i ON i.order_id = o.order_id "
+            "SELECT o.order_id, o.symbol, o.qty, o.candidate_id, o.decision_id, o.human_decision_id, i.session_date, "
+            "i.intent_json FROM orders o JOIN order_intents i ON i.order_id = o.order_id "
             "WHERE o.book=? AND o.purpose='entry' AND o.status=? AND o.time_in_force='opg' AND o.filled_qty=0 "
             "AND o.last_update_at >= ? ORDER BY o.created_at",
             (BOOK, OrderStatus.EXPIRED.value, opened_at.astimezone(timezone.utc).isoformat()))
@@ -896,11 +896,20 @@ class PaperRunner:
                  OrderStatus.EXPIRED.value))
             if live:
                 continue          # already replaced (or filled): nothing to do
+            # carry the ORIGINAL plan through: a position without its stop and holding period would
+            # not be managed by the exit engine
+            intent = from_json(r["intent_json"], {}) or {}
+            pl = intent.get("plan") or {}
+            plan = TradePlan(entry_ref_price=pl.get("entry_ref_price"), stop_price=pl.get("stop_price"),
+                             target_price=pl.get("target_price"),
+                             holding_sessions=int(pl.get("holding_sessions", 20) or 20),
+                             invalidation=str(pl.get("invalidation") or "")) if pl else None
             res = self.exec.submit_entry(
                 r["symbol"], float(r["qty"]), candidate_id=r["candidate_id"], decision_id=r["decision_id"],
                 human_decision_id=r["human_decision_id"], session_date=r["session_date"], entry_style="market_day",
-                journal={"fallback_for_order_id": r["order_id"],
-                         "reason": "the opg order expired unfilled in the opening auction"})
+                plan=plan, strategy_id=intent.get("strategy_id"), strategy_version=intent.get("strategy_version"),
+                journal={**(intent.get("journal") or {}), "fallback_for_order_id": r["order_id"],
+                         "fallback_reason": "the opg order expired unfilled in the opening auction"})
             if res.get("refused"):
                 out["refused"] += 1
                 self.event("WARN", "order", f"open-fill fallback refused for {r['symbol']}: {res.get('reason')}",
