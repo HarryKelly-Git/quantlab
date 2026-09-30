@@ -270,7 +270,23 @@ def _exploration_panel(ctx) -> dict[str, Any]:
         for o in outc:
             happened.append(f"{o['horizon_sessions']}d net {o['net_ret']:+.2%} (SPY {o['spy_ret']:+.2%})"
                             if o["spy_ret"] is not None else f"{o['horizon_sessions']}d net {o['net_ret']:+.2%}")
+        # lifecycle: what actually happened, never implied by the plan
+        if r["selection"] == "SHADOW":
+            state = "SHADOW (STRICT mode: tracked, never traded)"
+        elif tr:
+            state = "FILLED: POSITION OPEN" if tr["status"] == "OPEN" else "CLOSED"
+        elif ev and ev["event"] == "SUBMITTED":
+            od = db.fetchone("SELECT o.status FROM exploration_events e JOIN orders o ON o.order_id=e.order_id "
+                             "WHERE e.decision_id=? AND e.event='SUBMITTED' ORDER BY e.id DESC LIMIT 1", (r["decision_id"],))
+            state = f"SUBMITTED (paper order {od['status'] if od else 'unknown'})"
+        elif ev and ev["event"] in ("CANCELLED_PREOPEN", "REFUSED"):
+            state = "CANCELLED AT PRE-OPEN" if ev["event"] == "CANCELLED_PREOPEN" else "REFUSED BY THE EXECUTION GATES"
+        elif ev and ev["event"] == "REVALIDATED":
+            state = "REVALIDATED (submitting)"
+        else:
+            state = "PLANNED (not submitted yet: pre-open revalidation from 08:30 ET)"
         out["selected"].append({
+            "state": state, "submitted": bool(ev and ev["event"] == "SUBMITTED") or bool(tr),
             "symbol": r["symbol"], "session": r["session_date"], "selection": r["selection"], "setup_type": r["setup_type"],
             "setup_class": r["setup_class"],
             "qty": r["qty"], "ref_price": r["ref_price"], "stop": r["stop_price"], "why": pre.get("reason_for_entering"),

@@ -136,3 +136,48 @@ def test_review_queue_is_empty_until_the_full_ladder_and_forward_record(ctx):
     rv = review_queue(ctx.db, ctx.config)
     assert rv["queue"] == [] and "closed paper trade" in rv["why_empty"]         # a validated pattern alone is not enough
     assert "not advice" in rv["note"] and "Upside Engine" in rv["note"]
+
+
+def test_failing_catalyst_refresh_never_blocks_the_session_and_restart_never_duplicates(config):
+    ctx = _world(config, "EXPLORATION")
+    b = ctx.store.load_bundle(ctx.config.section("benchmarks"), synthetic=True)
+    sessions = [x.date() for x in b.panel.dates]
+    d, nxt = sessions[-30], sessions[-29]
+    broker = FakeAlpacaBroker(sessions)
+    clock = Clock(at(d, 19, 10))
+
+    def boom(*a, **k):
+        raise RuntimeError("SEC and Alpaca news unreachable")
+
+    def runner():
+        streams = []
+
+        def factory(on_event, on_state):
+            streams.append(FakeStream(on_event, on_state))
+            return streams[-1]
+        r = PaperRunner(ctx, broker=broker, stream_factory=factory, now=clock, ingest=lambda c, x: {"skipped": True},
+                        bundle_loader=lambda c: b, env=PAPER_ENV, heartbeat_thread=False, allow_synthetic=True,
+                        catalyst_refresh=boom)
+        r.reconcile_retry_seconds = 0.0
+        return r
+    r = runner()
+    r.start()
+    r.tick()
+    assert ctx.db.fetchone("SELECT status FROM paper_session_jobs")["status"] == "succeeded"   # refresh failure != crash
+    msgs = [e["message"] for e in ctx.db.fetchall("SELECT message FROM paper_runner_events")]
+    assert any("catalyst refresh" in m and "failed" in m for m in msgs)
+    clock.t = at(nxt, 8, 45)
+    r.tick()
+    n_orders, n_sub = ctx.db.fetchone("SELECT COUNT(*) AS n FROM orders")["n"], len(broker.submits)
+    counts = {t: ctx.db.fetchone(f"SELECT COUNT(*) AS n FROM {t}")["n"]
+              for t in ("decisions", "candidates", "exploration_decisions", "fills", "trades")}
+    r.shutdown("restart test")
+    r2 = runner()                                                               # restart inside the pre-open window
+    r2.start()
+    clock.t = at(nxt, 8, 55)
+    r2.tick()
+    r2.tick()
+    assert len(broker.submits) == n_sub and ctx.db.fetchone("SELECT COUNT(*) AS n FROM orders")["n"] == n_orders
+    assert {t: ctx.db.fetchone(f"SELECT COUNT(*) AS n FROM {t}")["n"] for t in counts} == counts
+    r2.shutdown("test")
+    ctx.close()

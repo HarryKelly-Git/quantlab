@@ -48,6 +48,16 @@ HORIZONS = (1, 3, 5, 10, 20)
 NOT_REQUIRED = ("strategy validation / promotion", "statistically significant out-of-sample results",
                 "positive historical expectancy (EV gate)")
 TERMINAL_EVENTS = ("SUBMITTED", "CANCELLED_PREOPEN", "REFUSED")
+# REQUIRED inputs: missing or stale -> the candidate is SKIPPED (plan) or CANCELLED_PREOPEN (submit).
+REQUIRED_AT_PLAN = ("valid_price_volume", "research_universe", "basic_liquidity", "data_quality", "kill_switch",
+                    "long_only_direction", "no_open_position", "stop_computable", "max_open_positions", "position_size")
+REQUIRED_AT_SUBMIT = ("before_pre_open_cutoff", "after_decision_close", "kill_switch", "data_quality", "no_open_position",
+                      "bars_for_decision_session", "corporate_action_data", "no_corporate_action_at_open",
+                      "preopen_recheck_not_invalid", "plan_values", "execution_guard")
+# OPTIONAL inputs: missing -> recorded as UNKNOWN, never zero, and never a reason to trade or not.
+OPTIONAL_INPUTS = ("news", "earnings / guidance", "fundamentals", "industry / sector", "consensus surprise",
+                   "pre-market price", "overnight catalysts")
+OPEN_ORDER_STATES = ("pending_submit", "new", "accepted", "partially_filled", "unknown")
 
 
 def paper_mode(config) -> str:
@@ -108,6 +118,18 @@ def open_exposure(db, book: str) -> dict[str, Any]:
             "exploration_notional": float(sum((r["qty"] or 0) * (r["entry_price"] or 0) for r in exp))}
 
 
+def pending_entries(db) -> dict[str, Any]:
+    """Exploratory entries submitted but not yet a trade (working orders): they count toward the
+    open-position and exposure caps exactly like open positions."""
+    rows = db.fetchall(
+        "SELECT d.symbol, d.qty, d.ref_price FROM exploration_decisions d JOIN exploration_events e "
+        "ON e.decision_id=d.decision_id AND e.event='SUBMITTED' JOIN orders o ON o.order_id=e.order_id "
+        f"WHERE o.status IN ({','.join('?' for _ in OPEN_ORDER_STATES)}) "
+        "AND NOT EXISTS (SELECT 1 FROM trades t WHERE t.decision_id=d.decision_id)", OPEN_ORDER_STATES)
+    return {"n": len(rows), "notional": float(sum((r["qty"] or 0) * (r["ref_price"] or 0) for r in rows)),
+            "symbols": {r["symbol"] for r in rows}}
+
+
 def _pending_symbols(db, mode: str) -> set[str]:
     """Selected exploratory entries not yet terminal (planned or submitted but not filled)."""
     rows = db.fetchall("SELECT d.symbol FROM exploration_decisions d WHERE d.selection='SELECTED' AND d.mode=? AND NOT EXISTS "
@@ -148,6 +170,9 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
     state, pause_reason, _ = KillSwitch(db).state()
     quarantine = quarantine_map(db)
     ox = open_exposure(db, book)
+    pend = pending_entries(db)
+    ox = {**ox, "exploration_open": ox["exploration_open"] + pend["n"],
+          "exploration_notional": ox["exploration_notional"] + pend["notional"]}
     pending = _pending_symbols(db, "EXPLORATION")
     if equity is None:
         from quantlab.execution.ledger import Ledger
@@ -264,6 +289,9 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
             "expected": "an experiment: no edge is assumed. Measured at 1/3/5/10/20 sessions vs SPY, vs watched-but-"
                         "not-traded and vs rejected candidates",
             "unknowns": setup.get("missing", []),
+            "required_inputs": {"at_plan": ck, "at_submit": list(REQUIRED_AT_SUBMIT)},
+            "optional_inputs": {"classes": list(OPTIONAL_INPUTS), "unknown_now": setup.get("missing", []),
+                                "rule": "optional information may be UNKNOWN; it never blocks and never counts as zero"},
             "data_timestamps": {"information_cutoff_at": run["info_cutoff_at"], "decision_session_bar": d,
                                 "dataset_ids": dataset_ids},
             "features": {"discovery": facts, "catalyst": (cat or {}).get("features")},
@@ -324,6 +352,15 @@ def preopen_submit(ctx, exec_service, *, now=None, session: str | None = None, m
     acts = ctx.store.load("corporate_actions", ctx.store.dataset_ids("corporate_actions",
                                                                     synthetic=bool(todo[0]["is_synthetic"])))
     held = open_exposure(db, exec_service.book)["symbols"]
+    syn = bool(todo[0]["is_synthetic"])
+    ca_data = bool(ctx.store.dataset_ids("corporate_actions", synthetic=syn))
+    last_bar = (db.fetchone("SELECT MAX(end_date) AS e FROM datasets WHERE kind='bars' AND is_synthetic=?",
+                            (int(syn),)) or {}).get("e")
+    cutoff_hhmm = str(cfg.get("paper.runner.order_cutoff_et", "09:25"))
+    rechecks: dict[tuple[str, str], dict[str, Any]] = {}
+    for r in db.fetchall("SELECT discovery_run_id, symbol, status_before, status_after, reason, checked_at FROM preopen_checks "
+                         "WHERE checked_at <= ? ORDER BY id", (now.isoformat(),)):
+        rechecks[(r["discovery_run_id"], r["symbol"])] = r
     res = {"ok": True, "mode": mode, "submitted": 0, "cancelled": 0, "refused": 0, "details": []}
     for d in todo:
         ns = d["next_session"]
@@ -331,9 +368,23 @@ def preopen_submit(ctx, exec_service, *, now=None, session: str | None = None, m
         if ns is None:
             why.append("next session unknown (calendar)")
         else:
-            open_at = pd.Timestamp(f"{ns} 09:30", tz=ET).tz_convert("UTC")
-            if now >= open_at:
-                why.append(f"the {ns} session has opened: the actual open is never an input")
+            cut_at = pd.Timestamp(f"{ns} {cutoff_hhmm}", tz=ET).tz_convert("UTC")
+            if now >= cut_at:
+                why.append(f"at/after the pre-open cutoff ({cutoff_hhmm} ET on {ns}): no order; the actual open is "
+                           "never an input")
+        if d["info_cutoff_at"] and now <= pd.Timestamp(d["info_cutoff_at"]):
+            why.append("the decision session has not closed yet")
+        if not last_bar or str(last_bar)[:10] < str(d["session_date"]):
+            why.append(f"REQUIRED data missing: bars for {d['session_date']} are not stored (latest {last_bar})")
+        if not ca_data:
+            why.append("REQUIRED data missing: no corporate-action data (a split or dividend at the open cannot be ruled out)")
+        if not (d["qty"] and d["qty"] >= 1 and d["ref_price"] and d["ref_price"] > 0 and d["stop_price"]
+                and 0 < d["stop_price"] < d["ref_price"]):
+            why.append("REQUIRED plan values missing or invalid (quantity / reference price / stop)")
+        rc = rechecks.get((d["discovery_run_id"], d["symbol"]))
+        if rc and (rc["status_after"] in ("UNKNOWN", "INVALIDATED") or
+                   (rc["status_after"] == "REJECTED" and rc["status_before"] != "REJECTED")):
+            why.append(f"pre-open recheck {rc['checked_at'][:16]}: {rc['status_after']} ({rc['reason']})")
         if state.value != "ACTIVE":
             why.append(f"kill switch: system {state.value}" + (f" ({pause_reason})" if pause_reason else ""))
         s = d["symbol"]
@@ -354,9 +405,10 @@ def preopen_submit(ctx, exec_service, *, now=None, session: str | None = None, m
             res["details"].append({"symbol": s, "event": "CANCELLED_PREOPEN", "reasons": why})
             continue
         db.insert("exploration_events", {"decision_id": d["decision_id"], "event": "REVALIDATED", "at": now.isoformat(),
-                                         "order_id": None, "details_json": to_json({"checks": ["calendar", "kill_switch",
-                                                                                               "data_quality", "no_position",
-                                                                                               "corporate_actions"]}),
+                                         "order_id": None, "details_json": to_json({
+                                             "required_checked": list(REQUIRED_AT_SUBMIT),
+                                             "preopen_recheck": dict(rc) if rc else "none for this candidate",
+                                             "latest_bar": str(last_bar), "optional_unknown": list(OPTIONAL_INPUTS)}),
                                          "created_at": utcnow_iso()})
         pre = from_json(d["pre_trade_json"], {}) or {}
         plan = TradePlan(entry_ref_price=d["ref_price"], stop_price=d["stop_price"], holding_sessions=int(d["holding_sessions"]),
@@ -497,5 +549,6 @@ def _et_time(text: str) -> time:
     return time(int(h), int(m))
 
 
-__all__ = ["ExplorationOutcomeTracker", "ExplorationPolicy", "MODES", "NOT_REQUIRED", "STRATEGY_ID", "experiment_results",
-           "open_exposure", "paper_mode", "plan_exploration", "preopen_submit"]
+__all__ = ["ExplorationOutcomeTracker", "ExplorationPolicy", "MODES", "NOT_REQUIRED", "OPTIONAL_INPUTS",
+           "REQUIRED_AT_PLAN", "REQUIRED_AT_SUBMIT", "STRATEGY_ID", "experiment_results", "open_exposure", "paper_mode",
+           "pending_entries", "plan_exploration", "preopen_submit"]

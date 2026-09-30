@@ -332,8 +332,9 @@ def preopen_recheck(ctx, now=None, run_id: str | None = None) -> dict[str, Any]:
         catalysts.setdefault(r["symbol"], []).append(dict(r))
     out_rows, summary = [], {}
     for c in db.fetchall("SELECT discovery_id, symbol, status, on_watchlist FROM discovery_candidates "
-                         "WHERE discovery_run_id=? AND status IN ('WATCH','VALIDATION_PENDING','PAPER_ELIGIBLE','DISCOVERED')",
-                         (run["discovery_run_id"],)):
+                         "WHERE discovery_run_id=? AND (status IN ('WATCH','VALIDATION_PENDING','PAPER_ELIGIBLE','DISCOVERED') "
+                         "OR symbol IN (SELECT symbol FROM exploration_decisions WHERE discovery_run_id=? "
+                         "AND selection='SELECTED'))", (run["discovery_run_id"], run["discovery_run_id"])):
         s, before = c["symbol"], c["status"]
         checks = []
 

@@ -246,8 +246,10 @@ h2{margin:22px 0 8px;font-size:16px;letter-spacing:.02em}
 
 <h2>Exploratory paper trading · {{ 'ON' if d.paper_mode == 'EXPLORATION' else 'tracked as SHADOW (STRICT mode)' }}</h2>
 <p class="muted small">Exploration asks "what happens if we take the best-looking experimental setups?". It does not require validated strategies, significant out-of-sample results or positive historical EV. It still requires valid data, liquidity, no quarantine, the kill switch ACTIVE and the position/exposure limits.</p>
-{% if X.selected %}<div class="opps">{% for e in X.selected %}
-<div class="opp exp"><div class="head"><span class="tk">{{ e.symbol }}</span><span class="pill {{ 'EXPLORATORY' if e.selection == 'SELECTED' else 'SHADOW' }}">{{ 'EXPLORATORY' if e.selection == 'SELECTED' else 'SHADOW (not traded)' }}</span><span class="setup">{{ e.setup_type }}</span><span class="cls {{ e.setup_class }}">{{ e.setup_class }}</span></div>
+{% if X.selected %}<p class="small"><b>Planned exploratory trades</b> (decided at the close, not yet orders): {{ X.selected|rejectattr('submitted')|list|length }} · <b>actually submitted / filled</b>: {{ X.selected|selectattr('submitted')|list|length }}. Every card shows its real state; a plan is never shown as a trade.</p>
+<div class="opps">{% for e in X.selected %}
+<div class="opp exp"><div class="head"><span class="tk">{{ e.symbol }}</span><span class="pill {{ 'EXPLORATORY' if e.selection == 'SELECTED' else 'SHADOW' }}">{{ 'EXPLORATORY' if e.selection == 'SELECTED' else 'SHADOW' }}</span><span class="setup">{{ e.setup_type }}</span><span class="cls {{ e.setup_class }}">{{ e.setup_class }}</span></div>
+<div class="block {{ 'ok' if e.submitted else 'exp' }}"><b>{{ e.state }}</b></div>
 <div class="small">Decided for session {{ e.session }} · {{ "%g"|format(e.qty) }} sh @ ~{{ "%.2f"|format(e.ref_price) if e.ref_price is number else "?" }} · stop {{ "%.2f"|format(e.stop) if e.stop is number else "UNKNOWN" }} · hold ≤ {{ e.expected.hold }} sessions · EV {{ ("%+.0f bps"|format(e.ev)) if e.ev is number else "UNKNOWN" }}</div>
 <dl class="kv2">
 <dt>Why we took it</dt><dd>{{ e.why }}</dd>
