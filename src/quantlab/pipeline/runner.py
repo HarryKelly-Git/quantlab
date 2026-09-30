@@ -291,6 +291,12 @@ class PaperRunner:
         self.broker_unverified_pause_seconds = float(g("broker_unverified_pause_seconds", 900))
         self.stale_heartbeat_seconds = float(g("stale_heartbeat_seconds", 120))
         self.data_retry_seconds = float(g("data_retry_seconds", 900))
+        # an opg order that does not execute in the opening cross is EXPIRED by Alpaca, unfilled.
+        # One market-day fallback per decision then takes the position shortly after the open.
+        self.open_fill_fallback = bool(g("open_fill_fallback", True))
+        self.fallback_until = _parse_hhmm(g("open_fill_fallback_until_et", "15:45"))
+        self.fallback_poll_seconds = float(g("open_fill_fallback_poll_seconds", 30))
+        self._last_fallback_scan: datetime | None = None
         self.max_job_attempts = int(g("max_job_attempts", 3))
         # a mismatch is re-checked once after this delay before pausing (fills racing the snapshot)
         self.reconcile_retry_seconds = float(g("reconcile_retry_seconds", 3))
@@ -629,8 +635,8 @@ class PaperRunner:
         if self._stop_requested():
             return "stop requested (quantlab paper stop)"
         for name, fn in (("calendar", self._refresh_calendar), ("account", self._poll_account),
-                         ("orders", self._poll_orders), ("session", self._maybe_process),
-                         ("exploration", self._maybe_explore)):
+                         ("orders", self._poll_orders), ("open_fill", self._maybe_fill_after_open),
+                         ("session", self._maybe_process), ("exploration", self._maybe_explore)):
             try:
                 fn(now)
             except LiveTradingForbidden:
@@ -763,15 +769,6 @@ class PaperRunner:
             self._heartbeat(force=True)
             summary = self._ingest(self.ctx, d)
             self.event("INFO", "data", f"ingest for {d}: {to_json(summary)[:500]}")
-        if self._catalyst_refresh is not None:
-            self.phase = f"processing {d}: catalyst refresh"
-            self._heartbeat(force=True)
-            try:
-                cr = self._catalyst_refresh(self.ctx, d, "daily")
-                self.event("INFO", "data", f"catalyst refresh for {d}: " + ", ".join(
-                    f"{k} {v.get('rows', v.get('error', ''))}" for k, v in cr.items() if isinstance(v, dict)), cr)
-            except Exception as exc:          # catalysts are discovery context: never block trading
-                self.event("WARN", "data", f"catalyst refresh for {d} failed: {exc!r}"[:500])
         bundle = self._bundle_loader(self.ctx)
         if bundle.is_synthetic and not self.allow_synthetic:
             raise RunnerRefused("the paper runner refuses SYNTHETIC market data")
@@ -783,11 +780,24 @@ class PaperRunner:
                 self.pause(f"{reason}; order window for {plan.next_session} has passed", "data_stale")
             return {"status": "stale_data"}
 
-        # 2. broker verified + state reconciled, immediately before deciding
+        # 2. catalyst context. AFTER the staleness check above: when D's bars have not arrived yet the
+        # session is retried every ``data_retry_seconds``, and refreshing first re-crawled SEC/news on
+        # every retry (measured: ~12 min of requests per attempt, 4 attempts for one session).
+        if self._catalyst_refresh is not None:
+            self.phase = f"processing {d}: catalyst refresh"
+            self._heartbeat(force=True)
+            try:
+                cr = self._catalyst_refresh(self.ctx, d, "daily")
+                self.event("INFO", "data", f"catalyst refresh for {d}: " + ", ".join(
+                    f"{k} {v.get('rows', v.get('error', ''))}" for k, v in cr.items() if isinstance(v, dict)), cr)
+            except Exception as exc:          # catalysts are discovery context: never block trading
+                self.event("WARN", "data", f"catalyst refresh for {d} failed: {exc!r}"[:500])
+
+        # 3. broker verified + state reconciled, immediately before deciding
         self._poll_account(self._now(), force=True)
         self.reconcile(f"before processing {d}")
 
-        # 3. the existing pipeline, with the runner's order gate
+        # 4. the existing pipeline, with the runner's order gate
         from quantlab.pipeline.daily import DailyPipeline
         run_id = (job or {}).get("run_id") or self.ctx.start_run("pipeline", mode="BOT_PAPER", as_of_date=str(d),
                                                                   notes=f"paper runner session {self.session_id}")
@@ -850,6 +860,58 @@ class PaperRunner:
                        {k: v for k, v in res.items() if k != "details"})
         return res
 
+    def _maybe_fill_after_open(self, now: datetime) -> dict[str, Any] | None:
+        """An ``opg`` entry that expired unfilled in the opening auction gets ONE market-day order,
+        so the decision actually takes a position instead of silently producing nothing.
+
+        Bounded: regular session only, before ``open_fill_fallback_until_et``, only for entries that
+        expired during this session with nothing filled, and only when no live entry order exists for
+        that symbol/decision session (the execution service's duplicate guard re-checks this, and the
+        fallback's client_order_id is deterministic, so a restart can never double-submit)."""
+        if not self.open_fill_fallback or self.calendar is None or self.exec is None:
+            return None
+        if self._last_fallback_scan and (now - self._last_fallback_scan).total_seconds() < self.fallback_poll_seconds:
+            return None
+        self._last_fallback_scan = now
+        if not self.calendar.is_open(now):
+            return None
+        session = self.calendar.current_session(now)
+        if session is None or now.astimezone(ET).time() >= self.fallback_until:
+            return None
+        opened_at = self.calendar.open_dt(session)
+        rows = self.db.fetchall(
+            "SELECT o.order_id, o.symbol, o.qty, o.candidate_id, o.decision_id, o.human_decision_id, i.session_date "
+            "FROM orders o JOIN order_intents i ON i.order_id = o.order_id "
+            "WHERE o.book=? AND o.purpose='entry' AND o.status=? AND o.time_in_force='opg' AND o.filled_qty=0 "
+            "AND o.last_update_at >= ? ORDER BY o.created_at",
+            (BOOK, OrderStatus.EXPIRED.value, opened_at.astimezone(timezone.utc).isoformat()))
+        if not rows:
+            return None
+        out = {"considered": len(rows), "submitted": 0, "refused": 0}
+        for r in rows:
+            live = self.db.fetchone(
+                "SELECT 1 FROM orders o JOIN order_intents i ON i.order_id=o.order_id WHERE o.book=? AND o.symbol=? "
+                "AND o.purpose='entry' AND i.session_date=? AND o.status NOT IN (?,?,?)",
+                (BOOK, r["symbol"], r["session_date"], OrderStatus.REJECTED.value, OrderStatus.CANCELED.value,
+                 OrderStatus.EXPIRED.value))
+            if live:
+                continue          # already replaced (or filled): nothing to do
+            res = self.exec.submit_entry(
+                r["symbol"], float(r["qty"]), candidate_id=r["candidate_id"], decision_id=r["decision_id"],
+                human_decision_id=r["human_decision_id"], session_date=r["session_date"], entry_style="market_day",
+                journal={"fallback_for_order_id": r["order_id"],
+                         "reason": "the opg order expired unfilled in the opening auction"})
+            if res.get("refused"):
+                out["refused"] += 1
+                self.event("WARN", "order", f"open-fill fallback refused for {r['symbol']}: {res.get('reason')}",
+                           {"order_id": r["order_id"]})
+            else:
+                out["submitted"] += 1
+                self.event("INFO", "order", f"open-fill fallback: {r['symbol']} {r['qty']:g} market-day after the "
+                           f"opg order expired unfilled", {"expired_order_id": r["order_id"],
+                                                            "order_id": res.get("order_id")})
+        return out
+
     def _preopen_information(self, plan: SessionPlan, now: datetime) -> None:
         """Overnight catalysts -> next-session run -> pre-open recheck. Best effort, logged."""
         from quantlab.discovery import nextsession as ns
@@ -876,9 +938,17 @@ class PaperRunner:
     def _order_guard(self, plan: SessionPlan) -> Callable[[str, str], str | None]:
         def guard(purpose: str, symbol: str) -> str | None:
             now = self._now()
-            reason = order_window_reason(now, plan.session, plan.next_session, self.process_after, self.order_cutoff)
-            if reason:
-                return reason
+            if purpose == "entry_fallback":
+                # replaces an expired opening order during the regular session, not a new decision
+                if self.calendar is None or not self.calendar.is_open(now):
+                    return "the market is not open: no open-fill fallback"
+                if now.astimezone(ET).time() >= self.fallback_until:
+                    return f"after the open-fill fallback cutoff ({self.fallback_until:%H:%M} ET)"
+            else:
+                reason = order_window_reason(now, plan.session, plan.next_session, self.process_after,
+                                             self.order_cutoff)
+                if reason:
+                    return reason
             if not self.reconciled_ok:
                 return "state reconciliation has not passed: no new orders"
             if self.broker_ok_at is None or (now - self.broker_ok_at).total_seconds() > self.broker_fresh_seconds:

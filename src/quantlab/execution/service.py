@@ -186,10 +186,20 @@ class PaperExecutionService:
         strategy_version: str | None = None,
         direction: str = "LONG",
         session_date: str | None = None,
+        entry_style: str = "opg",
     ) -> dict[str, Any]:
-        """Submit a LONG entry order (opg / next-open, matching ARCHITECTURE.md section 6: signal at
-        close D -> fill at open D+1). Returns ``{"refused": True, "reason": ...}`` or the created
-        order's summary."""
+        """Submit a LONG entry order. ``entry_style``:
+
+        * ``"opg"`` (default): market-on-open for the next session's opening auction, matching
+          ARCHITECTURE.md section 6 (signal at close D -> fill at open D+1);
+        * ``"market_day"``: a regular-session market order, used ONLY as the recorded fallback when
+          an ``opg`` order expired unfilled in the opening cross (Alpaca expires an opg order that
+          does not execute in the auction). It gets its own deterministic client_order_id, so the
+          fallback is idempotent and can never be submitted twice for the same decision.
+
+        Returns ``{"refused": True, "reason": ...}`` or the created order's summary."""
+        if entry_style not in ("opg", "market_day"):
+            raise ExecutionError(f"unknown entry_style {entry_style!r}")
         symbol = str(symbol).strip().upper()
         qty = float(qty)
         signal_date = self._decision_session(candidate_id, human_decision_id, plan, session_date)
@@ -199,7 +209,10 @@ class PaperExecutionService:
             ref_price = row["entry_ref_price"] if row else None
 
         basis = candidate_id or decision_id or human_decision_id or (f"{symbol}:{signal_date}" if signal_date else None)
+        if basis and entry_style != "opg":
+            basis = f"{basis}#{entry_style}"
         client_order_id = _client_order_id(self.book, "entry", basis) if basis else None
+        guard_purpose = "entry" if entry_style == "opg" else "entry_fallback"
         existing = self._local_order(client_order_id) if client_order_id else None
         if existing is not None and existing["status"] != OrderStatus.PENDING_SUBMIT.value:
             return self._summary(existing, duplicate=True)   # already submitted (e.g. resumed run)
@@ -215,16 +228,17 @@ class PaperExecutionService:
             refusal = self._duplicate_entry_refusal(symbol, qty, signal_date, client_order_id, candidate_id,
                                                     decision_id, human_decision_id)
         if refusal is None:
-            refusal = self._guard_refusal("entry", symbol, qty, candidate_id=candidate_id, decision_id=decision_id,
-                                          human_decision_id=human_decision_id, trade_id=None,
-                                          session_date=signal_date)
+            refusal = self._guard_refusal(guard_purpose, symbol, qty, candidate_id=candidate_id,
+                                          decision_id=decision_id, human_decision_id=human_decision_id,
+                                          trade_id=None, session_date=signal_date)
         if refusal is not None:
             if existing is not None:
                 self._abandon_pending(existing, refusal["reason"])
             return refusal
 
         request = OrderRequest(client_order_id=client_order_id, symbol=symbol, side=Side.BUY, qty=qty,
-                               order_type="market", time_in_force="opg", decision_session=signal_date)
+                               order_type="market", time_in_force="opg" if entry_style == "opg" else "day",
+                               decision_session=signal_date)
         if existing is not None:
             return self._send(existing["order_id"], request, purpose="entry")
         order_id = new_id("order")
