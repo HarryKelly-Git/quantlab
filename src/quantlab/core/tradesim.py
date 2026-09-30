@@ -16,6 +16,13 @@ EXECUTION SEMANTICS (identical in backtest and live paper trading):
   * All computations run in tri-scaled ("a") prices so splits/dividends during the hold are handled
     exactly; stop/target given in RAW price at D are converted using the ratio to the D close.
   * MFE/MAE use intraday highs/lows for analysis only (they never trigger exits).
+  * SUSPICIOUS OPEN: NOT APPLIED. ``suspicious_open_mask`` / ``close_is_worse`` /
+    ``suspicious_open_flags`` below implement the detection only -- nothing calls them, so fills
+    still use the open as reported, and the CostModel parameters they read are unused defaults
+    (``validation.data.suspicious_open.*`` is not in config/default.yaml). The intended rule is that
+    a fill on a flagged session would use the WORSE of its open and close for the side (buy: higher,
+    sell: lower) in both the backtester and the paper SimBroker. Wiring it in changes historical
+    fills, so it must land with its own before/after comparison, not silently.
 """
 from __future__ import annotations
 
@@ -58,6 +65,50 @@ class PlanOutcome:
 
 def _f(x) -> float | None:
     return None if x is None or not np.isfinite(x) else float(x)
+
+
+def _prev_valid(a: np.ndarray) -> np.ndarray:
+    """Last finite value strictly before each row along axis 0 (NaN if none)."""
+    a2 = a.reshape(len(a), -1)
+    idx = np.where(np.isfinite(a2), np.arange(len(a2))[:, None], -1)
+    np.maximum.accumulate(idx, axis=0, out=idx)
+    ff = np.where(idx >= 0, a2[idx.clip(min=0), np.arange(a2.shape[1])], np.nan)
+    prev = np.full_like(ff, np.nan)
+    prev[1:] = ff[:-1]
+    return prev.reshape(a.shape)
+
+
+def suspicious_open_mask(aopen, aclose, threshold: float, min_reversion: float) -> np.ndarray:
+    """True where a session's OPEN looks like an erroneous print rather than a real opening price.
+
+    Suspicious = the open deviates by more than ``threshold`` (fraction) from BOTH the previous
+    close and the same session's close, in the same direction, AND the close reverts toward the
+    previous close: |close - prev| <= (1 - min_reversion) x |open - prev|. A genuine gap that holds
+    (close near the open) is never flagged. Computed on tri-scaled prices, so a split or dividend
+    on the session is not a deviation. Uses only the session's own bar and the last earlier close:
+    point-in-time as of that session's close. ``aopen``/``aclose`` are 1-D (one symbol) or 2-D
+    (sessions x symbols) arrays with time on axis 0.
+    """
+    ao = np.asarray(aopen, dtype="float64")
+    ac = np.asarray(aclose, dtype="float64")
+    prev = _prev_valid(ac)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        d_prev = ao / prev - 1.0
+        d_close = ao / ac - 1.0
+        return ((np.abs(d_prev) > threshold) & (np.abs(d_close) > threshold)
+                & (np.sign(d_prev) == np.sign(d_close))
+                & (np.abs(ac - prev) <= (1.0 - min_reversion) * np.abs(ao - prev)))
+
+
+def close_is_worse(buy: bool, open_px: float, close_px: float) -> bool:
+    """For a fill on a suspicious-open session: True when the close is the worse price for the side."""
+    return close_px > open_px if buy else close_px < open_px
+
+
+def suspicious_open_flags(panel: Panel, symbol: str, costs: CostModel) -> np.ndarray:
+    """``suspicious_open_mask`` for one symbol of ``panel`` with the CostModel's parameters."""
+    return suspicious_open_mask(panel.aopen[symbol].to_numpy(), panel.aclose[symbol].to_numpy(),
+                                costs.suspicious_open_threshold, costs.suspicious_open_min_reversion)
 
 
 def simulate_plan(

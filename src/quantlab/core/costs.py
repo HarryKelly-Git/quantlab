@@ -21,6 +21,10 @@ class CostModel:
     # the market keeps trading; the exit is booked on that session. Point-in-time: never decided by
     # looking ahead for bars that may or may not come back. Shared with the paper SimBroker.
     delisting_missing_sessions: int = 5
+    # Suspicious-open rule (core.tradesim.suspicious_open_mask): a fill on a session whose open is
+    # flagged uses the worse of open and close. Shared with data validation and the paper SimBroker.
+    suspicious_open_threshold: float = 0.25
+    suspicious_open_min_reversion: float = 0.5
 
     @classmethod
     def from_config(cls, config: Config) -> "CostModel":
@@ -28,7 +32,9 @@ class CostModel:
         tiers = tuple(sorted(((float(a), float(b)) for a, b in c["half_spread_bps_tiers"]), key=lambda x: -x[0]))
         return cls(tiers, float(c["slippage_bps"]), float(c.get("commission_per_share", 0.0)),
                    float(c.get("commission_min_per_order", 0.0)), float(c.get("delisting_return", -0.30)),
-                   int(config.get("execution.delisting_missing_sessions", 5)))
+                   int(config.get("execution.delisting_missing_sessions", 5)),
+                   float(config.get("validation.data.suspicious_open.threshold", 0.25)),
+                   float(config.get("validation.data.suspicious_open.min_reversion", 0.5)))
 
     def half_spread_bps(self, median_dollar_volume: float | None) -> float:
         """Unknown liquidity is charged the WORST tier (conservative)."""
