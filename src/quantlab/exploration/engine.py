@@ -28,6 +28,7 @@ config and never fitted to results.
 from __future__ import annotations
 
 import collections
+import hashlib
 import math
 from dataclasses import dataclass
 from datetime import datetime, time, timezone
@@ -80,7 +81,8 @@ class ExplorationPolicy:
     max_position_pct: float = 0.02
     max_session_exposure_pct: float = 0.10
     max_total_exposure_pct: float = 0.20
-    holding_sessions: int = 10
+    holding_sessions: int = 10            # used only when hold_arms is empty
+    hold_arms: tuple = (5, 10, 20)        # time-exit arms, one per decision (see hold_for)
     stop_atr: float = 2.0
     min_price: float = 5.0
     min_adv: float = 5_000_000.0
@@ -193,6 +195,19 @@ def _catalyst_direction(cat: dict[str, Any]) -> str:
     return "NONE"
 
 
+def hold_for(session: str, symbol: str, pol: "ExplorationPolicy") -> int:
+    """Holding period for one decision, drawn from ``pol.hold_arms`` by a hash of (session, symbol).
+
+    Reproducible, balanced in expectation, and independent of the selection score and rank, so that
+    outcomes by holding period can be compared later without the choice leaking into them. The stop
+    (stop_atr x ATR) is the same for every arm: the holding period is the only thing that differs."""
+    arms = tuple(int(a) for a in (pol.hold_arms or ()) if int(a) > 0)
+    if not arms:
+        return int(pol.holding_sessions)
+    h = int(hashlib.sha256(f"{str(session)[:10]}|{symbol}".encode()).hexdigest(), 16)
+    return arms[h % len(arms)]
+
+
 def _selection_of(r) -> float | None:
     """The candidate's selection score from its setup record (None = UNKNOWN)."""
     return _f((from_json(r["setup_json"], {}) or {}).get("selection_score"))
@@ -253,6 +268,7 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
     out = []
     for r in rows[:pol.max_considered]:
         s = r["symbol"]
+        hold = hold_for(d, s, pol)
         setup = from_json(r["setup_json"], {}) or {}
         lv = setup.get("levels") or {}
         facts = (from_json(r["factors_json"], {}) or {}).get("features", {}) or {}
@@ -327,7 +343,7 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
         sel_s = _selection_of(r)
         reason = (f"experimental setup #{selected} of up to {pol.max_new_per_session} for {d} "
                   f"({setup.get('setup_type')}; {r['setup_class'] or 'class UNKNOWN'}; selection score "
-                  f"{f'{sel_s:.2f}' if sel_s is not None else 'UNKNOWN'}, order {order.get(s)}; discovery rank {r['rank']})"
+                  f"{f'{sel_s:.2f}' if sel_s is not None else 'UNKNOWN'}, order {order.get(s)}; discovery rank {r['rank']}; hold {hold} sessions)"
                   if selection in ("SELECTED", "SHADOW") else
                   ("eligible but beyond the session budget: tracked for comparison" if selection == "WATCHED_NOT_TRADED"
                    else "skipped: " + "; ".join(f"{c['name']}: {c['reason']}" for c in failed)))
@@ -358,7 +374,7 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
             "not_required_in_exploration": list(NOT_REQUIRED),
             "confirmation": setup.get("confirm", []),
             "invalidation": setup.get("invalidate", []) + ([f"stop {stop:,.2f} = close - {pol.stop_atr:g} x ATR"] if stop else []),
-            "expected_holding_sessions": pol.holding_sessions,
+            "expected_holding_sessions": hold,
             "expected": "an experiment: no edge is assumed. Measured at 1/3/5/10/20 sessions vs SPY, vs watched-but-"
                         "not-traded and vs rejected candidates",
             "unknowns": setup.get("missing", []),
@@ -379,7 +395,7 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
                     "setup_class": r["setup_class"], "families": ",".join(pre["candidate"]["families"]) or None,
                     "catalyst_families": r["catalyst_families"], "discovery_score": r["discovery_score"],
                     "ref_price": close, "qty": float(qty), "stop_price": stop,
-                    "holding_sessions": pol.holding_sessions, "strict_blocker": "; ".join(pre["strict_would_reject_because"])[:2000] or None,
+                    "holding_sessions": hold, "strict_blocker": "; ".join(pre["strict_would_reject_because"])[:2000] or None,
                     "reason": reason[:2000], "info_cutoff_at": run["info_cutoff_at"], "pre_trade_json": to_json(pre),
                     "is_synthetic": int(run["is_synthetic"]), "created_at": utcnow_iso()})
     with db.transaction():

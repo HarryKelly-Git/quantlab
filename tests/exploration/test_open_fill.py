@@ -109,8 +109,9 @@ def test_expired_opening_order_is_replaced_once_and_fills(world):
     # the original plan survives the fallback: an unmanaged position (no stop) would be unsafe
     assert all(t["stop_price"] and t["stop_price"] > 0 for t in trades), trades
     assert {t["strategy_id"] for t in trades} == {"EXPLORATION"}
-    plans = ctx.db.fetchall("SELECT holding_sessions FROM trade_plans")
-    assert plans and all(p["holding_sessions"] == 10 for p in plans)
+    plans = ctx.db.fetchall("SELECT tp.holding_sessions AS h, d.holding_sessions AS dh FROM trade_plans tp "
+                            "JOIN trades t ON t.trade_id = tp.trade_id JOIN exploration_decisions d ON d.decision_id = t.decision_id")
+    assert plans and all(p["h"] == p["dh"] and p["h"] in (5, 10, 20) for p in plans)  # each keeps its decision's hold
     for o in fb:                                                                # same size as the expired order
         assert o["qty"] == next(x["qty"] for x in ctx.db.fetchall(
             "SELECT symbol, qty FROM orders WHERE time_in_force='opg'") if x["symbol"] == o["symbol"])

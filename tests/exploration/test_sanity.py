@@ -387,3 +387,32 @@ def test_equity_fallback_counts_open_positions_at_cost(tmp_path):
     assert r is not None
     assert json.loads(r["pre_trade_json"])["sizing"]["equity"] == pytest.approx(cash + 100 * 50.0)
     ctx.close()
+
+
+# -- holding-period arms ------------------------------------------------------------------------------
+def test_hold_arms_are_reproducible_balanced_and_independent_of_rank():
+    from quantlab.exploration.engine import hold_for
+    pol = ExplorationPolicy(hold_arms=(5, 10, 20))
+    assert hold_for("2026-09-30", "AAA", pol) == hold_for("2026-09-30T20:00:00", "AAA", pol)   # reproducible
+    got = collections.Counter(hold_for("2026-09-30", f"S{i}", pol) for i in range(900))
+    assert set(got) == {5, 10, 20} and min(got.values()) > 240                                 # balanced
+    assert hold_for("2026-09-30", "AAA", ExplorationPolicy(hold_arms=())) == ExplorationPolicy().holding_sessions
+    cfg_pol = ExplorationPolicy.from_config(load_config(root=ROOT))
+    assert tuple(cfg_pol.hold_arms) == (5, 10, 20)
+
+
+def test_each_decision_records_its_hold(tmp_path):
+    from quantlab.exploration.engine import hold_for
+    ctx = _ctx(tmp_path)
+    cb = crafted_bundle()
+    _store(ctx)
+    run_discovery(ctx, cb, cb.panel.dates[-1], links={})
+    plan_exploration(ctx, equity=100_000.0, now=PRE_OPEN)
+    pol = ExplorationPolicy.from_config(ctx.config)
+    rows = ctx.db.fetchall("SELECT symbol, session_date, holding_sessions, pre_trade_json FROM exploration_decisions "
+                           "WHERE session_date=?", (SESSION,))
+    assert rows
+    for r in rows:
+        assert r["holding_sessions"] == hold_for(r["session_date"], r["symbol"], pol)
+        assert json.loads(r["pre_trade_json"])["expected_holding_sessions"] == r["holding_sessions"]
+    ctx.close()

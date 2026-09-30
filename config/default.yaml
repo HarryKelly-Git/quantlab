@@ -279,7 +279,9 @@ exploration:                      # PAPER_EXPLORATION controls (simulation hygie
   max_position_pct: 0.02          # of book equity per exploratory position
   max_session_exposure_pct: 0.10  # new exploratory notional per session (5 x 2%)
   max_total_exposure_pct: 0.20    # all open exploratory positions together (10 x 2%)
-  holding_sessions: 10            # expected holding period (time exit)
+  holding_sessions: 10            # time exit when hold_arms is empty
+  hold_arms: [5, 10, 20]          # time-exit arms: each decision gets one by a hash of (session, symbol),
+                                  # independent of score/rank, so outcomes by holding period are comparable
   stop_atr: 2.0                   # invalidation stop = decision close - 2 x ATR(14)
   min_price: 5.0                  # basic liquidity for exploration (stricter than discovery's $1)
   min_adv: 5000000                # median dollar volume (20 sessions)
