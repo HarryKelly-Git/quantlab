@@ -91,7 +91,9 @@ reliable.
 2. `config/local.yaml` (git-ignored) sets `paper.mode`: `EXPLORATION` (small exploratory budget) or
    `STRICT` (validated strategies only; currently none).
 3. `.venv\Scripts\python -m quantlab.cli paper preflight` passes.
-4. Start the runner and leave the machine awake: `.venv\Scripts\python -m quantlab.cli paper start`.
+4. Start the runner with automatic restart and leave the machine awake: `scriptsun_paper.cmd`
+   (it sets the PAPER environment variables, restarts the runner if it dies, and exits on a clean
+   `quantlab paper stop`; `paper start` on its own does not restart itself).
    It processes the last completed session straight away if the order window is still open (after
    19:05 ET, before 09:25 ET), and runs the pre-open step from 08:30 ET. New Zealand time (NZDT):
    19:05 ET = 12:05 next day; 08:30-09:25 ET = 01:30-02:25; the open 09:30 ET = 02:30.
