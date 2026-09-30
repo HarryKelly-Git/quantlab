@@ -31,6 +31,7 @@ paper-eligible, EV, no-trade, portfolio, risk) are rejections recorded by the de
 """
 from __future__ import annotations
 
+import math
 import os
 import queue
 import socket
@@ -932,22 +933,58 @@ class PaperRunner:
                              target_price=pl.get("target_price"),
                              holding_sessions=int(pl.get("holding_sessions", 20) or 20),
                              invalidation=str(pl.get("invalidation") or "")) if pl else None
+            # The setup is only valid near the reference close: every plan states it is invalidated by
+            # an opening gap of more than 1 ATR. A market fallback would chase a gapped-up open and
+            # take exactly the trade the plan disowns, on a stop sized for the old price. Bound it at
+            # ref + 1 ATR instead, so that case is a no-fill rather than a bad fill. The stop is
+            # ref - 2*ATR, which is where the ATR comes from.
+            style, limit = "market_day", None
+            bound = self._fallback_limit(pl)
+            if bound is not None:
+                style, limit = "limit_day", bound
             res = self.exec.submit_entry(
                 r["symbol"], float(r["qty"]), candidate_id=r["candidate_id"], decision_id=r["decision_id"],
-                human_decision_id=r["human_decision_id"], session_date=r["session_date"], entry_style="market_day",
+                human_decision_id=r["human_decision_id"], session_date=r["session_date"], entry_style=style,
+                limit_price=limit,
                 plan=plan, strategy_id=intent.get("strategy_id"), strategy_version=intent.get("strategy_version"),
                 journal={**(intent.get("journal") or {}), "fallback_for_order_id": r["order_id"],
-                         "fallback_reason": "the opg order expired unfilled in the opening auction"})
+                         "fallback_reason": "the opg order expired unfilled in the opening auction",
+                         "fallback_limit_price": limit})
             if res.get("refused"):
                 out["refused"] += 1
                 self.event("WARN", "order", f"open-fill fallback refused for {r['symbol']}: {res.get('reason')}",
                            {"order_id": r["order_id"]})
             else:
                 out["submitted"] += 1
-                self.event("INFO", "order", f"open-fill fallback: {r['symbol']} {r['qty']:g} market-day after the "
+                how = f"limit {limit:g} (ref + 1 ATR)" if limit is not None else "market-day (no ATR in the plan)"
+                self.event("INFO", "order", f"open-fill fallback: {r['symbol']} {r['qty']:g} {how} after the "
                            f"opg order expired unfilled", {"expired_order_id": r["order_id"],
-                                                            "order_id": res.get("order_id")})
+                                                            "order_id": res.get("order_id"),
+                                                            "limit_price": limit})
         return out
+
+    def _fallback_limit(self, plan: dict[str, Any] | None) -> float | None:
+        """The highest price at which the fallback entry is still the planned trade: ref + 1 ATR.
+
+        Exploratory stops are ``ref - stop_atr * ATR``, so the ATR is recoverable from the plan
+        itself and no extra price data is needed at the open. Returns None when the plan does not
+        carry a usable reference and stop, in which case the caller keeps the old market fallback
+        rather than skipping the trade."""
+        if not plan:
+            return None
+        try:
+            ref = float(plan.get("entry_ref_price"))
+            stop = float(plan.get("stop_price"))
+            mult = float(plan.get("stop_atr") or self.cfg.get("exploration.stop_atr", 2.0))
+        except (TypeError, ValueError):
+            return None
+        if not (math.isfinite(ref) and math.isfinite(stop) and math.isfinite(mult)):
+            return None
+        if not (0 < stop < ref) or mult <= 0:
+            return None
+        atr = (ref - stop) / mult
+        limit = round(ref + atr, 2)
+        return limit if limit > 0 else None
 
     def _exit_fallbacks(self, opened_at: datetime) -> dict[str, Any]:
         """Same fallback for EXITS: an opg exit that expired unfilled would leave the position open

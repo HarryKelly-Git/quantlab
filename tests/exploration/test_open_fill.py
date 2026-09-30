@@ -299,3 +299,93 @@ def test_expired_exit_is_replaced_so_a_stopped_position_is_not_left_open(world):
     assert len(broker.submits) == n_after                                          # never resubmitted
     assert n_after == n_before + 2                                                 # opg exit + one fallback
     r.shutdown("test")
+
+
+def test_the_fallback_entry_is_bounded_at_one_atr_above_the_reference(world):
+    """Every plan says the setup is invalidated by an opening gap of more than 1 ATR. A market
+    fallback would chase that gap and take the trade anyway, on a stop sized for the old price."""
+    ctx = world
+    b = ctx.store.load_bundle(ctx.config.section("benchmarks"), synthetic=True)
+    sessions = [x.date() for x in b.panel.dates]
+    broker = FakeAlpacaBroker(sessions)
+    clock = Clock(at(sessions[-30], 19, 10))
+    r, _, nxt, cids, _ = _submit_opg(ctx, broker, clock)
+    n_opg = len(cids)
+    _expire(broker, r, cids)
+
+    clock.t = at(nxt, 9, 35)
+    r.tick()
+    fb = ctx.db.fetchall("SELECT symbol, order_type, time_in_force, limit_price FROM orders "
+                         "WHERE time_in_force='day'")
+    assert fb, "no fallback was submitted"
+    plans = {d["symbol"]: d for d in ctx.db.fetchall(
+        "SELECT symbol, ref_price, stop_price FROM exploration_decisions WHERE selection='SELECTED'")}
+    for o in fb:
+        assert o["order_type"] == "limit", o                 # never an unbounded market order
+        p = plans[o["symbol"]]
+        atr = (p["ref_price"] - p["stop_price"]) / 2.0       # stop = ref - 2 x ATR
+        assert o["limit_price"] == pytest.approx(round(p["ref_price"] + atr, 2)), o
+        assert o["limit_price"] > p["ref_price"]             # a normal open still fills
+    # the bound reaches the broker, not just the local record
+    for cid in broker.submits[n_opg:]:
+        assert broker.orders[cid]["type"] == "limit"
+        assert float(broker.orders[cid]["limit_price"]) > 0
+    r.shutdown("test")
+
+
+def test_a_gapped_open_leaves_the_bounded_fallback_unfilled_and_is_not_chased(world):
+    """A gap beyond the bound must end as a no-fill, and the runner must not follow it with a
+    market order on a later scan."""
+    ctx = world
+    b = ctx.store.load_bundle(ctx.config.section("benchmarks"), synthetic=True)
+    sessions = [x.date() for x in b.panel.dates]
+    broker = FakeAlpacaBroker(sessions)
+    clock = Clock(at(sessions[-30], 19, 10))
+    r, _, nxt, cids, _ = _submit_opg(ctx, broker, clock)
+    n_opg = len(cids)
+    _expire(broker, r, cids)
+
+    clock.t = at(nxt, 9, 35)
+    r.tick()
+    n_after = len(broker.submits)
+    limits = {cid: float(broker.orders[cid]["limit_price"]) for cid in broker.submits[n_opg:]}
+    assert limits
+    # the open gapped well above every bound: the limit orders simply rest unfilled
+    for cid, lim in limits.items():
+        gapped_open = lim * 1.10
+        assert gapped_open > lim, "the bound must sit below a gapped-up open"
+        assert float(broker.orders[cid]["filled_qty"]) == 0.0
+
+    clock.t = at(nxt, 10, 30)
+    r.tick()
+    r.tick()
+    assert len(broker.submits) == n_after, "the runner chased the gap with another order"
+    assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM trades")["n"] == 0
+    assert not ctx.db.fetchall("SELECT 1 FROM orders WHERE order_type='market' AND time_in_force='day'")
+    r.shutdown("test")
+
+
+@pytest.mark.parametrize("plan,expected", [
+    ({"entry_ref_price": 100.0, "stop_price": 90.0}, 105.0),        # ATR 5 -> ref + 1 ATR
+    ({"entry_ref_price": 52.4, "stop_price": 49.291}, 53.95),
+    ({"entry_ref_price": 100.0, "stop_price": 90.0, "stop_atr": 4.0}, 102.5),
+    ({"entry_ref_price": 100.0, "stop_price": 100.0}, None),        # no ATR to recover
+    ({"entry_ref_price": 100.0, "stop_price": 110.0}, None),        # stop above the reference
+    ({"entry_ref_price": 100.0}, None),
+    ({"stop_price": 90.0}, None),
+    ({"entry_ref_price": None, "stop_price": None}, None),
+    ({}, None),
+    (None, None),
+])
+def test_fallback_limit_needs_a_usable_reference_and_stop(world, plan, expected):
+    """When the bound cannot be derived the caller keeps the old market fallback, so a missing
+    field never silently turns into a skipped trade."""
+    ctx = world
+    broker = FakeAlpacaBroker([x.date() for x in
+                              ctx.store.load_bundle(ctx.config.section("benchmarks"), synthetic=True).panel.dates])
+    r, _ = _runner(ctx, broker, Clock(at("2019-12-02", 19, 10)))
+    got = r._fallback_limit(plan)
+    if expected is None:
+        assert got is None
+    else:
+        assert got == pytest.approx(expected)

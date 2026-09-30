@@ -19,6 +19,7 @@ Idempotency (restarts can never duplicate an order):
 from __future__ import annotations
 
 import hashlib
+import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -187,6 +188,7 @@ class PaperExecutionService:
         direction: str = "LONG",
         session_date: str | None = None,
         entry_style: str = "opg",
+        limit_price: float | None = None,
     ) -> dict[str, Any]:
         """Submit a LONG entry order. ``entry_style``:
 
@@ -196,10 +198,20 @@ class PaperExecutionService:
           an ``opg`` order expired unfilled in the opening cross (Alpaca expires an opg order that
           does not execute in the auction). It gets its own deterministic client_order_id, so the
           fallback is idempotent and can never be submitted twice for the same decision.
+        * ``"limit_day"``: the same fallback, bounded by ``limit_price``. Preferred over
+          ``"market_day"``: the setup is only valid while the price is near the reference close, so
+          a fallback that chases a gapped-up open would take a trade the plan already calls
+          invalidated. The bound makes that outcome a no-fill instead of a bad fill.
 
         Returns ``{"refused": True, "reason": ...}`` or the created order's summary."""
-        if entry_style not in ("opg", "market_day"):
+        if entry_style not in ("opg", "market_day", "limit_day"):
             raise ExecutionError(f"unknown entry_style {entry_style!r}")
+        if entry_style == "limit_day":
+            if limit_price is None or not math.isfinite(float(limit_price)) or float(limit_price) <= 0:
+                raise ExecutionError("entry_style 'limit_day' needs a positive limit_price")
+            limit_price = round(float(limit_price), 2)
+        elif limit_price is not None:
+            raise ExecutionError(f"entry_style {entry_style!r} must not carry a limit_price")
         symbol = str(symbol).strip().upper()
         qty = float(qty)
         signal_date = self._decision_session(candidate_id, human_decision_id, plan, session_date)
@@ -237,8 +249,9 @@ class PaperExecutionService:
             return refusal
 
         request = OrderRequest(client_order_id=client_order_id, symbol=symbol, side=Side.BUY, qty=qty,
-                               order_type="market", time_in_force="opg" if entry_style == "opg" else "day",
-                               decision_session=signal_date)
+                               order_type="limit" if entry_style == "limit_day" else "market",
+                               time_in_force="opg" if entry_style == "opg" else "day",
+                               limit_price=limit_price, decision_session=signal_date)
         if existing is not None:
             return self._send(existing["order_id"], request, purpose="entry")
         order_id = new_id("order")
