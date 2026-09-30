@@ -26,8 +26,8 @@ from quantlab.core.types import PitStatus, new_id
 from quantlab.data.panel import DataBundle, Panel
 from quantlab.db.database import Database, from_json, to_json, utcnow_iso
 from quantlab.discovery.families import (
-    AUX_FEATURES, CONTEXT, CONTEXT_FEATURES, FIRE, LABELS, POINTS, SCORED, SCORED_FEATURES, SOURCES, Triggers,
-    fire_context, fired_masks, pct_rank,
+    AUX_FEATURES, CONTEXT, CONTEXT_FEATURES, FIRE, LABELS, POINTS, SCORED, SCORED_FEATURES, SCORED_POINTS, SOURCES,
+    Triggers, fire_context, fired_masks, pct_rank,
 )
 from quantlab.discovery.status import describe_strategy
 from quantlab.features.base import FeatureSet
@@ -201,8 +201,13 @@ class DiscoveryEngine:
         comp = pd.DataFrame(index=syms)
         for fam in SCORED:
             comp[fam] = POINTS * pct[[f for f, _ in SCORED_FEATURES[fam]]].mean(axis=1, skipna=True)
+        # coverage counts data availability across ALL scored families; the score is the mean of the
+        # families that contribute points, which excludes relative_strength because its percentile
+        # rank is momentum's (see families.SCORED_POINTS)
         n_known = comp.notna().sum(axis=1)
-        score = 100.0 * comp.sum(axis=1, min_count=1) / (POINTS * n_known.replace(0, np.nan))
+        pts = comp[list(SCORED_POINTS)]
+        n_pts = pts.notna().sum(axis=1)
+        score = 100.0 * pts.sum(axis=1, min_count=1) / (POINTS * n_pts.replace(0, np.nan))
         pct_raw = pd.DataFrame({f: pct_rank(xs[f]) for f in scored_feats}, index=syms)
         masks = fired_masks(xs, pct_raw, comp, self.s.triggers)
         return {"syms": syms, "xs": xs, "states": states, "comp": comp, "score": score,

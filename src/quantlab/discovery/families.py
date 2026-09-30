@@ -4,11 +4,13 @@ Discovery is NOT validation. Nothing in this package can permit, size or place a
 ranks and explains. Every number comes from the existing FeatureSet (features/, ARCHITECTURE.md
 section 4) computed on the point-in-time view of the session.
 
-SCORED families (price/volume data, full-universe real coverage). Each contributes 0..20 points,
+SCORED families (price/volume data, full-universe real coverage). All five fire, are reported and
+explain themselves. Those in SCORED_POINTS also contribute 0..20 points to the composite score,
 from cross-sectional percentile ranks among the scanned symbols. Fixed definitions, fixed equal
 weights, never fitted to results:
   momentum              ret_20d, ret_60d, ret_120d
-  relative_strength     rs_spy_20, rs_spy_63                 (sector-relative is a CONTEXT family)
+  relative_strength     rs_spy_20, rs_spy_63    FIRES ONLY, NO POINTS -- rank-identical to momentum;
+                                                see SCORED_POINTS below
   volume_activity       rel_volume_1d, rel_volume_5d         (direction-agnostic)
   breakout_compression  breakout_55, -range_contraction_20_60
   mean_reversion        -ret_z_3d, -dist_ma20                (oversold magnitude)
@@ -32,6 +34,23 @@ import pandas as pd
 SCORED = ("momentum", "relative_strength", "volume_activity", "breakout_compression", "mean_reversion")
 CONTEXT = ("earnings", "news", "fundamentals", "sector")
 POINTS = 20.0
+
+# Families whose percentile ranks contribute POINTS to the composite score.
+#
+# relative_strength is deliberately NOT here. Its scored features are rs_spy_20 and rs_spy_63,
+# defined as ret_n(stock) - ret_n(SPY). Within one session ret_n(SPY) is a single scalar, and a
+# cross-sectional percentile rank is invariant to subtracting a constant, so
+#     pct_rank(rs_spy_20) == pct_rank(ret_20d)      exactly (to float32 precision)
+#     pct_rank(rs_spy_63) == pct_rank(ret_63)       exactly, ~0.96 vs momentum's ret_60d window
+# The rank transform annihilates the market-relative adjustment, which is the family's entire
+# economic content. Scoring it alongside momentum therefore counted one signal twice and gave
+# momentum ~40% of the composite instead of 20%. Measured on real sessions: per-date Spearman
+# between the two families' point totals 0.90-0.96.
+#
+# The family still FIRES and still explains itself: fire_relative_strength tests
+# ``rs_spy_63 > 0`` -- a LEVEL test, which is genuinely market-relative and not rank-invariant.
+# Only its contribution to the score was degenerate. See docs/DISCOVERY-SCORE-DEFECT.md.
+SCORED_POINTS = ("momentum", "volume_activity", "breakout_compression", "mean_reversion")
 
 LABELS = {
     "momentum": "Momentum", "relative_strength": "Relative strength", "volume_activity": "Volume/activity",
@@ -283,5 +302,6 @@ def fire_context(fam: str, r: pd.Series, t: Triggers) -> tuple[bool, list[str]]:
     raise ValueError(fam)
 
 
-__all__ = ["AUX_FEATURES", "CONTEXT", "CONTEXT_FEATURES", "FIRE", "LABELS", "POINTS", "SCORED", "SCORED_FEATURES", "fired_masks", "stabilising",
+__all__ = ["AUX_FEATURES", "CONTEXT", "CONTEXT_FEATURES", "FIRE", "LABELS", "POINTS", "SCORED", "SCORED_FEATURES",
+           "SCORED_POINTS", "fired_masks", "stabilising",
            "SOURCES", "Triggers", "fire_context", "pct_rank"]

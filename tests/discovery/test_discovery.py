@@ -16,7 +16,7 @@ from quantlab.context import AppContext
 from quantlab.dashboard.app import create_app
 from quantlab.discovery import DiscoveryOutcomeTracker, run_discovery
 from quantlab.discovery.engine import DiscoveryEngine, ScanResult
-from quantlab.discovery.families import CONTEXT, POINTS, SCORED
+from quantlab.discovery.families import CONTEXT, POINTS, SCORED, SCORED_POINTS
 from quantlab.pipeline.daily import DailyPipeline
 from quantlab.testing.pit import assert_truncation_invariant
 
@@ -69,8 +69,13 @@ def test_reason_vectors_points_and_provenance(scan, cb):
     r = scan.table.loc["MOMO"]
     comps = {f: r[f"c_{f}"] for f in SCORED}
     assert all(0 <= v <= POINTS for v in comps.values())
-    known = [v for v in comps.values() if np.isfinite(v)]
+    # every scored family's points are reported, but only SCORED_POINTS feed the composite:
+    # relative_strength is rank-identical to momentum (see families.SCORED_POINTS)
+    known = [v for f, v in comps.items() if f in SCORED_POINTS and np.isfinite(v)]
     assert r["score"] == pytest.approx(100 * sum(known) / (POINTS * len(known)))
+    assert np.isfinite(comps["relative_strength"])           # still measured and reported
+    all_known = [v for v in comps.values() if np.isfinite(v)]
+    assert len(known) < len(all_known), "relative_strength must be excluded from the composite"
     assert any("strong 60d return" in x for x in r["reasons"]["momentum"])
     assert any("outperforming SPY" in x for x in r["reasons"]["relative_strength"])
     d = str(cb.panel.dates[-1].date())
