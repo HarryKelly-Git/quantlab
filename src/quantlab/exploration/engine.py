@@ -168,23 +168,36 @@ def pending_entries(db) -> dict[str, Any]:
             "symbols": {r["symbol"] for r in rows}}
 
 
-def _pending_symbols(db, mode: str) -> set[str]:
+def _pending_symbols(db, mode: str, *, now=None, cutoff_hhmm: str = "09:25") -> set[str]:
     """Selected exploratory entries that may still become a position: planned and not yet at a
     terminal pre-open event, or with an entry order still working (the opg order or its fallback).
 
     A decision whose entry orders all ended unfilled (expired / cancelled / rejected) is no longer
     pending, and neither is one whose trade exists (an open trade is caught by the open-position
     check; a closed one frees the symbol). Before this, every symbol ever selected stayed blocked
-    for good, shrinking the tradeable pool with every session."""
+    for good, shrinking the tradeable pool with every session. A planned decision that was never
+    submitted stops being pending once its own pre-open order cutoff has passed (the runner was down,
+    say): it can no longer become a position."""
     states = ",".join("?" for _ in OPEN_ORDER_STATES)
+    now = pd.Timestamp(now or datetime.now(timezone.utc))
+    now = now.tz_localize("UTC") if now.tzinfo is None else now.tz_convert("UTC")
     rows = db.fetchall(
-        "SELECT d.symbol FROM exploration_decisions d WHERE d.selection='SELECTED' AND d.mode=? "
-        "AND NOT EXISTS (SELECT 1 FROM trades t WHERE t.decision_id=d.decision_id) AND ("
-        " NOT EXISTS (SELECT 1 FROM exploration_events e WHERE e.decision_id=d.decision_id AND e.event IN "
-        "  ('SUBMITTED','CANCELLED_PREOPEN','REFUSED'))"
-        f" OR EXISTS (SELECT 1 FROM orders o WHERE o.decision_id=d.decision_id AND o.purpose='entry' AND o.status IN ({states})))",
-        (mode, *OPEN_ORDER_STATES))
-    return {r["symbol"] for r in rows}
+        "SELECT d.symbol, d.next_session, "
+        f"EXISTS (SELECT 1 FROM orders o WHERE o.decision_id=d.decision_id AND o.purpose='entry' AND o.status IN ({states})) AS working, "
+        "EXISTS (SELECT 1 FROM exploration_events e WHERE e.decision_id=d.decision_id AND e.event IN "
+        "('SUBMITTED','CANCELLED_PREOPEN','REFUSED')) AS terminal "
+        "FROM exploration_decisions d WHERE d.selection='SELECTED' AND d.mode=? "
+        "AND NOT EXISTS (SELECT 1 FROM trades t WHERE t.decision_id=d.decision_id)",
+        (*OPEN_ORDER_STATES, mode))
+    out: set[str] = set()
+    for r in rows:
+        if r["working"]:
+            out.add(r["symbol"])
+        elif not r["terminal"]:
+            ns = r["next_session"]
+            if ns is None or now < pd.Timestamp(f"{str(ns)[:10]} {cutoff_hhmm}", tz=ET).tz_convert("UTC"):
+                out.add(r["symbol"])
+    return out
 
 
 def _catalyst_direction(cat: dict[str, Any]) -> str:
@@ -246,7 +259,7 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
     pend = pending_entries(db)
     ox = {**ox, "exploration_open": ox["exploration_open"] + pend["n"],
           "exploration_notional": ox["exploration_notional"] + pend["notional"]}
-    pending = _pending_symbols(db, "EXPLORATION")
+    pending = _pending_symbols(db, "EXPLORATION", now=now, cutoff_hhmm=str(cfg.get("paper.runner.order_cutoff_et", "09:25")))
     ind_held = held_industries(db, book)          # open + working positions, by PIT industry group
     if equity is None:
         from quantlab.execution.ledger import Ledger

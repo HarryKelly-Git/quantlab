@@ -367,7 +367,11 @@ def test_expired_or_closed_decisions_free_their_symbol(tmp_path):
                              "order_type": "limit", "time_in_force": "day", "limit_price": 51.0, "created_at": utcnow_iso(),
                              "submitted_at": utcnow_iso(), "status": "new", "broker_order_id": None, "filled_qty": 0,
                              "filled_avg_price": None, "last_update_at": utcnow_iso()})
-    assert _pending_symbols(ctx.db, "EXPLORATION") == {"PLAN", "WORK", "FALL"}
+    assert _pending_symbols(ctx.db, "EXPLORATION", now=PRE_OPEN) == {"PLAN", "WORK", "FALL"}
+    # once the planned entry's own pre-open cutoff has passed unsubmitted (runner down), it frees the
+    # symbol; a working order still counts
+    late = pd.Timestamp(f"{NEXT} 10:00", tz="America/New_York")
+    assert _pending_symbols(ctx.db, "EXPLORATION", now=late) == {"WORK", "FALL"}
     ctx.close()
 
 

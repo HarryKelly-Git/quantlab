@@ -322,6 +322,8 @@ paper:
     order_poll_seconds: 60        # REST fallback to the trade_updates stream while orders are open
     broker_fresh_seconds: 300     # the broker must have answered within this window before any order
     broker_unverified_pause_seconds: 900
+    keep_awake: true                # Windows: the runner holds the PC awake while it runs
+    keep_display_on_in_critical_windows: true  # and the display on 08:15-10:00 ET and 19:00-20:35 ET
     stale_heartbeat_seconds: 120  # a RUNNING session without a heartbeat for this long is presumed dead
     data_retry_seconds: 900       # retry a session whose bars are not available yet
     max_job_attempts: 3

@@ -68,6 +68,30 @@ BOOK = Book.BOT.value
 BROKER_NAME = "alpaca_paper"
 
 
+_ES_CONTINUOUS, _ES_SYSTEM_REQUIRED, _ES_DISPLAY_REQUIRED = 0x80000000, 0x00000001, 0x00000002
+
+
+def keep_awake_flags(now: datetime, submit_after: time, open_until: time, process_after: time,
+                     process_minutes: int = 90, display: bool = True) -> int:
+    """SetThreadExecutionState flags the runner holds at ``now`` (Windows).
+
+    While the runner runs the system never idle-sleeps (ES_SYSTEM_REQUIRED). On weekdays, if
+    ``display``, the display is also held on (ES_DISPLAY_REQUIRED) through the two windows where a
+    missed tick costs a whole session: from 15 min before the pre-open submit until ``open_until``,
+    and from 5 min before the evening processing time for ``process_minutes``. On Modern Standby
+    laptops the screen timing out starts standby; a display request is what reliably holds it off."""
+    flags = _ES_CONTINUOUS | _ES_SYSTEM_REQUIRED
+    et = now.astimezone(ET)
+    if display and et.weekday() < 5:
+        m = et.hour * 60 + et.minute
+        a = submit_after.hour * 60 + submit_after.minute - 15
+        b = open_until.hour * 60 + open_until.minute
+        c = process_after.hour * 60 + process_after.minute - 5
+        if a <= m < b or c <= m < c + 5 + process_minutes:
+            flags |= _ES_DISPLAY_REQUIRED
+    return flags
+
+
 class RunnerRefused(RuntimeError):
     """The runner refused to start (preflight, another live runner, ledger binding, dirty account)."""
 
@@ -296,6 +320,11 @@ class PaperRunner:
         # One market-day fallback per decision then takes the position shortly after the open.
         self.open_fill_fallback = bool(g("open_fill_fallback", True))
         self.fallback_until = _parse_hhmm(g("open_fill_fallback_until_et", "15:45"))
+        # keep the PC awake while the runner runs (and the display on in the critical windows)
+        self.keep_awake = bool(g("keep_awake", True))
+        self.keep_display_on = bool(g("keep_display_on_in_critical_windows", True))
+        self.awake_submit_after = _parse_hhmm(str(self.cfg.get("exploration.submit_after_et", "08:30")))
+        self._awake_flags: int | None = None
         self.fallback_poll_seconds = float(g("open_fill_fallback_poll_seconds", 30))
         self._last_fallback_scan: datetime | None = None
         self.max_job_attempts = int(g("max_job_attempts", 3))
@@ -402,7 +431,33 @@ class PaperRunner:
         self.shutdown(reason)
         return reason
 
+    def _set_execution_state(self, flags: int) -> bool:
+        import ctypes
+        return bool(ctypes.windll.kernel32.SetThreadExecutionState(ctypes.c_uint(flags)))
+
+    def _keep_awake(self, now: datetime) -> None:
+        """Hold the system awake while running; hold the display on in the critical windows. Only
+        calls Windows when the required state changes; records each change as an event."""
+        if not self.keep_awake or os.name != "nt":
+            return
+        flags = keep_awake_flags(now, self.awake_submit_after, time(10, 0), self.process_after,
+                                 display=self.keep_display_on)
+        if flags == self._awake_flags:
+            return
+        ok = self._set_execution_state(flags)
+        self._awake_flags = flags
+        what = ("system awake + display on (pre-open/open or evening-processing window)"
+                if flags & _ES_DISPLAY_REQUIRED else "system awake; display may turn off")
+        self.event("INFO" if ok else "WARN", "power", f"keep-awake: {what}" + ("" if ok else ": SetThreadExecutionState FAILED"),
+                   {"flags": hex(flags)})
+
     def shutdown(self, reason: str, status: str = "STOPPED") -> None:
+        if self._awake_flags is not None and os.name == "nt":
+            try:
+                self._set_execution_state(_ES_CONTINUOUS)      # release: normal power policy again
+            except Exception:
+                pass
+            self._awake_flags = None
         if self.session_id is None:
             return
         self._hb_stop.set()
@@ -640,7 +695,8 @@ class PaperRunner:
             return "stop requested (quantlab paper stop)"
         for name, fn in (("calendar", self._refresh_calendar), ("account", self._poll_account),
                          ("orders", self._poll_orders), ("open_fill", self._maybe_fill_after_open),
-                         ("session", self._maybe_process), ("exploration", self._maybe_explore)):
+                         ("session", self._maybe_process), ("exploration", self._maybe_explore),
+                         ("keep_awake", self._keep_awake)):
             try:
                 fn(now)
             except LiveTradingForbidden:
