@@ -289,6 +289,47 @@ exploration:                      # PAPER_EXPLORATION controls (simulation hygie
   submit_after_et: "08:30"        # runner: revalidate + submit planned entries from this time until the order cutoff
   min_observations_to_propose: 30 # a hypothesis needs this many exploratory outcomes before a historical test
 
+options:                          # options layer (quantlab/options, docs/OPTIONS.md). PAPER research only.
+  enabled: true                   # evaluation: read indicative quotes, compare stock vs structures, record
+  paper_trading: false            # OPT paper orders (limit/day, defined risk). OFF until explicitly enabled
+  feed: indicative                # the only options feed this account can read (feed=opra -> HTTP 403)
+  underlying_feed: iex            # spot for `options evaluate` (latest IEX trade)
+  # liquidity filter: every failed rule is recorded per contract
+  max_spread_pct: 0.10            # (ask - bid) / mid
+  min_bid: 0.10                   # USD per share
+  max_quote_age_minutes: 30       # quote older than this vs the evaluation time -> rejected (after hours: all)
+  min_open_interest: 100          # applied only when OI is known (Alpaca OI is current-only, often null)
+  unknown_open_interest_fails: false
+  # expiry and strikes: fixed a priori, never optimised on data
+  expiry_buffer_sessions: 5       # first expiry >= horizon + buffer NYSE sessions away
+  max_expiry_sessions: 120
+  strike_grid:
+    deltas: [0.70, 0.50, 0.30]    # single legs nearest these |delta| (vendor greeks, else MODEL from mid)
+    delta_tolerance: 0.10
+    include_atm: true
+    include_expected_move: true   # strike nearest spot x (1 +/- ATM IV x sqrt(horizon/252))
+    spreads: true                 # one debit spread: long ATM / short +1 expected move
+  # model assumptions (all recorded with each evaluation)
+  risk_free_rate: 0.04
+  exit_iv_multiplier: 1.0         # exit before expiry repriced at entry IV x this (MODEL)
+  exit_at_executable_side: true   # exits charged the entry half-spread per leg
+  model_fee_per_contract: 0.0     # evaluation only; the OPT ledger records only what the broker reports
+  stock_round_trip_cost_bps: 10
+  min_expected_pnl_per_risk: 0.0  # below this for every expression -> NO_TRADE
+  min_option_advantage_per_risk: 0.10   # a structure must beat max(stock, floor) by this per $ at risk
+  distribution:
+    lookback_sessions: 756        # CLI default distribution: overlapping windows of the last ~3 years
+    default_stop_atr: 2.0         # CLI default stop = spot -/+ 2 x ATR(14) (as exploration.stop_atr)
+  paper:                          # OPT book (used only when paper_trading is true)
+    allocation: 2000              # premium budget of the OPT book (USD; not a transfer at the broker)
+    max_open_positions: 3
+    max_contracts_per_trade: 5
+    max_premium_per_trade: 500    # worst case = long leg(s) at their limit x qty x multiplier
+    max_premium_total: 1500       # all open structures together (<= allocation)
+    entry_mid_fraction: 0.0       # 0 = buy at the ask / sell at the bid; 1 = mid; never better than mid
+    exit_mid_fraction: 0.0
+    close_before_expiry_sessions: 2   # never hold into expiry (exercise would create a stock position)
+
 risk:
   max_drawdown_pause: 0.20        # bot book drawdown beyond this => SYSTEM_PAUSED
   max_daily_orders: 20
