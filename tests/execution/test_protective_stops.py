@@ -216,3 +216,17 @@ def test_maintain_replacement_budget_prevents_an_order_loop():
         db.execute("UPDATE trades SET stop_price=?", (stop,))
         protective_stops.maintain(svc, broker_positions=positions(), session_date="2024-05-02", max_replacements=1)
     assert len(stop_orders(broker)) == 2                  # the original + ONE replacement, not four
+
+
+def test_disaster_distance_places_the_wider_level():
+    cfg = load_config().with_overrides({"execution": {"protective_stop": {"distance": 1.75}}})
+    db, broker, ledger, svc, trade = open_trade(config=cfg)       # ref 100, plan stop 95
+    out = protective_stops.maintain(svc, broker_positions=positions(), session_date="2024-05-02")
+    [o] = stop_orders(broker)
+    assert len(out["placed"]) == 1 and o["stop_price"] == 91.25   # 100 - 1.75 x 5
+    # a plan without an entry reference gets NO disaster stop (the level is never guessed)
+    r = svc.submit_entry("BBB", 5, plan=TradePlan(stop_price=45.0, holding_sessions=10), session_date="2024-05-01")
+    broker.fill(r["client_order_id"], 5, 50.0, "2024-05-02T13:30:05Z")
+    svc.sync("2024-05-02")
+    bbb = next(t for t in ledger.open_trades() if t.symbol == "BBB")
+    assert protective_stops.desired_stop(svc, bbb) is None

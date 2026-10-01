@@ -161,6 +161,11 @@ def simulate_plan(
 
     scale = aclose[i0] / close_raw[i0]
     a_stop = plan.stop_price * scale if plan.stop_price else None
+    # the broker-held stop (intraday model) rests at costs.broker_stop_distance x the plan's stop
+    # distance below the entry reference; at distance 1.0 it IS the plan stop
+    ref_ok = plan.entry_ref_price is not None and np.isfinite(plan.entry_ref_price) and plan.entry_ref_price > 0
+    a_ref = plan.entry_ref_price * scale if ref_ok else aclose[i0]
+    a_broker = costs.broker_stop(a_ref, a_stop) if a_stop is not None else None
     a_target = plan.target_price * scale if plan.target_price else None
     sign = direction.sign
     adv = median_dollar_volume
@@ -181,9 +186,9 @@ def simulate_plan(
         Placed right after the opening entry fill, so on the entry session it rests only if the
         entry price is on the right side of the stop; from the next session on it always rests (a
         close through the stop would already have exited by the close rule)."""
-        if costs.stop_model != "intraday" or a_stop is None:
+        if costs.stop_model != "intraday" or a_broker is None:
             return False
-        return j > ie or (entry_a - a_stop) * sign > 0
+        return j > ie or (entry_a - a_broker) * sign > 0
     for j in range(ie, n):
         if not np.isfinite(aclose[j]):
             missing += 1
@@ -203,12 +208,12 @@ def simulate_plan(
             lo_ex = min(lo_ex, alow[j] / entry_a - 1)
         if stop_armed(j):
             px = None
-            if j > ie and np.isfinite(aopen[j]) and (aopen[j] - a_stop) * sign <= 0:
+            if j > ie and np.isfinite(aopen[j]) and (aopen[j] - a_broker) * sign <= 0:
                 px, at_open = aopen[j], True            # opened through the stop: filled at that open
             else:
                 extreme = alow[j] if sign > 0 else ahigh[j]
-                if np.isfinite(extreme) and (extreme - a_stop) * sign <= 0:
-                    px, at_open = a_stop, False         # touched intraday: filled at the stop
+                if np.isfinite(extreme) and (extreme - a_broker) * sign <= 0:
+                    px, at_open = a_broker, False       # touched intraday: filled at the stop
             if px is not None:
                 exit_i, exit_a, reason = j, px, ExitReason.STOP
                 exit_raw = px * close_raw[j] / aclose[j] if np.isfinite(close_raw[j]) and close_raw[j] > 0 else None

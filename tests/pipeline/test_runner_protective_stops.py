@@ -8,6 +8,7 @@ from datetime import timedelta
 
 import pandas as pd
 
+from quantlab.core.costs import CostModel
 from quantlab.core.types import TradePlan
 from quantlab.execution.ledger import Ledger
 from quantlab.execution.service import PaperExecutionService
@@ -23,7 +24,9 @@ def _stops(broker):
 
 
 def test_runner_places_polls_and_honours_the_protective_stop(setup):  # noqa: F811
-    ctx, bundle, sessions = setup
+    base, bundle, sessions = setup
+    ctx = type(base).create(base.config.with_overrides({"execution": {"stop_model": "intraday", "protective_stop": {
+        "enabled": True, "distance": 1.75}}}), init_logging=False)     # the feature is opt-in
     broker = FakeAlpacaBroker(sessions)
     d, prev = sessions[-10], sessions[-11]
     clock = Clock(at(d, 10, 0))
@@ -45,7 +48,8 @@ def test_runner_places_polls_and_honours_the_protective_stop(setup):  # noqa: F8
 
     [s] = _stops(broker)
     assert (s["side"], s["time_in_force"], float(s["qty"])) == ("sell", "gtc", 10.0)
-    assert s["stop_price"] == math.floor(stop * 100 + 1e-6) / 100
+    level = CostModel.from_config(ctx.config).broker_stop(px, stop)      # the configured (disaster) level
+    assert s["stop_price"] == math.floor(level * 100 + 1e-6) / 100
     msgs = [e["message"] for e in ctx.db.fetchall("SELECT message FROM paper_runner_events")]
     assert any("protective stop placed" in m for m in msgs)
 
@@ -60,7 +64,7 @@ def test_runner_places_polls_and_honours_the_protective_stop(setup):  # noqa: F8
     assert len(_stops(broker)) == 1 and order_poll_reconciles() == n0
 
     # the stop triggers intraday: the fill closes the trade as STOP and the books still reconcile
-    stream.push(broker.fill(s["client_order_id"], 10, round(stop - 0.05, 2), at(d, 14, 0).isoformat()))
+    stream.push(broker.fill(s["client_order_id"], 10, round(level - 0.05, 2), at(d, 14, 0).isoformat()))
     clock.t = at(d, 14, 1)
     r.tick()
     t = ctx.db.fetchone("SELECT * FROM trades")
@@ -74,8 +78,8 @@ def test_runner_places_polls_and_honours_the_protective_stop(setup):  # noqa: F8
 
 def test_runner_places_no_stop_when_disabled(setup):  # noqa: F811
     ctx, bundle, sessions = setup
-    ctx2 = type(ctx).create(ctx.config.with_overrides({"execution": {"protective_stop": {"enabled": False}}}),
-                            init_logging=False)
+    assert ctx.config.get("execution.protective_stop.enabled") is False     # the repo default is OFF
+    ctx2 = ctx
     broker = FakeAlpacaBroker(sessions)
     d, prev = sessions[-10], sessions[-11]
     clock = Clock(at(d, 10, 0))

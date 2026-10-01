@@ -29,10 +29,21 @@ class CostModel:
     # (a broker-held stop-market order: gap through -> the open, touch -> the stop price). Shared by
     # every caller of simulate_plan so backtests, shadow outcomes and the paper runner agree.
     stop_model: str = "close"
+    # Where the broker-held stop rests, as a multiple of the plan's stop distance below the entry
+    # reference (intraday model only): 1.0 = AT the plan stop; 1.75 = a wider DISASTER stop (3.5 ATR
+    # for a 2-ATR plan stop) while the plan stop itself stays close-based (exit next open).
+    broker_stop_distance: float = 1.0
 
     def __post_init__(self) -> None:
         if self.stop_model not in ("close", "intraday"):
             raise ValueError(f"stop_model must be 'close' or 'intraday', got {self.stop_model!r}")
+        if not (np.isfinite(self.broker_stop_distance) and self.broker_stop_distance >= 1.0):
+            raise ValueError(f"broker_stop_distance must be >= 1.0, got {self.broker_stop_distance!r}")
+
+    def broker_stop(self, ref: float, stop: float) -> float:
+        """The broker-held stop level for a plan with entry reference ``ref`` and stop ``stop`` (same
+        price space; below ref for a long, above for a short). Distance 1.0 returns ``stop`` itself."""
+        return ref - self.broker_stop_distance * (ref - stop)
 
     @classmethod
     def from_config(cls, config: Config) -> "CostModel":
@@ -43,7 +54,8 @@ class CostModel:
                    int(config.get("execution.delisting_missing_sessions", 5)),
                    float(config.get("validation.data.suspicious_open.threshold", 0.25)),
                    float(config.get("validation.data.suspicious_open.min_reversion", 0.5)),
-                   str(config.get("execution.stop_model", "close")))
+                   str(config.get("execution.stop_model", "close")),
+                   float(config.get("execution.protective_stop.distance", 1.0)))
 
     def half_spread_bps(self, median_dollar_volume: float | None) -> float:
         """Unknown liquidity is charged the WORST tier (conservative)."""

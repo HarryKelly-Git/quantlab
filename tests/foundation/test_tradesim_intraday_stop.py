@@ -62,3 +62,37 @@ def test_stop_model_is_validated():
     with pytest.raises(ValueError, match="stop_model"):
         replace(ZERO_COST, stop_model="sometimes")
     assert CostModel(((0.0, 0.0),), 0.0).stop_model == "close"       # direct constructions keep the old rule
+
+
+# -- disaster stop: the broker stop rests WIDER than the plan stop (execution.protective_stop.distance)
+DISASTER = replace(ZERO_COST, stop_model="intraday", broker_stop_distance=1.75)
+
+
+def test_broker_stop_level():
+    assert DISASTER.broker_stop(100.0, 95.0) == pytest.approx(91.25)      # 1.75 x the 5.00 distance
+    assert INTRADAY.broker_stop(100.0, 95.0) == pytest.approx(95.0)       # distance 1.0 = the plan stop
+    assert DISASTER.broker_stop(50.0, 55.0) == pytest.approx(58.75)       # shorts: above
+    with pytest.raises(ValueError, match="broker_stop_distance"):
+        replace(ZERO_COST, broker_stop_distance=0.5)
+
+
+def _run_ref(closes, opens, stop, costs, hold=10):
+    bars, cal = _bars({"AAA": closes, "SPY": [100.0] * len(closes)},
+                      opens={"AAA": opens, "SPY": [100.0] * len(closes)})
+    p = build_panel(bars, calendar=cal)
+    plan = TradePlan(entry_ref_price=closes[0], stop_price=stop, holding_sessions=hold)
+    return simulate_plan(p, "AAA", cal.sessions[0], plan, costs), cal
+
+
+def test_disaster_stop_ignores_a_dip_to_the_plan_stop_but_catches_a_crash():
+    # ref 10, plan stop 9.2 (distance 0.8) -> disaster level 8.6
+    closes, opens = [10, 10, 9.6, 9.0, 8.8, 8.8], [10, 10, 9.7, 9.4, 8.9, 8.8]     # low 8.91 > 8.6
+    out, cal = _run_ref(closes, opens, 9.2, DISASTER)
+    assert out.exit_reason == "STOP" and out.exit_date == cal.sessions[4]          # the CLOSE rule: next open
+    assert out.gross_ret == pytest.approx(8.9 / 10 - 1)
+    closes, opens = [10, 10, 9.6, 8.0, 8.0, 8.0], [10, 10, 9.7, 9.0, 8.0, 8.0]     # low 7.92 <= 8.6
+    out, cal = _run_ref(closes, opens, 9.2, DISASTER)
+    assert out.exit_date == cal.sessions[3] and out.exit_price_raw == pytest.approx(8.6)   # same session
+    closes, opens = [10, 10, 9.6, 8.0, 8.0], [10, 10, 9.7, 8.2, 8.0]               # opens below 8.6
+    out, cal = _run_ref(closes, opens, 9.2, DISASTER)
+    assert out.exit_date == cal.sessions[3] and out.gross_ret == pytest.approx(8.2 / 10 - 1)

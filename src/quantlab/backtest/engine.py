@@ -446,7 +446,7 @@ class BacktestEngine:
             lot.lo_ex = min(lot.lo_ex, l / lot.entry_a - 1)
         c = A["aclose"][i, lot.col]
         m = lot.meta
-        a_stop = m["a_stop"]
+        a_stop = m.get("a_broker")                       # the broker-held level (= plan stop at distance 1)
         if (self.costs.stop_model == "intraday" and a_stop is not None
                 and (i > lot.entry_idx or (lot.entry_a - a_stop) * lot.sign > 0)):
             ao = A["aopen"][i, lot.col]
@@ -613,12 +613,13 @@ class BacktestEngine:
                 continue
             avail -= q * ref * (1 + one_way)
             scale = acl / cl
+            a_broker = self.costs.broker_stop(ref * scale, stop * scale) if stop is not None else None
             out.append(_PendingEntry(
                 sid, sym, c, i, q, sign, float(ref), one_way,
                 stop * scale if stop is not None else None, target * scale if target is not None else None,
                 int(pl.holding_sessions),
                 {"strategy_id": sid, "strategy_version": str(getattr(st, "version", "")), "score": sc,
-                 "score_pct": -neg_p, "stop_price": stop, "target_price": target}))
+                 "score_pct": -neg_p, "stop_price": stop, "target_price": target, "a_broker": a_broker}))
         return out
 
 

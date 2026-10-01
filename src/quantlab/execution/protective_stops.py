@@ -6,8 +6,11 @@ while QuantLab was not running. A stop resting at the broker triggers intraday o
 
 Rules (``maintain`` is called by the paper runner every ``execution.protective_stop.poll_seconds``):
   * One stop per OPEN long trade with a stop price, for the whole LEDGER position (whole shares).
-  * Price = the trade's RAW stop divided by every split applied to the position since entry
-    (``ledger_corporate_actions``), rounded down to the cent. Dividends are not adjusted: a raw stop
+  * Price = ``CostModel.broker_stop(ref, stop)``: ``execution.protective_stop.distance`` x the plan's
+    stop distance below its entry reference (1.0 = AT the plan stop; 1.75 = a wider DISASTER stop,
+    while the plan stop stays close-based in the exit engine), in RAW prices of the signal session,
+    divided by every split applied to the position since entry (``ledger_corporate_actions``),
+    rounded down to the cent. tradesim and the backtester use the same level. Dividends are not adjusted: a raw stop
     is at most one dividend tighter than the exit engine's total-return stop on an ex-date.
   * Never placed while a non-stop exit order is working (those shares are already being sold), while
     an entry order for the symbol is still working (Alpaca's wash-trade protection checks a new sell
@@ -48,6 +51,14 @@ def desired_stop(svc: PaperExecutionService, trade: OpenTrade) -> float | None:
     raw = float(trade.stop_price)
     if not (math.isfinite(raw) and raw > 0):
         return None
+    if svc.costs.broker_stop_distance != 1.0:
+        ref = svc.db.fetchone("SELECT entry_ref_price FROM trade_plans WHERE trade_id=?", (trade.trade_id,))
+        ref = ref["entry_ref_price"] if ref else None
+        if ref is None or not (math.isfinite(float(ref)) and float(ref) > raw):
+            return None          # no usable reference: a disaster level cannot be derived (never guessed)
+        raw = svc.costs.broker_stop(float(ref), raw)
+        if raw <= 0:
+            return None
     return raw / split_factor(svc, trade)
 
 

@@ -26,6 +26,7 @@ from typing import Any, Callable
 
 from quantlab.config import Config
 from quantlab.core.calendar import to_session, to_utc
+from quantlab.core.costs import CostModel
 from quantlab.core.types import OrderStatus, Side, SystemState, TradePlan, new_id
 from quantlab.data.panel import Panel
 from quantlab.db.database import Database, from_json, to_json, utcnow_iso
@@ -112,6 +113,8 @@ class PaperExecutionService:
         self.max_order_notional = float(cfg("risk.max_order_notional", 15000.0))
         # how long an exit waits for the broker to CONFIRM the protective stop's cancellation
         self.stop_cancel_wait_seconds = float(cfg("execution.protective_stop.cancel_wait_seconds", 15.0))
+        # where the broker-held stop rests (CostModel.broker_stop), shared with tradesim/backtester
+        self.costs = (CostModel.from_config(config) if config is not None else CostModel(((0.0, 0.0),), 0.0))
         self._sleep: Callable[[float], None] = _time.sleep
         # (purpose, symbol) -> refusal reason or None. Set by the paper runner; None = no extra gate.
         self.submission_guard: Callable[[str, str], str | None] | None = None

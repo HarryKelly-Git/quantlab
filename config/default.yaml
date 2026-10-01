@@ -111,9 +111,18 @@ execution:
   #               back to the close rule).
   #   close    -- the old rule: stop checked on the close, exit at the next open.
   # Changing this moves every historical stop fill: compare before/after, never switch silently.
-  stop_model: intraday
+  # It must agree with protective_stop.enabled: intraday <=> broker stops on.
+  stop_model: close
   protective_stop:                # broker-held stops (execution/protective_stops.py), paper runner only
-    enabled: true
+    # OFF: the pre-registered disaster-stop test (research/2026-10-01-new-data-tests, Addendum C)
+    # was NO-GO. Turning it on is a decision for Harry: set enabled: true AND stop_model: intraday.
+    enabled: false
+    # Where the broker stop rests: this multiple of the plan's stop distance below the entry
+    # reference. 1.75 = a DISASTER stop (3.5 ATR for exploration's 2-ATR stop) for crashes and runner
+    # outages, while the plan stop itself stays close-based (exit next open) in the exit engine.
+    # 1.0 = the broker stop AT the plan stop (re-baseline: ~10 bps/trade worse on the momentum cohort).
+    # Fixed before its re-baseline, not tuned (research/2026-10-01-new-data-tests/PREREGISTRATION.md, C).
+    distance: 1.75
     poll_seconds: 30              # how often the runner checks/places stops and polls resting ones
     cancel_wait_seconds: 15       # an exit waits this long for a CONFIRMED stop cancel, else it is not sent
     max_replacements_per_session: 3

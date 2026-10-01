@@ -19,10 +19,10 @@ CASES = {
 }
 
 
-@pytest.mark.parametrize("model", ["intraday", "close"])
+@pytest.mark.parametrize("model,distance", [("intraday", 1.0), ("intraday", 1.75), ("close", 1.0)])
 @pytest.mark.parametrize("case", sorted(CASES))
-def test_backtester_matches_simulate_plan(case, model, bt_config):  # noqa: F811
-    cfg = bt_config.with_overrides({"execution": {"stop_model": model}})
+def test_backtester_matches_simulate_plan(case, model, distance, bt_config):  # noqa: F811
+    cfg = bt_config.with_overrides({"execution": {"stop_model": model, "protective_stop": {"distance": distance}}})
     closes, opens, stop = CASES[case]
     b = _bundle({"AAA": closes, "SPY": [100.0] * len(closes)}, opens={"AAA": opens, "SPY": [100.0] * len(closes)})
     strat = FixedPlan(TradePlan(stop_price=stop, holding_sessions=5))
@@ -31,7 +31,7 @@ def test_backtester_matches_simulate_plan(case, model, bt_config):  # noqa: F811
     assert len(res.trades) == 1
     t = res.trades.iloc[0]
     costs = CostModel.from_config(cfg)
-    assert costs.stop_model == model
+    assert costs.stop_model == model and costs.broker_stop_distance == distance
     ref_plan = strat.plan(type("FS", (), {"panel": b.panel})(), "AAA", b.panel.dates[0])
     out = simulate_plan(b.panel, "AAA", b.panel.dates[0], ref_plan, costs, force_close_at_end=True)
     # the entry-day dip never CLOSES below the stop: only the intraday model sees it

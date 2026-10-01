@@ -84,6 +84,9 @@ def _assert_one_stop_per_open_trade(ctx, broker):
     open_trades = {t["symbol"]: t for t in ctx.db.fetchall("SELECT symbol, stop_price FROM trades WHERE status='OPEN'")}
     live = [broker.orders[c]["symbol"] for c in _orders(broker, stops=True)
             if broker.orders[c]["status"] not in ("canceled", "filled", "expired", "rejected")]
+    if not ctx.config.get("execution.protective_stop.enabled", False):
+        assert _orders(broker, stops=True) == [], "protective stops are OFF but one was sent"
+        return
     assert len(live) == len(set(live)), f"duplicate protective stops: {live}"
     assert set(live) <= set(open_trades), f"stop working for a trade that is not open: {live}"
     for sym, t in open_trades.items():
