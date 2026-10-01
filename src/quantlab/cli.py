@@ -500,6 +500,27 @@ def cmd_next_session(args) -> int:
     return 0
 
 
+def cmd_options(args) -> int:
+    """Options layer (PAPER research): evaluate | status | mark. Quotes are INDICATIVE (not OPRA);
+    `--paper` submits an OPT paper order only if options.paper_trading is true (default false)."""
+    ctx = _ctx(args)
+    from quantlab.options import service
+    if args.action == "evaluate":
+        if not args.symbol or not args.horizon:
+            print("options evaluate needs --symbol and --horizon", file=sys.stderr)
+            return 2
+        res = service.evaluate(ctx, args.symbol, args.horizon, args.direction, stop=args.stop, spot=args.spot,
+                               returns_file=args.returns_file, paper=args.paper, qty=args.qty,
+                               max_quote_age_minutes=args.max_quote_age_minutes)
+        _print(res)
+        return 0 if res.get("ok") else 2
+    if args.action == "mark":
+        _print(service.mark(ctx, as_of=args.as_of))
+        return 0
+    _print(service.status(ctx))
+    return 0
+
+
 def cmd_demo(args) -> int:
     """Offline end-to-end run on SYNTHETIC data (planted momentum edge by default)."""
     ctx = _ctx(args)
@@ -660,6 +681,18 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--to", help="next stage"), s.add_argument("--actor", help="human:<name>")
     s.add_argument("--evidence", default=""), s.add_argument("--n-observations", type=int)
     s.set_defaults(fn=cmd_hypothesis)
+
+    s = sub.add_parser("options", help="options layer (PAPER research, indicative quotes): evaluate | status | mark")
+    s.add_argument("action", choices=["evaluate", "status", "mark"])
+    s.add_argument("--symbol"), s.add_argument("--horizon", type=int, help="thesis horizon in sessions")
+    s.add_argument("--direction", choices=["LONG", "SHORT"], default="LONG")
+    s.add_argument("--stop", type=float, help="stock stop price (default: spot -/+ options.distribution.default_stop_atr x ATR14)")
+    s.add_argument("--spot", type=float, help="underlying price (default: latest IEX trade)")
+    s.add_argument("--returns-file", help="JSON move distribution (default: empirical, unconditional)")
+    s.add_argument("--max-quote-age-minutes", type=float, help="override options.max_quote_age_minutes (recorded)")
+    s.add_argument("--paper", action="store_true", help="submit the chosen structure to the OPT paper book (gated)")
+    s.add_argument("--qty", type=int, default=1), s.add_argument("--as-of", help="mark up to this session")
+    s.set_defaults(fn=cmd_options)
 
     s = sub.add_parser("dashboard", help="serve the read-only dashboard on localhost")
     s.add_argument("--port", type=int), s.add_argument("--allow-remote", action="store_true")
