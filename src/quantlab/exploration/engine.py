@@ -39,6 +39,7 @@ import numpy as np
 import pandas as pd
 
 from quantlab.core.costs import CostModel
+from quantlab.exploration.upside import upside_profile
 from quantlab.core.types import TradePlan, new_id
 from quantlab.db.database import from_json, to_json, utcnow_iso
 from quantlab.logging_setup import get_logger, log_event
@@ -375,6 +376,8 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
             "confirmation": setup.get("confirm", []),
             "invalidation": setup.get("invalidate", []) + ([f"stop {stop:,.2f} = close - {pol.stop_atr:g} x ATR"] if stop else []),
             "expected_holding_sessions": hold,
+            # base rates for this volatility profile at this hold: move SIZE, not direction (exploration.upside)
+            "upside": upside_profile(facts.get("atr14_pct"), facts.get("range_contraction_20_60"), hold),
             "expected": "an experiment: no edge is assumed. Measured at 1/3/5/10/20 sessions vs SPY, vs watched-but-"
                         "not-traded and vs rejected candidates",
             "unknowns": setup.get("missing", []),
@@ -641,3 +644,64 @@ def _et_time(text: str) -> time:
 __all__ = ["ExplorationOutcomeTracker", "ExplorationPolicy", "MODES", "NOT_REQUIRED", "OPTIONAL_INPUTS",
            "REQUIRED_AT_PLAN", "REQUIRED_AT_SUBMIT", "STRATEGY_ID", "experiment_results", "open_exposure", "paper_mode",
            "pending_entries", "plan_exploration", "preopen_submit"]
+
+
+def _r(x: Any, nd: int = 4) -> float | None:
+    v = _f(x)
+    return None if v is None else round(v, nd)
+
+
+def learning_report(db, *, synthetic: bool = False, big_move: float = 0.10, limit: int = 25) -> dict[str, Any]:
+    """Score every exploratory decision -- traded, watched AND skipped -- at the end of ITS OWN hold.
+
+    * by selection x hold arm: net, vs SPY, how often +5/+8/+10% was touched, stop rate, MFE/MAE;
+    * missed big winners: candidates NOT traded that touched +``big_move`` (with why they were passed over);
+    * failed picks: traded candidates whose stop was breached;
+    * calibration: the upside profile recorded at the decision vs what actually happened.
+    A decision appears only once its hold has fully elapsed (no partial windows)."""
+    rows = db.fetchall(
+        "SELECT d.symbol, d.session_date, d.selection, d.holding_sessions AS hold, d.setup_type, d.reason, "
+        "d.pre_trade_json, o.net_ret, o.spy_ret, o.mfe, o.mae, o.stop_breached FROM exploration_decisions d "
+        "JOIN exploration_outcomes o ON o.decision_id = d.decision_id AND o.horizon_sessions = d.holding_sessions "
+        "WHERE d.is_synthetic = ? ORDER BY d.session_date", (int(bool(synthetic)),))
+    if not rows:
+        return {"matured": 0, "note": "no decision has reached the end of its holding period yet"}
+    df = pd.DataFrame([dict(r) for r in rows])
+    pre = df["pre_trade_json"].map(lambda s: from_json(s, {}) or {})
+    df["selection_score"] = pre.map(lambda p: _f((p.get("candidate") or {}).get("selection_score")))
+    ups = pre.map(lambda p: p.get("upside") or {})
+    for t in (5, 10):
+        df[f"pred_touch_{t}"] = ups.map(lambda u, t=t: _f(u.get(f"p_touch_{t}")) if u.get("state") == "KNOWN" else None)
+    for c in ("net_ret", "spy_ret", "mfe", "mae"):
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df["stopped"] = pd.to_numeric(df["stop_breached"], errors="coerce").fillna(0) >= 1
+    groups = []
+    for (sel, hold), g in df.groupby(["selection", "hold"]):
+        groups.append({"selection": sel, "hold": int(hold), "n": int(len(g)), "mean_net": _r(g["net_ret"].mean()),
+                       "median_net": _r(g["net_ret"].median()), "mean_vs_spy": _r((g["net_ret"] - g["spy_ret"]).mean()),
+                       "p_up_5": _r((g["mfe"] >= 0.05).mean()), "p_up_8": _r((g["mfe"] >= 0.08).mean()),
+                       "p_up_10": _r((g["mfe"] >= 0.10).mean()), "stop_rate": _r(g["stopped"].mean()),
+                       "mean_mfe": _r(g["mfe"].mean()), "mean_mae": _r(g["mae"].mean())})
+
+    def recs(x: pd.DataFrame) -> list[dict[str, Any]]:
+        return [{"symbol": r["symbol"], "session": r["session_date"], "selection": r["selection"], "hold": int(r["hold"]),
+                 "mfe": _r(r["mfe"]), "mae": _r(r["mae"]), "net": _r(r["net_ret"]),
+                 "selection_score": _r(r["selection_score"], 3), "setup_type": r["setup_type"],
+                 "why": str(r["reason"] or "")[:160]} for _, r in x.iterrows()]
+    missed = df[(df["selection"] != "SELECTED") & (df["mfe"] >= big_move)].sort_values("mfe", ascending=False)
+    failed = df[(df["selection"] == "SELECTED") & df["stopped"]].sort_values("net_ret")
+    calib = []
+    for col, thr in (("pred_touch_5", 0.05), ("pred_touch_10", 0.10)):
+        d = df.dropna(subset=[col, "mfe"])
+        if d.empty:
+            continue
+        d = d.assign(b=pd.cut(d[col], [0, 0.2, 0.4, 0.6, 0.8, 1.0], include_lowest=True))
+        for b, g in d.groupby("b", observed=True):
+            calib.append({"target": f"+{int(thr * 100)}%", "predicted_bucket": str(b), "n": int(len(g)),
+                          "mean_predicted": _r(g[col].mean()), "realized": _r((g["mfe"] >= thr).mean())})
+    return {"matured": int(len(df)), "by_selection_and_hold": groups,
+            "n_missed_big_winners": int(len(missed)), "missed_big_winners": recs(missed.head(limit)),
+            "n_failed_picks": int(len(failed)), "failed_picks": recs(failed.head(limit)), "calibration": calib,
+            "notes": [f"missed big winner = not traded, touched +{big_move:.0%} within its own hold",
+                      "the upside profile forecasts move SIZE from volatility; calibration checks those base rates, "
+                      "it is not a directional signal (docs/UPSIDE-EVIDENCE.md)"]}

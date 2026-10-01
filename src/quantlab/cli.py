@@ -435,6 +435,10 @@ def cmd_explore(args) -> int:
     if args.action == "results":
         _print(experiment_results(ctx.db, horizon=args.horizon))
         return 0
+    if args.action == "learn":
+        from quantlab.exploration.engine import learning_report
+        _print(learning_report(ctx.db))
+        return 0
     rows = ctx.db.fetchall("SELECT session_date, mode, selection, COUNT(*) AS n FROM exploration_decisions "
                            "GROUP BY session_date, mode, selection ORDER BY session_date DESC LIMIT 40")
     _print({"paper_mode": paper_mode(ctx.config), "decisions": [dict(r) for r in rows]})
@@ -645,8 +649,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
     s.set_defaults(fn=cmd_catalyst_research)
 
-    s = sub.add_parser("explore", help="PAPER_EXPLORATION: plan | status | results (never submits orders)")
-    s.add_argument("action", choices=["plan", "status", "results"])
+    s = sub.add_parser("explore", help="PAPER_EXPLORATION: plan | status | results | learn (never submits orders)")
+    s.add_argument("action", choices=["plan", "status", "results", "learn"])
     s.add_argument("--session", help="decision session (default: latest discovery run)")
     s.add_argument("--mode", choices=["STRICT", "EXPLORATION"], help="override paper.mode for this plan (dry runs)")
     s.add_argument("--now", help="decision time (ISO UTC); default wall clock")
