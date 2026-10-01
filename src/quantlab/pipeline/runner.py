@@ -57,6 +57,7 @@ from quantlab.execution.reconcile import Reconciler
 from quantlab.execution.service import PaperExecutionService
 from quantlab.logging_setup import get_logger, log_event
 from quantlab.monitoring.killswitch import KillSwitch
+from quantlab.options.book import OPT_ORDER_PREFIX, cotenant_cash_offset   # OPT book shares the paper account
 
 log = get_logger(__name__)
 
@@ -544,7 +545,7 @@ class PaperRunner:
         local = self.db.fetchone("SELECT order_id FROM orders WHERE client_order_id=? AND book=?", (cid, BOOK))
         self.record_update("stream", data.get("event", "?"), bo, local["order_id"] if local else None, data)
         if local is None:
-            if cid.startswith(TEST_ORDER_PREFIX):
+            if cid.startswith((TEST_ORDER_PREFIX, OPT_ORDER_PREFIX)):
                 return
             self.pause(f"state reconciliation failed: broker order {cid or bo.broker_order_id} ({bo.symbol}) is not in "
                        "the QuantLab ledger", "reconciliation", {"client_order_id": cid, "event": data.get("event")})
@@ -605,14 +606,16 @@ class PaperRunner:
             known = {r["client_order_id"] for r in self.db.fetchall(
                 "SELECT client_order_id FROM orders WHERE book=?", (BOOK,))}
             orphans = [o.client_order_id for o in self.broker.list_orders("open")
-                       if o.client_order_id not in known and not o.client_order_id.startswith(TEST_ORDER_PREFIX)]
+                       if o.client_order_id not in known
+                       and not o.client_order_id.startswith((TEST_ORDER_PREFIX, OPT_ORDER_PREFIX))]
             if orphans:
                 problems.append(f"broker has {len(orphans)} open order(s) unknown to QuantLab: {orphans[:5]}")
             stuck = self.db.fetchall("SELECT order_id FROM orders WHERE book=? AND status=?",
                                      (BOOK, OrderStatus.UNKNOWN.value))
             if stuck:
                 problems.append(f"{len(stuck)} local order(s) still UNKNOWN")
-            rec = Reconciler(self.ledger, self.broker).reconcile(run_id=None)
+            rec = Reconciler(self.ledger, self.broker,
+                             cash_offset=lambda: cotenant_cash_offset(self.db, self.broker)).reconcile(run_id=None)
             if rec.status == "broker_unavailable":
                 problems.append("broker unavailable for reconciliation")
             elif not rec.ok:
