@@ -350,7 +350,7 @@ logging:
 dashboard:
   host: 127.0.0.1
   port: 8765
-  live_refresh_seconds: 15        # /live re-renders itself server-side at this interval
+  live_refresh_seconds: 5         # /live re-fetches itself in place at this interval (no page reload)
 
 # Market discovery (quantlab/discovery). Research only: it ranks and explains setups; it can never
 # permit, size or place a paper order. Thresholds and weights are FIXED (not fitted to results).

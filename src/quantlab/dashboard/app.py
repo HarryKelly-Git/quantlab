@@ -85,6 +85,97 @@ class _BenchCache:
         return self.series
 
 
+_ARM_TARGET = {5: 5, 10: 8, 20: 10}       # the clean-win target studied for each hold arm
+
+
+def _fnum(x: Any) -> float | None:
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if v == v and v not in (float("inf"), float("-inf")) else None
+
+
+def _exploration_live(ctx: AppContext, now: datetime, bpos: dict[str, Any], real: bool) -> dict[str, Any]:
+    """What the exploration book is doing right now: open positions with their hold arm, stop and
+    big-move forecast; the latest plan through its lifecycle; the hold-arm experiment; the learning
+    report. Read-only."""
+    from quantlab.exploration import paper_mode
+    from quantlab.exploration.engine import learning_report
+    db = ctx.db
+    today = pd.Timestamp(now).tz_convert("America/New_York").date()
+
+    def pre_of(did: str | None) -> tuple[str | None, dict[str, Any]]:
+        r = db.fetchone("SELECT setup_type, pre_trade_json FROM exploration_decisions WHERE decision_id=?", (did,)) \
+            if did else None
+        return (r["setup_type"], from_json(r["pre_trade_json"], {}) or {}) if r else (None, {})
+
+    def forecast(pre: dict[str, Any], hold: Any) -> dict[str, Any] | None:
+        up = pre.get("upside") or {}
+        t = _ARM_TARGET.get(int(hold or 0))
+        if up.get("state") != "KNOWN" or t is None:
+            return None
+        return {"target_pct": t, "p_hit": _fnum(up.get(f"p_clean_{t}")), "p_stop": _fnum(up.get("p_stop")),
+                "median_days": _fnum(up.get(f"median_days_to_{t}"))}
+
+    positions, gross = [], 0.0
+    for t in db.fetchall("SELECT t.trade_id, t.symbol, t.qty, t.entry_date, t.entry_price, t.stop_price, t.decision_id, "
+                         "t.strategy_id, t.planned_exit_date, tp.holding_sessions AS hold FROM trades t LEFT JOIN trade_plans tp "
+                         "ON tp.trade_id = t.trade_id WHERE t.book='BOT' AND t.status='OPEN' ORDER BY t.entry_date, t.symbol"):
+        b = bpos.get(t["symbol"]) or {}
+        px, entry, stop = _fnum(b.get("current_price")), _fnum(t["entry_price"]), _fnum(t["stop_price"])
+        qty = _fnum(t["qty"]) or 0.0
+        setup, pre = pre_of(t["decision_id"])
+        held = max(len(pd.bdate_range(str(t["entry_date"])[:10], str(today))) - 1, 0) if t["entry_date"] else None
+        hold = int(t["hold"]) if t["hold"] else None
+        gross += qty * (px or entry or 0.0)
+        positions.append({
+            "trade_id": t["trade_id"], "symbol": t["symbol"], "qty": qty, "entry_date": t["entry_date"], "entry_price": entry,
+            "current_price": px, "unrealized_pl": _fnum(b.get("unrealized_pl")),
+            "unrealized_pct": (px / entry - 1) if px and entry else None, "stop_price": stop,
+            "room_to_stop_pct": (px / stop - 1) if px and stop else None, "hold": hold, "sessions_held": held,
+            "planned_exit": t["planned_exit_date"], "strategy": t["strategy_id"], "setup": setup,
+            "selection_score": _fnum((pre.get("candidate") or {}).get("selection_score")), "forecast": forecast(pre, hold)})
+
+    srow = db.fetchone("SELECT MAX(session_date) AS s FROM exploration_decisions WHERE is_synthetic=?", (0 if real else 1,))
+    session = srow["s"] if srow else None
+    plan, watched, n_skipped = [], [], 0
+    if session:
+        for d in db.fetchall("SELECT decision_id, symbol, selection, holding_sessions AS hold, qty, ref_price, stop_price, "
+                             "setup_type, next_session, pre_trade_json FROM exploration_decisions WHERE session_date=? "
+                             "AND selection IN ('SELECTED','WATCHED_NOT_TRADED') ORDER BY rank", (session,)):
+            pre = from_json(d["pre_trade_json"], {}) or {}
+            ev = db.fetchone("SELECT event, at FROM exploration_events WHERE decision_id=? ORDER BY rowid DESC LIMIT 1",
+                             (d["decision_id"],))
+            order = db.fetchone("SELECT status, order_type, time_in_force, filled_qty, filled_avg_price FROM orders "
+                                "WHERE decision_id=? AND purpose='entry' ORDER BY created_at DESC LIMIT 1", (d["decision_id"],))
+            trade = db.fetchone("SELECT status, entry_price FROM trades WHERE decision_id=?", (d["decision_id"],))
+            if trade:
+                stage = f"FILLED @ {trade['entry_price']:.2f} ({trade['status']})" if trade["entry_price"] else trade["status"]
+            elif order:
+                stage = f"ORDER {order['status']} ({order['order_type']}/{order['time_in_force']})"
+            else:
+                stage = (ev["event"] if ev else "PLANNED") if d["selection"] == "SELECTED" else "watched (not traded)"
+            row = {"symbol": d["symbol"], "selection": d["selection"], "stage": stage, "hold": d["hold"], "qty": d["qty"],
+                   "ref_price": d["ref_price"], "stop_price": d["stop_price"], "setup": d["setup_type"],
+                   "next_session": d["next_session"],
+                   "selection_score": _fnum((pre.get("candidate") or {}).get("selection_score")),
+                   "forecast": forecast(pre, d["hold"])}
+            (plan if d["selection"] == "SELECTED" else watched).append(row)
+        n_skipped = (db.fetchone("SELECT COUNT(*) AS n FROM exploration_decisions WHERE session_date=? AND selection='SKIPPED'",
+                                 (session,)) or {"n": 0})["n"]
+    arms = db.fetchall("SELECT tp.holding_sessions AS hold, t.status, COUNT(*) AS n, AVG(t.ret) AS avg_ret, "
+                       "SUM(CASE WHEN t.net_pnl > 0 THEN 1 ELSE 0 END) AS wins FROM trades t JOIN trade_plans tp "
+                       "ON tp.trade_id = t.trade_id WHERE t.book='BOT' AND t.strategy_id='EXPLORATION' GROUP BY 1, 2 ORDER BY 1, 2")
+    lr = learning_report(db, synthetic=not real)
+    learning = {"matured": lr.get("matured", 0), "n_missed": lr.get("n_missed_big_winners", 0),
+                "n_failed": lr.get("n_failed_picks", 0), "missed": (lr.get("missed_big_winners") or [])[:6],
+                "failed": (lr.get("failed_picks") or [])[:6], "by_hold": lr.get("by_selection_and_hold") or [],
+                "note": lr.get("note")}
+    return {"mode": paper_mode(ctx.config), "positions": positions, "gross": gross, "plan_session": session,
+            "plan": plan, "watched": watched, "skipped": n_skipped, "arms": arms, "learning": learning}
+
+
 def live_state(ctx: AppContext, bench: "_BenchCache | None" = None, now: datetime | None = None) -> dict[str, Any]:
     """Everything the live page shows. Read-only."""
     from quantlab.data.audit import expected_sessions
@@ -212,7 +303,14 @@ def live_state(ctx: AppContext, bench: "_BenchCache | None" = None, now: datetim
         audit["trace_candidate"] = {k: signals[0][k] for k in ("candidate_id", "symbol", "strategy_id", "decision", "reject_stage")}
         audit["trace"] = db.fetchall("SELECT check_name, passed, severity, substr(reason,1,200) AS reason FROM risk_checks "
                                      "WHERE candidate_id=? ORDER BY id", (signals[0]["candidate_id"],))
-    return {"generated_at": now.isoformat(), "system": system, "signals": signals, "signal_run": run,
+    # EXPLORATION: what the bot is actually trading ---------------------------------------------
+    try:
+        exploration = _exploration_live(ctx, now, bpos, real)
+    except Exception as exc:              # the page must still render if this section fails
+        exploration = {"error": f"{type(exc).__name__}: {exc}", "mode": None, "positions": [], "plan": [],
+                       "watched": [], "arms": [], "learning": {}}
+    return {"generated_at": now.isoformat(), "exploration": exploration, "system": system, "signals": signals,
+            "signal_run": run,
             "stage_counts": stage_counts, "orders": orders, "order_updates": updates, "refusals": refusals,
             "portfolio": portfolio, "performance": perf, "audit": audit}
 

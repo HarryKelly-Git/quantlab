@@ -17,4 +17,4 @@ build/
 dist/
 
 # agent worktrees created by Claude Code (transient)
-.claude/worktrees/
+.claude/

@@ -1,36 +1,93 @@
 {% extends "base.html" %}{% from "_macros.html" import table %}
 {% block title %}live{% endblock %}
-{% block head %}<meta http-equiv="refresh" content="{{ refresh }}">{% endblock %}
+{% block head %}<style>
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line)}
+.pill.good{color:#0a7d32;border-color:#0a7d32}.pill.bad{color:#b42318;border-color:#b42318}
+.pos{color:#0a7d32}.neg{color:#b42318}.num{text-align:right;font-variant-numeric:tabular-nums}
+.infobox{border:1px solid var(--line);border-left:4px solid #2563eb;padding:8px 12px;margin:8px 0}
+.bar{display:inline-block;height:8px;background:#2563eb;vertical-align:middle;margin-right:4px}
+.livehead{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:4px 0 10px}
+</style>{% endblock %}
+{% macro pct(x, signed=True) %}{% if x is not none %}<span class="{{ 'pos' if x > 0 else ('neg' if x < 0 else '') }}">{{ ("{:+.1%}" if signed else "{:.0%}").format(x) }}</span>{% else %}<span class="muted">?</span>{% endif %}{% endmacro %}
+{% macro money(x) %}{% if x is not none %}<span class="{{ 'pos' if x > 0 else ('neg' if x < 0 else '') }}">{{ "{:+,.2f}".format(x) }}</span>{% else %}<span class="muted">?</span>{% endif %}{% endmacro %}
+{% macro fc(f) %}{% if f %}+{{ f.target_pct }}% before stop: <b>{{ "{:.0%}".format(f.p_hit) if f.p_hit is not none else "?" }}</b> · stop hit: {{ "{:.0%}".format(f.p_stop) if f.p_stop is not none else "?" }}{% if f.median_days %} · ~{{ "%.0f"|format(f.median_days) }}d to target{% endif %}{% else %}<span class="muted">UNKNOWN</span>{% endif %}{% endmacro %}
 {% block body %}
-{% set s = d.system %}{% set det = s.detail or {} %}{% set p = d.portfolio %}{% set perf = d.performance %}
-<p class="muted">Paper runner live view. Read-only; refreshes every {{ refresh }}s. Generated {{ d.generated_at[:19] }} UTC.
-Pause/resume is on the <a href="/system">system</a> page.</p>
-{% if s.no_paper_eligible %}<div class="warnbox">NO PAPER-ELIGIBLE STRATEGY. Every strategy is SHADOW/research.
+<div class="livehead"><span id="live-status" class="pill good">● live</span>
+<span class="muted">Updates every {{ refresh }}s in place (no reload). Read-only. Pause/resume on the <a href="/system">system</a> page.</span></div>
+<div id="live-root">
+{% set s = d.system %}{% set det = s.detail or {} %}{% set p = d.portfolio %}{% set perf = d.performance %}{% set x = d.exploration %}
+<p class="muted">Data as of {{ d.generated_at[11:19] }} UTC.</p>
+{% if x.mode == 'EXPLORATION' %}<div class="infobox"><b>EXPLORATION mode.</b> The bot paper-trades up to 5 new discovered setups per session (10 open, max 2 per industry, 2% each), ranked by the selection score, each with a 5, 10 or 20-session hold, <b>without</b> proven edge, to gather forward evidence. No strategy is validated yet.</div>
+{% elif s.no_paper_eligible %}<div class="warnbox">NO PAPER-ELIGIBLE STRATEGY. Every strategy is SHADOW/research.
 Candidates and decisions are recorded, and no paper orders are placed. Promotion needs evidence (<a href="/strategies">strategies</a>).</div>{% endif %}
+{% if x.error %}<div class="warnbox">Exploration panel unavailable: {{ x.error }}</div>{% endif %}
 {% if s.freshness.synthetic %}<div class="warnbox">Stored bars are SYNTHETIC test data, not market evidence.</div>{% endif %}
+
+<div class="grid">
+<div class="kv"><b>bot</b><span class="{{ 'good' if s.runner == 'RUNNING' else 'bad' }}">{{ s.runner }}</span></div>
+<div class="kv"><b>last heartbeat</b>{% if s.heartbeat_age_seconds is not none %}<span class="{{ 'good' if s.heartbeat_age_seconds < 60 else 'bad' }}">{{ "%.0f"|format(s.heartbeat_age_seconds) }}s ago</span>{% else %}never{% endif %}</div>
+<div class="kv"><b>trading</b><span class="{{ 'good' if s.system_state == 'ACTIVE' else 'bad' }}">{{ 'ACTIVE' if s.system_state == 'ACTIVE' else 'PAUSED' }}</span></div>
+<div class="kv"><b>market</b>{{ 'OPEN' if det.market_open else ('closed' if det.market_open is not none else 'unknown') }}</div>
+<div class="kv"><b>equity (broker)</b>{{ "{:,.2f}".format(p.broker.equity) if p.broker.equity is number else "?" }}</div>
+<div class="kv"><b>open P/L</b>{{ money(p.unrealized_pnl) }}</div>
+<div class="kv"><b>open positions</b>{{ x.positions|length }} / 10{% if p.broker.equity is number and x.gross %} · {{ "{:.1%}".format(x.gross / p.broker.equity) }} invested{% endif %}</div>
+<div class="kv"><b>now</b>{{ s.session.phase if s.session else "runner never started" }}</div>
+</div>
+
+<h2>Open positions</h2>
+{% if x.positions %}
+<table><thead><tr><th>symbol</th><th class="num">qty</th><th class="num">entry</th><th class="num">now</th><th class="num">P/L</th><th class="num">P/L %</th><th class="num">stop</th><th class="num">room to stop</th><th>hold</th><th>planned exit</th><th>setup</th><th class="num">sel. score</th><th>forecast (at entry)</th></tr></thead><tbody>
+{% for r in x.positions %}<tr>
+<td><a href="/trade/{{ r.trade_id }}"><b>{{ r.symbol }}</b></a></td><td class="num">{{ "%g"|format(r.qty) }}</td>
+<td class="num">{{ "%.2f"|format(r.entry_price) if r.entry_price else "?" }}</td>
+<td class="num">{{ "%.2f"|format(r.current_price) if r.current_price else "?" }}</td>
+<td class="num">{{ money(r.unrealized_pl) }}</td><td class="num">{{ pct(r.unrealized_pct) }}</td>
+<td class="num">{{ "%.2f"|format(r.stop_price) if r.stop_price else "?" }}</td>
+<td class="num">{% if r.room_to_stop_pct is not none %}<span class="{{ 'neg' if r.room_to_stop_pct < 0.02 else '' }}">{{ "{:.1%}".format(r.room_to_stop_pct) }}</span>{% else %}?{% endif %}</td>
+<td>{% if r.hold %}day {{ r.sessions_held }} of {{ r.hold }}{% else %}?{% endif %}</td>
+<td>{{ (r.planned_exit or "")[:10] or "—" }}</td><td>{{ r.setup or r.strategy or "" }}</td>
+<td class="num">{{ "%.2f"|format(r.selection_score) if r.selection_score is not none else "—" }}</td>
+<td>{{ fc(r.forecast) }}</td></tr>{% endfor %}
+</tbody></table>
+<p class="muted">Stops are QuantLab-managed: checked on daily closes in the evening run, exit at the next open (not resting at the broker). "Day" counts weekdays since entry. Forecasts are historical base rates for the stock's volatility profile: move size, not direction.</p>
+{% else %}<p class="muted">No open positions.</p>{% endif %}
+
+<h2>Next open{% if x.plan_session %}: decided {{ x.plan_session }}{% if x.plan %} → {{ x.plan[0].next_session }}{% endif %}{% endif %}</h2>
+{% if x.plan %}
+<table><thead><tr><th>symbol</th><th>status</th><th>hold</th><th class="num">qty</th><th class="num">ref</th><th class="num">stop</th><th class="num">sel. score</th><th>setup</th><th>forecast</th></tr></thead><tbody>
+{% for r in x.plan %}<tr><td><b>{{ r.symbol }}</b></td><td>{{ r.stage }}</td><td>{{ r.hold }} sessions</td>
+<td class="num">{{ "%g"|format(r.qty or 0) }}</td><td class="num">{{ "%.2f"|format(r.ref_price) if r.ref_price else "?" }}</td>
+<td class="num">{{ "%.2f"|format(r.stop_price) if r.stop_price else "?" }}</td>
+<td class="num">{% if r.selection_score is not none %}<span class="bar" style="width:{{ (r.selection_score * 60)|round|int }}px"></span>{{ "%.2f"|format(r.selection_score) }}{% else %}—{% endif %}</td>
+<td>{{ r.setup or "" }}</td><td>{{ fc(r.forecast) }}</td></tr>{% endfor %}
+</tbody></table>
+<p class="muted">{{ x.watched|length }} more watched for comparison ({{ x.watched|map(attribute='symbol')|join(', ') }}); {{ x.skipped }} skipped by a gate. Every one is scored later, traded or not.</p>
+{% else %}<p class="muted">No exploration plan yet{% if x.plan_session %} for {{ x.plan_session }}{% endif %}.</p>{% endif %}
+
+<h2>Hold-period experiment (5 / 10 / 20 sessions)</h2>
+{% if x.arms %}{{ table(x.arms, ["hold","status","n","wins","avg_ret"]) }}{% else %}<p class="muted">No exploration trades recorded under the hold arms yet.</p>{% endif %}
+
+<h2>Learning</h2>
+{% set L = x.learning or {} %}
+{% if L.matured %}
+<div class="grid"><div class="kv"><b>decisions matured</b>{{ L.matured }}</div><div class="kv"><b>missed big winners</b>{{ L.n_missed }}</div><div class="kv"><b>failed picks</b>{{ L.n_failed }}</div></div>
+{{ table(L.by_hold, ["selection","hold","n","mean_net","mean_vs_spy","p_up_5","p_up_10","stop_rate"]) }}
+{% if L.missed %}<h3>Missed big winners (not traded, touched +10%)</h3>{{ table(L.missed, ["symbol","session","selection","hold","mfe","net","selection_score","why"]) }}{% endif %}
+{% if L.failed %}<h3>Failed picks (traded, stop breached)</h3>{{ table(L.failed, ["symbol","session","hold","mae","net","selection_score","setup_type"]) }}{% endif %}
+{% else %}<p class="muted">{{ L.note or "Nothing has reached the end of its holding period yet." }} The first 5-session holds mature about a week after entry.</p>{% endif %}
 
 <h2>System</h2>
 <div class="grid">
-<div class="kv"><b>runner</b><span class="{{ 'good' if s.runner == 'RUNNING' else 'bad' }}">{{ s.runner }}</span></div>
-<div class="kv"><b>trading state</b><span class="{{ 'good' if s.system_state == 'ACTIVE' else 'bad' }}">{{ 'RUNNING (ACTIVE)' if s.system_state == 'ACTIVE' else 'PAUSED' }}</span></div>
 <div class="kv"><b>session</b>{{ s.session.session_id if s.session else "none" }}</div>
-<div class="kv"><b>last heartbeat</b>{% if s.heartbeat_age_seconds is not none %}{{ "%.0f"|format(s.heartbeat_age_seconds) }}s ago{% else %}never{% endif %}</div>
 <div class="kv"><b>trade stream</b>{{ s.session.stream_status if s.session else "n/a" }}</div>
-<div class="kv"><b>market</b>{{ 'OPEN' if det.market_open else ('closed' if det.market_open is not none else 'unknown') }} ({{ det.calendar_source or 'no calendar' }})</div>
 <div class="kv"><b>last successful pipeline</b>{% if s.last_pipeline %}{{ s.last_pipeline.as_of_date }}{% if s.last_pipeline.finished_at %} (finished {{ s.last_pipeline.finished_at[:16] }}){% endif %}{% else %}none{% endif %}</div>
 <div class="kv"><b>data freshness</b><span class="{{ 'good' if s.freshness.status == 'FRESH' else 'bad' }}">{{ s.freshness.status }}</span><br>latest bar {{ s.freshness.latest_bar or "none" }}</div>
 <div class="kv"><b>reconciliation</b>{{ 'ok' if det.reconciled_ok else ('FAILED / not run' if s.session else 'n/a') }}</div>
+<div class="kv"><b>calendar</b>{{ det.calendar_source or 'no calendar' }}</div>
 </div>
 {% if s.system_state != 'ACTIVE' %}<p class="bad">Paused: {{ s.system_reason }}</p>{% endif %}
-<p><b>Now:</b> {{ s.session.phase if s.session else "runner never started (quantlab paper start)" }}</p>
 {% if det.plan %}<p class="muted">Decision session {{ det.plan.session }} → execution at the {{ det.plan.next_session }} open. Processing from {{ det.plan.process_at[:16] }}; order deadline {{ det.plan.order_deadline[:16] }} (ET offsets shown). {{ det.plan.reason }}</p>{% endif %}
-<h3>Strategies</h3>{{ table(s.strategies, ["strategy_id","version","status","stage","updated_at"]) }}
 <h3>Session jobs</h3>{{ table(s.jobs, ["as_of_date","next_session","status","orders_allowed","attempts","reason","run_id"]) }}
-
-<h2>Signals{% if d.signal_run %}: candidates of {{ d.signal_run.as_of_date }}{% endif %}</h2>
-<p class="muted">The score ranks candidates; it is not a probability. Every candidate is recorded, traded or not.</p>
-{{ table(d.stage_counts, ["decision","reject_stage","n"]) }}
-{{ table(d.signals, ["symbol","strategy_id","score","features","decision","reject_stage","reasons"]) }}
 
 <h2>Orders (paper)</h2>
 {{ table(d.orders, ["created_at","symbol","side","qty","purpose","status","order_id","broker_order_id","submitted_at","filled_at","filled_avg_price"]) }}
@@ -39,16 +96,11 @@ Candidates and decisions are recorded, and no paper orders are placed. Promotion
 
 <h2>Portfolio (BOT book)</h2>
 <div class="grid">
-<div class="kv"><b>equity (broker)</b>{{ "{:,.2f}".format(p.broker.equity) if p.broker.equity is number else "?" }}</div>
 <div class="kv"><b>cash (broker)</b>{{ "{:,.2f}".format(p.broker.cash) if p.broker.cash is number else "?" }}</div>
 <div class="kv"><b>cash (ledger)</b>{{ "{:,.2f}".format(p.ledger_cash) if p.ledger_cash is not none else "not seeded" }}</div>
 <div class="kv"><b>equity (ledger, last close)</b>{{ "{:,.2f}".format(p.last_snapshot.equity) if p.last_snapshot else "no snapshot" }}</div>
-<div class="kv"><b>gross exposure</b>{{ "{:.1%}".format(p.last_snapshot.gross_exposure) if p.last_snapshot and p.last_snapshot.gross_exposure is not none else "0" }}</div>
-<div class="kv"><b>open positions</b>{{ p.positions|length }}</div>
-<div class="kv"><b>unrealised P/L</b>{{ "{:,.2f}".format(p.unrealized_pnl) }}</div>
 <div class="kv"><b>realised P/L</b>{{ "{:,.2f}".format(p.realized_pnl) }}</div>
 </div>
-{{ table(p.positions, ["symbol","qty","avg_cost","current_price","unrealized_pl","strategy_id","entry_date","stop_price","trade_id"], {"trade_id": "/trade/"}) }}
 {% if p.external_positions %}<div class="warnbox">The broker account holds positions QuantLab did not open: {{ p.external_positions|map(attribute='symbol')|join(', ') }}. The runner needs a dedicated paper account.</div>{% endif %}
 
 <h2>Performance</h2>
@@ -63,6 +115,12 @@ Candidates and decisions are recorded, and no paper orders are placed. Promotion
 </div>
 <p class="muted">Period {{ perf.first or "?" }} to {{ perf.last or "?" }}. Alpaca paper does not simulate dividends or market impact. Small samples prove nothing.</p>
 
+<h2>Strategy signals{% if d.signal_run %}: candidates of {{ d.signal_run.as_of_date }}{% endif %} (STRICT book)</h2>
+<p class="muted">Validated-strategy candidates. In EXPLORATION mode these are recorded, not traded, until a strategy is promoted.</p>
+<h3>Strategies</h3>{{ table(s.strategies, ["strategy_id","version","status","stage","updated_at"]) }}
+{{ table(d.stage_counts, ["decision","reject_stage","n"]) }}
+{{ table(d.signals, ["symbol","strategy_id","score","features","decision","reject_stage","reasons"]) }}
+
 <h2>Audit</h2>
 <h3>Recent errors</h3>{{ table(d.audit.errors) }}{{ table(d.audit.failed_steps) }}
 <h3>Kill-switch events</h3>{{ table(d.audit.killswitch) }}
@@ -70,4 +128,32 @@ Candidates and decisions are recorded, and no paper orders are placed. Promotion
 <h3>Decision trace{% if d.audit.trace_candidate %}: {{ d.audit.trace_candidate.symbol }} / {{ d.audit.trace_candidate.strategy_id }} → {{ d.audit.trace_candidate.decision }} ({{ d.audit.trace_candidate.reject_stage }}){% endif %}</h3>
 {{ table(d.audit.trace) }}
 <h3>Runner events</h3>{{ table(d.audit.events) }}
+</div>
+<script>
+(function () {
+  var every = {{ refresh }} * 1000, last = Date.now(), fails = 0, busy = false;
+  function tick() {
+    var el = document.getElementById("live-status"), s = Math.round((Date.now() - last) / 1000);
+    if (!el) return;
+    el.textContent = fails ? "● connection lost (" + fails + "), last update " + s + "s ago" : "● live · updated " + s + "s ago";
+    el.className = fails ? "pill bad" : "pill good";
+  }
+  function refresh() {
+    if (busy || document.hidden) return;
+    busy = true;
+    fetch(location.pathname, {cache: "no-store"}).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.text();
+    }).then(function (txt) {
+      var fresh = new DOMParser().parseFromString(txt, "text/html").getElementById("live-root");
+      var cur = document.getElementById("live-root");
+      if (fresh && cur) cur.replaceWith(fresh);
+      last = Date.now(); fails = 0;
+    }).catch(function () { fails += 1; }).then(function () { busy = false; tick(); });
+  }
+  setInterval(refresh, every);
+  setInterval(tick, 1000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) refresh(); });
+})();
+</script>
 {% endblock %}
