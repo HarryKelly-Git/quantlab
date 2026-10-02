@@ -165,7 +165,7 @@ def ingest_insider(ctx, *, days: int, now: Any = None, provider=None, include_cu
               "already_stored": len(listed) - len(todo), "fetched": res["fetched"], "failed": res["failed"],
               "remaining": res["remaining"], "unpublished_days": unpublished}
     ds = _write(ctx.store, res["rows"], "insider", params)
-    status = "FAILED" if res["stop"] == "outage" else ("PARTIAL" if res["remaining"] > 0 else "OK")
+    status = "FAILED" if res["stop"] == "outage" else ("PARTIAL" if res["remaining"] or res["failed"] else "OK")
     out = {"status": status, "rows": len(res["rows"]), "dataset": ds, **{k: v for k, v in params.items() if k != "end"},
            "secs": round(_time.time() - t0, 1), "requests": getattr(provider.http, "request_count", None)}
     if res["errors"]:
@@ -210,7 +210,7 @@ def ingest_congress(ctx, *, days: int, now: Any = None, provider=None, max_filin
               "already_stored": len(uniq) - len(todo), "fetched": res["fetched"], "failed": res["failed"],
               "remaining": res["remaining"], "unparseable_filings": unparseable, "missing_index_years": missing_years}
     ds = _write(ctx.store, res["rows"], "congress", params)
-    status = "FAILED" if res["stop"] == "outage" else ("PARTIAL" if res["remaining"] > 0 else "OK")
+    status = "FAILED" if res["stop"] == "outage" else ("PARTIAL" if res["remaining"] or res["failed"] else "OK")
     out = {"status": status, "rows": len(res["rows"]), "dataset": ds, **{k: v for k, v in params.items() if k != "end"},
            "secs": round(_time.time() - t0, 1), "requests": getattr(provider.http, "request_count", None)}
     if res["errors"]:
