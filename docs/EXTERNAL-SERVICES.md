@@ -534,6 +534,29 @@ _SEC EDGAR public APIs (data.sec.gov submissions / companyfacts / companyconcept
 - The meaning and allowed values of the submissions columns 'core_type', 'isXBRLNumeric' and 'act'. They appear in live data but are not documented on the API page.
 - Whether the generic-UA 403 ('Request Rate Threshold Exceeded') was caused by the UA string or by shared-IP history. It was observed once, and the cause is not documented.
 
+## SEC EDGAR Form 4 + House Clerk PTRs (congress / insider context, docs/ALT-DATA.md)
+
+Verified live 2026-10-02 (`data/providers/sec_form4.py`, `data/providers/house_ptr.py`):
+* `https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&...&output=atom` returns an Atom
+  feed; each Form 4 appears once per filer role (issuer / reporting), so de-duplicate on the accession
+  in `<id>` (`accession-number=...`). `<updated>` carries an explicit offset (e.g. `-04:00`).
+* `https://www.sec.gov/Archives/edgar/data/<cik>/<accession-no-dashes>/<accession>.txt` (complete
+  submission) holds `<ACCEPTANCE-DATETIME>YYYYMMDDHHMMSS` in the SGML header and the
+  `<ownershipDocument>` XML. The header time is **US Eastern** local time: read as Eastern it equals the
+  Atom `<updated>` instant exactly (checked on accession 0001161697-26-000229: 21:40:11 EDT =
+  01:40:11Z).
+* Daily form index `https://www.sec.gov/Archives/edgar/daily-index/<Y>/QTR<q>/form.<YYYYMMDD>.idx`:
+  fixed-width text, published in the evening; 404 on weekends/holidays and before publication.
+* Same User-Agent requirement and fair-access limit as the section above; one shared limiter.
+* House Clerk `https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2026FD.zip`: no key, no
+  documented limit; `2026FD.xml` inside, `<Member>` rows with Prefix/Last/First/Suffix/FilingType/
+  StateDst/Year/FilingDate (`M/D/YYYY`)/DocID. On 2026-10-02: 1,724 filings, 404 PTRs (FilingType `P`),
+  357 with an electronic-style DocID (`2xxxxxxx`), latest PTR filing date 2026-09-30.
+* PTR PDFs `https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/<YEAR>/<DocID>.pdf`; paper filings
+  (DocID `8xxxxxx`/`9xxxxxx`) are scanned images without a text layer. The PTR text parser has only been
+  exercised on a fixture shaped like the published layout, not yet on a live PDF.
+* Senate eFD (`efdsearch.senate.gov`) refuses automated access (403): not used, not bypassed.
+
 ## LLM providers: structured output
 
 _2026 LLM provider APIs (Anthropic, OpenAI, Google Gemini) for strict JSON-schema output via plain HTTP (requests): endpoints, auth, request/response shape, schema enforcement, usage/caching fields, errors/retry, current model IDs_

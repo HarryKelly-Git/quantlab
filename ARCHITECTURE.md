@@ -86,7 +86,8 @@ tests/<subsystem>/test_*.py
 
 ## 3. Data contracts (`data/schemas.py`)
 
-Kinds: `bars`, `corporate_actions`, `reference`, `events`, `fundamentals`, `news`. Providers return
+Kinds: `bars`, `corporate_actions`, `reference`, `events`, `fundamentals`, `news`, `alt_trades`
+(congress + insider disclosures, context only: docs/ALT-DATA.md). Providers return
 frames that pass `schemas.conform(kind, df)`. UTC columns must be tz-aware and session-date
 columns tz-naive. Every provider raises `ProviderError` on failure and never returns partial data
 silently. `ProviderNotConfigured` means credentials are missing.

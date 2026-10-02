@@ -21,6 +21,7 @@ dependencies = [
   "jinja2",
   "python-multipart",
   "websockets>=13",          # Alpaca PAPER trade_updates stream (paper runner)
+  "pypdf>=4",                # House PTR PDF text (data/providers/house_ptr.py); pure Python
 ]
 
 [project.optional-dependencies]
