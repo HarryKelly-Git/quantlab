@@ -1014,8 +1014,11 @@ class PaperRunner:
         """An ``opg`` entry that expired unfilled in the opening auction gets ONE market-day order,
         so the decision actually takes a position instead of silently producing nothing.
 
+        An opg entry that expired PARTLY filled gets one order for the remainder, linked to the trade
+        the partial fill opened (never a second trade, never for a trade already exited).
+
         Bounded: regular session only, before ``open_fill_fallback_until_et``, only for entries that
-        expired during this session with nothing filled, and only when no live entry order exists for
+        expired during this session short of their quantity, and only when no live entry order exists for
         that symbol/decision session (the execution service's duplicate guard re-checks this, and the
         fallback's client_order_id is deterministic, so a restart can never double-submit)."""
         if not self.open_fill_fallback or self.calendar is None or self.exec is None:
@@ -1033,9 +1036,11 @@ class PaperRunner:
         out = {"considered": 0, "submitted": 0, "refused": 0}
         out.update(self._exit_fallbacks(opened_at))
         rows = self.db.fetchall(
-            "SELECT o.order_id, o.symbol, o.qty, o.candidate_id, o.decision_id, o.human_decision_id, i.session_date, "
+            "SELECT o.order_id, o.symbol, o.qty, o.filled_qty, o.trade_id, o.candidate_id, o.decision_id, "
+            "o.human_decision_id, i.session_date, "
             "i.intent_json FROM orders o JOIN order_intents i ON i.order_id = o.order_id "
-            "WHERE o.book=? AND o.purpose='entry' AND o.status=? AND o.time_in_force='opg' AND o.filled_qty=0 "
+            "WHERE o.book=? AND o.purpose='entry' AND o.status=? AND o.time_in_force='opg' "
+            "AND COALESCE(o.filled_qty,0) < o.qty - 1e-9 "
             "AND o.last_update_at >= ? ORDER BY o.created_at",
             (BOOK, OrderStatus.EXPIRED.value, opened_at.astimezone(timezone.utc).isoformat()))
         if not rows:
@@ -1049,6 +1054,17 @@ class PaperRunner:
                  OrderStatus.EXPIRED.value))
             if live:
                 continue          # already replaced (or filled): nothing to do
+            # a PARTLY filled opg order (e.g. 1 of 6 shares in the cross) gets the REMAINDER, added to
+            # the trade the partial fill opened; an unfilled one gets the full quantity as a new trade
+            filled = float(r["filled_qty"] or 0.0)
+            top_up = r["trade_id"] if filled > 1e-9 else None
+            if filled > 1e-9:
+                if not top_up:
+                    continue      # filled but not linked to a trade: never guess, leave it to reconciliation
+                t = self.db.fetchone("SELECT status FROM trades WHERE trade_id=?", (top_up,))
+                if t is None or t["status"] != "OPEN":
+                    continue      # already exited: do not re-buy
+            remaining = float(r["qty"]) - filled
             # carry the ORIGINAL plan through: a position without its stop and holding period would
             # not be managed by the exit engine
             intent = from_json(r["intent_json"], {}) or {}
@@ -1067,12 +1083,13 @@ class PaperRunner:
             if bound is not None:
                 style, limit = "limit_day", bound
             res = self.exec.submit_entry(
-                r["symbol"], float(r["qty"]), candidate_id=r["candidate_id"], decision_id=r["decision_id"],
+                r["symbol"], remaining, candidate_id=r["candidate_id"], decision_id=r["decision_id"],
                 human_decision_id=r["human_decision_id"], session_date=r["session_date"], entry_style=style,
-                limit_price=limit,
+                limit_price=limit, top_up_trade_id=top_up,
                 plan=plan, strategy_id=intent.get("strategy_id"), strategy_version=intent.get("strategy_version"),
                 journal={**(intent.get("journal") or {}), "fallback_for_order_id": r["order_id"],
-                         "fallback_reason": "the opg order expired unfilled in the opening auction",
+                         "fallback_reason": ("the opg order expired PARTLY filled; buying the remainder" if top_up
+                                             else "the opg order expired unfilled in the opening auction"),
                          "fallback_limit_price": limit})
             if res.get("refused"):
                 out["refused"] += 1
@@ -1081,8 +1098,9 @@ class PaperRunner:
             else:
                 out["submitted"] += 1
                 how = f"limit {limit:g} (ref + 1 ATR)" if limit is not None else "market-day (no ATR in the plan)"
-                self.event("INFO", "order", f"open-fill fallback: {r['symbol']} {r['qty']:g} {how} after the "
-                           f"opg order expired unfilled", {"expired_order_id": r["order_id"],
+                self.event("INFO", "order", f"open-fill fallback: {r['symbol']} {remaining:g} {how} after the "
+                           f"opg order expired " + (f"with {filled:g} of {float(r['qty']):g} filled" if top_up
+                                                     else "unfilled"), {"expired_order_id": r["order_id"],
                                                             "order_id": res.get("order_id"),
                                                             "limit_price": limit})
         return out

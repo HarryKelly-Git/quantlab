@@ -418,3 +418,67 @@ def test_fallback_limit_needs_a_usable_reference_and_stop(world, plan, expected)
         assert got is None
     else:
         assert got == pytest.approx(expected)
+
+
+def test_a_partly_filled_opening_order_gets_its_remainder_on_the_same_trade(world):
+    """Observed 2026-10-02: AAPL's opg order filled 1 of 6 shares in the cross and the rest expired.
+    The fallback only covered zero-fill orders, so 5/6 of the planned position was never bought.
+    The remainder must be bought ONCE, added to the trade the partial fill opened (one trade, one
+    position, size = the planned quantity), never as a second trade."""
+    ctx = world
+    b = ctx.store.load_bundle(ctx.config.section("benchmarks"), synthetic=True)
+    sessions = [x.date() for x in b.panel.dates]
+    broker = FakeAlpacaBroker(sessions)
+    clock = Clock(at(sessions[-30], 19, 10))
+    r, _, nxt, cids, _ = _submit_opg(ctx, broker, clock)
+    cid = next((c for c in cids if float(broker.orders[c]["qty"]) >= 2), None)
+    assert cid is not None, "fixture needs an opg order of at least 2 shares"
+    planned = float(broker.orders[cid]["qty"])
+    sym = broker.orders[cid]["symbol"]
+    r.on_trade_update(broker.fill(cid, 1.0, 50.0, "2026-01-02T13:30:05Z"))      # 1 share in the cross
+    _expire(broker, r, [cid])                                                   # the rest expires
+    t = ctx.db.fetchone("SELECT trade_id, qty FROM trades WHERE symbol=?", (sym,))
+    assert t and t["qty"] == pytest.approx(1.0)
+
+    n_before = len(_orders(broker))
+    clock.t = at(nxt, 9, 35)
+    r.tick()
+    top = [c for c in _orders(broker)[n_before:] if broker.orders[c]["symbol"] == sym]
+    assert len(top) == 1, "exactly one remainder order"
+    assert float(broker.orders[top[0]]["qty"]) == pytest.approx(planned - 1.0)
+    assert broker.orders[top[0]]["type"] == "limit"                             # still bounded at ref + 1 ATR
+    r.on_trade_update(broker.fill(top[0], planned - 1.0, 52.0, "2026-01-02T13:36:00Z"))
+
+    trades = ctx.db.fetchall("SELECT trade_id, qty, entry_price, status FROM trades WHERE symbol=?", (sym,))
+    assert len(trades) == 1, "the remainder must not open a second trade"
+    assert trades[0]["trade_id"] == t["trade_id"] and trades[0]["status"] == "OPEN"
+    assert trades[0]["qty"] == pytest.approx(planned)
+    assert trades[0]["entry_price"] == pytest.approx((50.0 + 52.0 * (planned - 1.0)) / planned)
+    pos = ctx.db.fetchone("SELECT qty, trade_id FROM positions WHERE symbol=?", (sym,))
+    assert pos["qty"] == pytest.approx(planned) and pos["trade_id"] == t["trade_id"]
+
+    clock.t = at(nxt, 10, 0)                                                    # later scans: no repeat
+    r.tick()
+    r.tick()
+    assert len([c for c in _orders(broker)[n_before:] if broker.orders[c]["symbol"] == sym]) == 1
+    r.shutdown("test")
+
+
+def test_no_remainder_is_bought_for_a_partial_entry_that_was_already_exited(world):
+    ctx = world
+    b = ctx.store.load_bundle(ctx.config.section("benchmarks"), synthetic=True)
+    sessions = [x.date() for x in b.panel.dates]
+    broker = FakeAlpacaBroker(sessions)
+    clock = Clock(at(sessions[-30], 19, 10))
+    r, _, nxt, cids, _ = _submit_opg(ctx, broker, clock)
+    cid = next(c for c in cids if float(broker.orders[c]["qty"]) >= 2)
+    sym = broker.orders[cid]["symbol"]
+    r.on_trade_update(broker.fill(cid, 1.0, 50.0, "2026-01-02T13:30:05Z"))
+    _expire(broker, r, [cid])
+    tid = ctx.db.fetchone("SELECT trade_id FROM trades WHERE symbol=?", (sym,))["trade_id"]
+    ctx.db.execute("UPDATE trades SET status='CLOSED' WHERE trade_id=?", (tid,))
+    n_before = len(_orders(broker))
+    clock.t = at(nxt, 9, 35)
+    r.tick()
+    assert not [c for c in _orders(broker)[n_before:] if broker.orders[c]["symbol"] == sym]
+    r.shutdown("test")

@@ -260,7 +260,14 @@ class Ledger:
                     self.db.execute("UPDATE positions SET trade_id=? WHERE book=? AND symbol=?",
                                     (trade_id, self.book, symbol))
                 else:
-                    self.journal.add_entry_fill(trade_id, qty=new_filled_qty, entry_price=new_avg)
+                    # the trade's size is ALL its entry fills: a partly filled opg order can be
+                    # topped up by a second (fallback) order linked to the same trade
+                    agg = self.db.fetchone(
+                        "SELECT SUM(f.qty) AS q, SUM(f.qty * f.price) AS v FROM fills f "
+                        "JOIN orders o ON o.order_id = f.order_id "
+                        "WHERE o.trade_id=? AND o.purpose='entry' AND o.book=?", (trade_id, self.book))
+                    self.journal.add_entry_fill(trade_id, qty=float(agg["q"]),
+                                                entry_price=float(agg["v"]) / float(agg["q"]))
             elif purpose == "exit":
                 if trade_id is None:
                     raise LedgerError(f"exit order {order_id} has no linked trade_id")

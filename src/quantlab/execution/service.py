@@ -202,6 +202,7 @@ class PaperExecutionService:
         session_date: str | None = None,
         entry_style: str = "opg",
         limit_price: float | None = None,
+        top_up_trade_id: str | None = None,
     ) -> dict[str, Any]:
         """Submit a LONG entry order. ``entry_style``:
 
@@ -216,9 +217,18 @@ class PaperExecutionService:
           a fallback that chases a gapped-up open would take a trade the plan already calls
           invalidated. The bound makes that outcome a no-fill instead of a bad fill.
 
+        ``top_up_trade_id`` (fallback styles only): the order buys the unfilled REMAINDER of an opg
+        entry that partly filled, and its fills are added to that OPEN trade instead of opening a new one.
+
         Returns ``{"refused": True, "reason": ...}`` or the created order's summary."""
         if entry_style not in ("opg", "market_day", "limit_day"):
             raise ExecutionError(f"unknown entry_style {entry_style!r}")
+        if top_up_trade_id is not None:
+            if entry_style == "opg":
+                raise ExecutionError("a top-up is a fallback order: entry_style must not be 'opg'")
+            t = self.db.fetchone("SELECT status FROM trades WHERE trade_id=?", (top_up_trade_id,))
+            if t is None or t["status"] != "OPEN":
+                raise ExecutionError(f"top-up trade {top_up_trade_id} is not an OPEN trade")
         if entry_style == "limit_day":
             if limit_price is None or not math.isfinite(float(limit_price)) or float(limit_price) <= 0:
                 raise ExecutionError("entry_style 'limit_day' needs a positive limit_price")
@@ -235,7 +245,7 @@ class PaperExecutionService:
 
         basis = candidate_id or decision_id or human_decision_id or (f"{symbol}:{signal_date}" if signal_date else None)
         if basis and entry_style != "opg":
-            basis = f"{basis}#{entry_style}"
+            basis = f"{basis}#{entry_style}" + ("#topup" if top_up_trade_id else "")
         client_order_id = _client_order_id(self.book, "entry", basis) if basis else None
         guard_purpose = "entry" if entry_style == "opg" else "entry_fallback"
         existing = self._local_order(client_order_id) if client_order_id else None
@@ -278,7 +288,7 @@ class PaperExecutionService:
             "created_at": now,
         })
         self._insert_pending(order_id, request, purpose="entry", candidate_id=candidate_id, decision_id=decision_id,
-                             human_decision_id=human_decision_id, trade_id=None, now=now)
+                             human_decision_id=human_decision_id, trade_id=top_up_trade_id, now=now)
         # strategy_id/version are stashed on the trade only once the trade is opened at fill time
         # (see Ledger.apply_fill); keep them retrievable via the order_intents snapshot above.
         return self._send(order_id, request, purpose="entry")
