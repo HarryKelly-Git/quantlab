@@ -35,6 +35,7 @@ src/quantlab/
   risk/        engine.py
   execution/   broker.py sim_broker.py alpaca_paper.py ledger.py service.py reconcile.py exits.py journal.py
   shadow/      book.py outcomes.py
+  options/     data.py liquidity.py structures.py pricing.py distribution.py compare.py book.py execution.py marking.py
   counterfactual/ engine.py
   human/       service.py
   compare/     human_vs_bot.py
@@ -408,6 +409,19 @@ in the decision chain. With no ACTIVE strategy at stage PAPER/PROMOTED the runne
   STRICT_ELIGIBLE), by a named human, with evidence, never automatically; STRICT_ELIGIBLE changes no
   strategy status.
 
+### 8c. Options layer (`options/`, docs/OPTIONS.md)
+
+Evaluation (on by default) compares the stock (with its stop) against a fixed grid of defined-risk
+structures (long call/put, call/put debit spreads) on a move distribution, using Alpaca INDICATIVE
+quotes (not OPRA; no historical quotes exist, so there is no historical options backtest). Entries
+are priced at ask/bid, never mid; pre-expiry values are Black-Scholes MODEL output. Every evaluation
+and liquidity rejection is recorded append-only (migration 055). The PAPER options book `OPT` is
+separate from BOT/HUMAN and gated off (`options.paper_trading: false`): limit/day orders only, long
+leg first, no naked shorts, premium caps, kill switch, never held into expiry. OPT shares the Alpaca
+paper account: the stock reconciliation compares only `us_equity` positions and adds the OPT
+book's net premium cash (`Reconciler(cash_offset=...)`); `qlopt-` orders are not unknown to the
+runner. Marks come from historical option daily bars; a missing bar is UNKNOWN, never interpolated.
+
 ## 9. Research validity
 
 * Walk-forward (`validation/walkforward.py`): for each window the out-of-sample backtest runs on
@@ -450,7 +464,7 @@ Core schema is `001_core.sql`. Shared cross-subsystem tables are in `002_shared_
 and `symbol_quarantine` (written by data validation, honored by the universe). Reserved ranges
 for subsystem migrations: data 010-019,
 features/universe 020-029, strategies 030-039, backtest/validation/experiments 040-049,
-execution 050-059, ML 060-069, AI 070-079, decision/portfolio/risk 080-089,
+execution 050-059 (055 = options layer), ML 060-069, AI 070-079, decision/portfolio/risk 080-089,
 human/shadow/research/monitoring 090-099, pipeline/dashboard 100-109. Audit tables are append-only
 (enforced by triggers). Helpers: `Database.insert/insert_many/upsert/fetchone/fetchall/query_df/
 transaction`, `to_json/from_json`.
