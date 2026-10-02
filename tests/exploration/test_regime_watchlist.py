@@ -20,7 +20,7 @@ from quantlab.discovery import run_discovery
 from quantlab.exploration import ExplorationOutcomeTracker, ExplorationPolicy, experiment_results, plan_exploration, \
     preopen_submit
 from quantlab.exploration.engine import _pending_symbols, held_industries, hold_for, learning_report, normalize_symbols
-from quantlab.exploration.regime_throttle import RegimeThrottle
+from quantlab.exploration.regime_throttle import RegimeThrottle, throttle_from_snapshot
 
 from tests.discovery.world import BENCH, crafted_bundle
 
@@ -148,6 +148,26 @@ def test_regime_read_has_no_look_ahead(tmp_path, cb):
     ctx, _, res = _plan(tmp_path, cb, "b", snaps=[(SESSION, 0.02), (nxt, -0.5)])
     assert res["regime"]["state"] == "NOT_THROTTLED" and res["regime"]["value"] == 0.02     # D's, not D+1's
     ctx.close()
+
+
+def test_throttle_decision_is_truncation_invariant(cb):
+    """The throttle input (D's regime metrics) and so the cap at D never change when later data is removed."""
+    from quantlab.features.base import FeatureSet
+    from quantlab.regime import RegimeEngine
+    from quantlab.testing.pit import assert_truncation_invariant
+    cfg = load_config(root=ROOT, overrides={"benchmarks": BENCH})
+    thr = RegimeThrottle.from_config(cfg)
+
+    def caps(b):
+        df = RegimeEngine(cfg).compute(FeatureSet(b))
+        out = {}
+        for d, row in df.iterrows():
+            st = throttle_from_snapshot({"as_of_date": str(d.date()), "label": row["label"],
+                                         "metrics": row.drop("label").to_dict()}, str(d.date()), 5, thr)
+            out[d] = {"value": st["value"] if st["value"] is not None else float("nan"),
+                      "effective_max_new": float(st["effective_max_new"]), "throttled": float(st["throttled"])}
+        return pd.DataFrame.from_dict(out, orient="index")
+    assert_truncation_invariant(caps, cb, min_history=230, n_dates=4, name="regime throttle")
 
 
 def test_throttle_never_raises_the_normal_budget(tmp_path, cb):

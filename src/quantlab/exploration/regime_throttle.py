@@ -61,7 +61,12 @@ def session_regime(db, session: str) -> dict[str, Any] | None:
 def throttle_state(db, session: str, policy_max_new: int, throttle: RegimeThrottle) -> dict[str, Any]:
     """The regime context and the effective new-entry cap for session ``session``. Recorded on every
     exploration decision of that session (``pre_trade_json["regime"]``)."""
-    snap = session_regime(db, session)
+    return throttle_from_snapshot(session_regime(db, session), session, policy_max_new, throttle)
+
+
+def throttle_from_snapshot(snap: dict[str, Any] | None, session: str, policy_max_new: int,
+                           throttle: RegimeThrottle) -> dict[str, Any]:
+    """Pure part of :func:`throttle_state`: ``snap`` = {as_of_date, label, metrics} for the session, or None."""
     metrics = (snap or {}).get("metrics") or {}
     value = _num(metrics.get(throttle.metric))
     out: dict[str, Any] = {
@@ -94,4 +99,4 @@ def throttle_text(reg: dict[str, Any]) -> str:
             f"{reg.get('policy_max_new')}")
 
 
-__all__ = ["RegimeThrottle", "STATES", "session_regime", "throttle_state", "throttle_text"]
+__all__ = ["RegimeThrottle", "STATES", "session_regime", "throttle_from_snapshot", "throttle_state", "throttle_text"]
