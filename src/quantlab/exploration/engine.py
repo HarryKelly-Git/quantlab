@@ -695,6 +695,9 @@ def experiment_results(db, horizon: int = 5) -> dict[str, Any]:
         groups["Skipped by exploration safety checks"] = _stats(sk["net_ret"], sk["mfe"], sk["mae"])
         sel = q[q["selection"].isin(["SELECTED", "SHADOW"])]
         groups["SPY over the same windows (selected)"] = _stats(sel["spy_ret"])
+        tk = q[q["selection"] == "TRACKED"]
+        if len(tk):
+            groups["Tracked watchlist (research only, never traded)"] = _stats(tk["net_ret"], tk["mfe"], tk["mae"])
     dq = db.query_df("SELECT c.status, o.net_ret, o.mfe, o.mae FROM discovery_outcomes o JOIN discovery_candidates c "
                      "ON c.discovery_id=o.discovery_id WHERE o.horizon_sessions=?", (horizon,)) \
         if db.fetchone("SELECT 1 FROM sqlite_master WHERE name='discovery_outcomes'") else pd.DataFrame()
@@ -740,7 +743,11 @@ def learning_report(db, *, synthetic: bool = False, big_move: float = 0.10, limi
     * by selection x hold arm: net, vs SPY, how often +5/+8/+10% was touched, stop rate, MFE/MAE;
     * missed big winners: candidates NOT traded that touched +``big_move`` (with why they were passed over);
     * failed picks: traded candidates whose stop was breached;
-    * calibration: the upside profile recorded at the decision vs what actually happened.
+    * calibration: the upside profile recorded at the decision vs what actually happened;
+    * by_throttle / by_regime: the same outcomes split by the regime-throttle state and the regime label
+      recorded on the decision (NOT_RECORDED = planned before the regime was recorded);
+    * tracked_watchlist: the TRACKED records (never traded) pooled and per symbol, next to SELECTED and
+      WATCHED_NOT_TRADED. TRACKED records are never "missed big winners" and stay out of the calibration.
     A decision appears only once its hold has fully elapsed (no partial windows)."""
     rows = db.fetchall(
         "SELECT d.symbol, d.session_date, d.selection, d.holding_sessions AS hold, d.setup_type, d.reason, "
@@ -758,33 +765,59 @@ def learning_report(db, *, synthetic: bool = False, big_move: float = 0.10, limi
     for c in ("net_ret", "spy_ret", "mfe", "mae"):
         df[c] = pd.to_numeric(df[c], errors="coerce")
     df["stopped"] = pd.to_numeric(df["stop_breached"], errors="coerce").fillna(0) >= 1
+    reg = pre.map(lambda p: p.get("regime") if isinstance(p.get("regime"), dict) else None)
+    df["regime_label"] = reg.map(lambda r: str(r.get("label") or "UNKNOWN") if r else "NOT_RECORDED")
+    df["throttle_state"] = reg.map(lambda r: str(r.get("state") or "UNKNOWN") if r else "NOT_RECORDED")
+    # throttle-displaced candidates (eligible, within the normal budget, not traded because of the throttle)
+    # are the throttle's counterfactual: kept apart from the ordinary watched-not-traded
+    df["arm"] = [("WATCHED_NOT_TRADED (throttle-displaced)" if (r and r.get("displaced_by_throttle")) else s)
+                 for r, s in zip(reg, df["selection"])]
+
+    def stats(g: pd.DataFrame) -> dict[str, Any]:
+        return {"n": int(len(g)), "mean_net": _r(g["net_ret"].mean()),
+                "median_net": _r(g["net_ret"].median()), "mean_vs_spy": _r((g["net_ret"] - g["spy_ret"]).mean()),
+                "p_up_5": _r((g["mfe"] >= 0.05).mean()), "p_up_8": _r((g["mfe"] >= 0.08).mean()),
+                "p_up_10": _r((g["mfe"] >= 0.10).mean()), "stop_rate": _r(g["stopped"].mean()),
+                "mean_mfe": _r(g["mfe"].mean()), "mean_mae": _r(g["mae"].mean())}
     groups = []
     for (sel, hold), g in df.groupby(["selection", "hold"]):
-        groups.append({"selection": sel, "hold": int(hold), "n": int(len(g)), "mean_net": _r(g["net_ret"].mean()),
-                       "median_net": _r(g["net_ret"].median()), "mean_vs_spy": _r((g["net_ret"] - g["spy_ret"]).mean()),
-                       "p_up_5": _r((g["mfe"] >= 0.05).mean()), "p_up_8": _r((g["mfe"] >= 0.08).mean()),
-                       "p_up_10": _r((g["mfe"] >= 0.10).mean()), "stop_rate": _r(g["stopped"].mean()),
-                       "mean_mfe": _r(g["mfe"].mean()), "mean_mae": _r(g["mae"].mean())})
+        groups.append({"selection": sel, "hold": int(hold), **stats(g)})
+    by_throttle = [{"throttle": t, "selection": a, **stats(g)} for (t, a), g in df.groupby(["throttle_state", "arm"])]
+    by_regime = [{"regime": lab, "selection": a, **stats(g)} for (lab, a), g in df.groupby(["regime_label", "arm"])]
+    tk = df[df["selection"] == "TRACKED"]
+    tracked = None
+    if len(tk):
+        tracked = {
+            "comparison": [{"selection": s, **stats(df[df["selection"] == s])}
+                           for s in ("SELECTED", "WATCHED_NOT_TRADED", "TRACKED") if (df["selection"] == s).any()],
+            "symbols": [{"symbol": sym, **stats(g), "last_session": str(g["session_date"].iloc[-1]),
+                         "last_net": _r(g["net_ret"].iloc[-1]), "last_hold": int(g["hold"].iloc[-1])}
+                        for sym, g in tk.groupby("symbol")],
+            "note": "tracked symbols are recorded every session and never traded; each matures at its own hold arm"}
 
     def recs(x: pd.DataFrame) -> list[dict[str, Any]]:
         return [{"symbol": r["symbol"], "session": r["session_date"], "selection": r["selection"], "hold": int(r["hold"]),
                  "mfe": _r(r["mfe"]), "mae": _r(r["mae"]), "net": _r(r["net_ret"]),
                  "selection_score": _r(r["selection_score"], 3), "setup_type": r["setup_type"],
                  "why": str(r["reason"] or "")[:160]} for _, r in x.iterrows()]
-    missed = df[(df["selection"] != "SELECTED") & (df["mfe"] >= big_move)].sort_values("mfe", ascending=False)
+    cand = df[df["selection"] != "TRACKED"]          # tracked records were never candidates passed over
+    missed = cand[(cand["selection"] != "SELECTED") & (cand["mfe"] >= big_move)].sort_values("mfe", ascending=False)
     failed = df[(df["selection"] == "SELECTED") & df["stopped"]].sort_values("net_ret")
     calib = []
     for col, thr in (("pred_touch_5", 0.05), ("pred_touch_10", 0.10)):
-        d = df.dropna(subset=[col, "mfe"])
+        d = cand.dropna(subset=[col, "mfe"])
         if d.empty:
             continue
         d = d.assign(b=pd.cut(d[col], [0, 0.2, 0.4, 0.6, 0.8, 1.0], include_lowest=True))
         for b, g in d.groupby("b", observed=True):
             calib.append({"target": f"+{int(thr * 100)}%", "predicted_bucket": str(b), "n": int(len(g)),
                           "mean_predicted": _r(g[col].mean()), "realized": _r((g["mfe"] >= thr).mean())})
-    return {"matured": int(len(df)), "by_selection_and_hold": groups,
+    return {"matured": int(len(df)), "matured_tracked": int(len(tk)), "by_selection_and_hold": groups,
             "n_missed_big_winners": int(len(missed)), "missed_big_winners": recs(missed.head(limit)),
             "n_failed_picks": int(len(failed)), "failed_picks": recs(failed.head(limit)), "calibration": calib,
+            "by_throttle": by_throttle, "by_regime": by_regime, "tracked_watchlist": tracked,
             "notes": [f"missed big winner = not traded, touched +{big_move:.0%} within its own hold",
                       "the upside profile forecasts move SIZE from volatility; calibration checks those base rates, "
-                      "it is not a directional signal (docs/UPSIDE-EVIDENCE.md)"]}
+                      "it is not a directional signal (docs/UPSIDE-EVIDENCE.md)",
+                      "by_throttle / by_regime pool the hold arms; the regime throttle is unvalidated "
+                      "(docs/REGIME-THROTTLE.md): these splits are its forward test"]}

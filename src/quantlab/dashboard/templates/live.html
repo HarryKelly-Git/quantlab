@@ -76,6 +76,22 @@ Candidates and decisions are recorded, and no paper orders are placed. Promotion
 {% if L.failed %}<h3>Failed picks (traded, stop breached)</h3>{{ table(L.failed, ["symbol","session","hold","mae","net","selection_score","setup_type"]) }}{% endif %}
 {% else %}<p class="muted">{{ L.note or "Nothing has reached the end of its holding period yet." }} The first 5-session holds mature about a week after entry.</p>{% endif %}
 
+<h2>Tracked watchlist</h2>
+{% set T = d.tracked or {} %}
+{% if T.error %}<div class="warnbox">Tracked-watchlist panel unavailable: {{ T.error }}</div>
+{% elif T.rows %}
+<p class="muted">Research tracking only: recorded every session and scored like every other decision (at its own 5/10/20-session hold), <b>never</b> traded or sized.</p>
+<table><thead><tr><th>symbol</th><th>latest record</th><th class="num">sel. score</th><th class="num">universe pct</th><th>hold</th><th class="num">matured</th><th class="num">mean net</th><th class="num">vs SPY</th><th class="num">touched +10%</th><th class="num">stop rate</th></tr></thead><tbody>
+{% for r in T.rows %}<tr><td><b>{{ r.symbol }}</b>{% if not r.configured %} <span class="muted">(no longer listed)</span>{% endif %}</td>
+<td>{{ r.session or "" }}{% if r.note %}<span class="muted">{{ r.note }}</span>{% endif %}</td>
+<td class="num">{{ "%.2f"|format(r.selection_score) if r.selection_score is not none else "—" }}</td>
+<td class="num">{{ "{:.0%}".format(r.universe_percentile) if r.universe_percentile is not none else "—" }}</td>
+<td>{{ r.hold or "" }}</td><td class="num">{{ r.matured }}</td>
+<td class="num">{{ pct(r.mean_net) }}</td><td class="num">{{ pct(r.mean_vs_spy) }}</td>
+<td class="num">{{ pct(r.p_up_10, False) }}</td><td class="num">{{ pct(r.stop_rate, False) }}</td></tr>{% endfor %}
+</tbody></table>
+{% else %}<p class="muted">No tracked symbols (exploration.tracked_watchlist, set in config/local.yaml).</p>{% endif %}
+
 <h2>System</h2>
 <div class="grid">
 <div class="kv"><b>session</b>{{ s.session.session_id if s.session else "none" }}</div>

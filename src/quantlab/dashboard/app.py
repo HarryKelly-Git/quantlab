@@ -176,6 +176,39 @@ def _exploration_live(ctx: AppContext, now: datetime, bpos: dict[str, Any], real
             "plan": plan, "watched": watched, "skipped": n_skipped, "arms": arms, "learning": learning}
 
 
+def _tracked_live(ctx: AppContext, real: bool) -> dict[str, Any]:
+    """The tracked watchlist (research only, never traded): per symbol the latest TRACKED record's
+    selection score and universe percentile, and its outcomes matured at their own hold. Read-only."""
+    from quantlab.exploration.engine import ExplorationPolicy
+    db = ctx.db
+    syn = 0 if real else 1
+    configured = list(ExplorationPolicy.from_config(ctx.config).tracked_watchlist)
+    recorded = {r["symbol"] for r in db.fetchall("SELECT DISTINCT symbol FROM exploration_decisions "
+                                                 "WHERE selection='TRACKED' AND is_synthetic=?", (syn,))}
+    rows = []
+    for s in configured + sorted(recorded - set(configured)):
+        last = db.fetchone("SELECT session_date, holding_sessions, ref_price, pre_trade_json FROM exploration_decisions "
+                           "WHERE selection='TRACKED' AND symbol=? AND is_synthetic=? ORDER BY session_date DESC LIMIT 1",
+                           (s, syn))
+        m = db.fetchone(
+            "SELECT COUNT(*) AS n, AVG(o.net_ret) AS mean_net, AVG(o.net_ret - o.spy_ret) AS mean_vs_spy, "
+            "AVG(CASE WHEN o.mfe >= 0.10 THEN 1.0 ELSE 0.0 END) AS p_up_10, "
+            "AVG(CASE WHEN o.stop_breached >= 1 THEN 1.0 ELSE 0.0 END) AS stop_rate FROM exploration_decisions d "
+            "JOIN exploration_outcomes o ON o.decision_id = d.decision_id AND o.horizon_sessions = d.holding_sessions "
+            "WHERE d.selection='TRACKED' AND d.symbol=? AND d.is_synthetic=?", (s, syn)) or {}
+        pre = (from_json(last["pre_trade_json"], {}) or {}) if last else {}
+        n = int(m.get("n") or 0)
+        rows.append({"symbol": s, "configured": s in configured, "session": last["session_date"] if last else None,
+                     "selection_score": _fnum((pre.get("candidate") or {}).get("selection_score")),
+                     "universe_percentile": _fnum((pre.get("tracked") or {}).get("universe_percentile")),
+                     "hold": last["holding_sessions"] if last else None, "ref_price": _fnum(last["ref_price"]) if last else None,
+                     "matured": n, "mean_net": _fnum(m.get("mean_net")) if n else None,
+                     "mean_vs_spy": _fnum(m.get("mean_vs_spy")) if n else None,
+                     "p_up_10": _fnum(m.get("p_up_10")) if n else None, "stop_rate": _fnum(m.get("stop_rate")) if n else None,
+                     "note": None if last else "no record yet: not in the session's data, or not planned since it was added"})
+    return {"configured": configured, "rows": rows}
+
+
 def live_state(ctx: AppContext, bench: "_BenchCache | None" = None, now: datetime | None = None) -> dict[str, Any]:
     """Everything the live page shows. Read-only."""
     from quantlab.data.audit import expected_sessions
@@ -309,7 +342,13 @@ def live_state(ctx: AppContext, bench: "_BenchCache | None" = None, now: datetim
     except Exception as exc:              # the page must still render if this section fails
         exploration = {"error": f"{type(exc).__name__}: {exc}", "mode": None, "positions": [], "plan": [],
                        "watched": [], "arms": [], "learning": {}}
-    return {"generated_at": now.isoformat(), "exploration": exploration, "system": system, "signals": signals,
+    # TRACKED WATCHLIST (research only, never traded): its own fault-isolated section
+    try:
+        tracked = _tracked_live(ctx, real)
+    except Exception as exc:              # the page must still render if this section fails
+        tracked = {"error": f"{type(exc).__name__}: {exc}", "configured": [], "rows": []}
+    return {"generated_at": now.isoformat(), "exploration": exploration, "tracked": tracked, "system": system,
+            "signals": signals,
             "signal_run": run,
             "stage_counts": stage_counts, "orders": orders, "order_updates": updates, "refusals": refusals,
             "portfolio": portfolio, "performance": perf, "audit": audit}
