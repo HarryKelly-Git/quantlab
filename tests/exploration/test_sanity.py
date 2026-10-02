@@ -420,3 +420,35 @@ def test_each_decision_records_its_hold(tmp_path):
         assert r["holding_sessions"] == hold_for(r["session_date"], r["symbol"], pol)
         assert json.loads(r["pre_trade_json"])["expected_holding_sessions"] == r["holding_sessions"]
     ctx.close()
+
+
+# -- pinned prices (pending cash takeovers) ----------------------------------------------------------------
+def test_pinned_price_is_cancelled_before_submission(tmp_path):
+    """HZO on 2026-10-01: being acquired, price pinned, ATR 0.28% of price, a 2xATR stop 0.6% away.
+    The pre-open recheck cancels it with the reason recorded; a normally moving stock still goes in."""
+    ctx = _ctx(tmp_path)
+    _store(ctx)
+    pinned = _decision(ctx, symbol="PIN", ref=52.33, stop=52.03)          # implied ATR 0.29% of price
+    normal = _decision(ctx, symbol="MOVE", ref=50.0, stop=45.0)           # implied ATR 5%
+    ex = StubExec()
+    r = preopen_submit(ctx, ex, now=PRE_OPEN)
+    assert _events(ctx, pinned)[-1] == "CANCELLED_PREOPEN"
+    why = json.loads(ctx.db.fetchone("SELECT details_json FROM exploration_events WHERE decision_id=? AND "
+                                     "event='CANCELLED_PREOPEN'", (pinned,))["details_json"])["reasons"]
+    assert any("price pinned" in w for w in why)
+    assert _events(ctx, normal)[-1] == "SUBMITTED" and r["submitted"] == 1
+    ctx.close()
+
+
+def test_pinned_candidates_are_skipped_at_plan_with_the_reason(tmp_path):
+    ctx = _ctx(tmp_path)
+    ctx.config = ctx.config.with_overrides({"exploration": {"min_atr_pct": 0.5}})   # everything counts as pinned
+    cb = crafted_bundle()
+    _store(ctx)
+    run_discovery(ctx, cb, cb.panel.dates[-1], links={})
+    plan_exploration(ctx, equity=100_000.0, now=PRE_OPEN)
+    rows = ctx.db.fetchall("SELECT selection, pre_trade_json FROM exploration_decisions WHERE session_date=?", (SESSION,))
+    assert rows and not [r for r in rows if r["selection"] == "SELECTED"]
+    assert any(any(c["name"] == "not_pinned" and not c["passed"] for c in json.loads(r["pre_trade_json"])["risk_checks"])
+               for r in rows)
+    ctx.close()

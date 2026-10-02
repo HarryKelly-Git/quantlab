@@ -55,9 +55,9 @@ NOT_REQUIRED = ("strategy validation / promotion", "statistically significant ou
 TERMINAL_EVENTS = ("SUBMITTED", "CANCELLED_PREOPEN", "REFUSED")
 # REQUIRED inputs: missing or stale -> the candidate is SKIPPED (plan) or CANCELLED_PREOPEN (submit).
 REQUIRED_AT_PLAN = ("valid_price_volume", "research_universe", "basic_liquidity", "data_quality", "kill_switch",
-                    "long_only_direction", "no_open_position", "stop_computable", "max_open_positions",
+                    "long_only_direction", "no_open_position", "stop_computable", "not_pinned", "max_open_positions",
                     "industry_concentration", "position_size")
-REQUIRED_AT_SUBMIT = ("before_pre_open_cutoff", "after_decision_close", "kill_switch", "data_quality", "no_open_position",
+REQUIRED_AT_SUBMIT = ("before_pre_open_cutoff", "not_pinned", "after_decision_close", "kill_switch", "data_quality", "no_open_position",
                       "bars_for_decision_session", "corporate_action_data", "no_corporate_action_at_open",
                       "preopen_recheck_not_invalid", "plan_values", "execution_guard")
 # OPTIONAL inputs: missing -> recorded as UNKNOWN, never zero, and never a reason to trade or not.
@@ -87,6 +87,10 @@ class ExplorationPolicy:
     stop_atr: float = 2.0
     min_price: float = 5.0
     min_adv: float = 5_000_000.0
+    # a stock whose daily range is this small is pinned (typically a pending cash takeover): capped upside,
+    # deal-break downside, and a 2xATR stop inside the noise. The selection score (low volatility + 12-1
+    # momentum) finds such names by construction, e.g. HZO on 2026-10-01 (0.28%, being acquired).
+    min_atr_pct: float = 0.0075
     watched_not_traded: int = 10
     submit_after_et: str = "08:30"
     min_observations_to_propose: int = 30
@@ -315,6 +319,11 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
         chk("no_open_position", s not in ox["symbols"] and s not in pending,
             "no open or pending position" if s not in ox["symbols"] and s not in pending else "already held or pending")
         chk("stop_computable", atr is not None and atr > 0, "ATR known" if atr else "ATR UNKNOWN: no invalidation stop")
+        pinned = bool(atr and close and atr / close < pol.min_atr_pct)
+        chk("not_pinned", not pinned,
+            (f"daily range {atr / close:.2%} of price < {pol.min_atr_pct:.2%}: price pinned (typically a pending cash "
+             "takeover): capped upside, deal-break downside" if pinned else
+             (f"daily range {atr / close:.2%} of price" if atr and close else "ATR UNKNOWN")))
         eligible = all(c["passed"] for c in ck)
         qty = 0
         stop = None
@@ -462,6 +471,7 @@ def preopen_submit(ctx, exec_service, *, now=None, session: str | None = None, m
     last_bar = (db.fetchone("SELECT MAX(end_date) AS e FROM datasets WHERE kind='bars' AND is_synthetic=?",
                             (int(syn),)) or {}).get("e")
     cutoff_hhmm = str(cfg.get("paper.runner.order_cutoff_et", "09:25"))
+    pol = ExplorationPolicy.from_config(cfg)
     rechecks: dict[tuple[str, str], dict[str, Any]] = {}
     for r in db.fetchall("SELECT discovery_run_id, symbol, status_before, status_after, reason, checked_at FROM preopen_checks "
                          "WHERE checked_at <= ? ORDER BY id", (now.isoformat(),)):
@@ -486,6 +496,9 @@ def preopen_submit(ctx, exec_service, *, now=None, session: str | None = None, m
         if not (d["qty"] and d["qty"] >= 1 and d["ref_price"] and d["ref_price"] > 0 and d["stop_price"]
                 and 0 < d["stop_price"] < d["ref_price"]):
             why.append("REQUIRED plan values missing or invalid (quantity / reference price / stop)")
+        elif (d["ref_price"] - d["stop_price"]) / (pol.stop_atr * d["ref_price"]) < pol.min_atr_pct:
+            why.append(f"price pinned: daily range {(d['ref_price'] - d['stop_price']) / (pol.stop_atr * d['ref_price']):.2%} "
+                       f"of price < {pol.min_atr_pct:.2%} (typically a pending cash takeover)")
         rc = rechecks.get((d["discovery_run_id"], d["symbol"]))
         if rc and (rc["status_after"] in ("UNKNOWN", "INVALIDATED") or
                    (rc["status_after"] == "REJECTED" and rc["status_before"] != "REJECTED")):

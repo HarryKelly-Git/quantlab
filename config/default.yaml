@@ -285,6 +285,7 @@ exploration:                      # PAPER_EXPLORATION controls (simulation hygie
   stop_atr: 2.0                   # invalidation stop = decision close - 2 x ATR(14)
   min_price: 5.0                  # basic liquidity for exploration (stricter than discovery's $1)
   min_adv: 5000000                # median dollar volume (20 sessions)
+  min_atr_pct: 0.0075             # skip pinned prices (daily range < 0.75%: typically a pending cash takeover)
   watched_not_traded: 10          # next-ranked eligible candidates recorded for comparison
   submit_after_et: "08:30"        # runner: revalidate + submit planned entries from this time until the order cutoff
   min_observations_to_propose: 30 # a hypothesis needs this many exploratory outcomes before a historical test
