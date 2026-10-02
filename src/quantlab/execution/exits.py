@@ -1,6 +1,9 @@
 """Exit engine for open paper trades: STOP / TARGET / TIME / DELISTED / invalidation hooks.
 
-Semantics are IDENTICAL to ``core.tradesim.simulate_plan`` (ARCHITECTURE.md section 6):
+Semantics are those of ``core.tradesim.simulate_plan`` with ``stop_model="close"`` (ARCHITECTURE.md
+section 6). When broker-held protective stops are enabled (``execution.protective_stop.enabled``,
+``execution/protective_stops.py``; simulated by tradesim's ``"intraday"`` model) this close-based
+STOP is the BACKSTOP behind them; with them off (the default) it is the stop.
   * Stops and targets are evaluated on each held session's CLOSE, and the exit fills at the NEXT
     session's open (the execution service submits the order and the broker fills it).
   * The stop and target are RAW prices as of the signal session D. They are converted to

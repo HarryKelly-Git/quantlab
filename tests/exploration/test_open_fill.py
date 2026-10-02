@@ -71,6 +71,29 @@ def _submit_opg(ctx, broker, clock):
     return r, sessions, r.plan.next_session, list(broker.submits), d
 
 
+def _orders(broker, stops: bool = False) -> list[str]:
+    """Broker submissions of one kind: entries/exits (default) or the runner's protective stops."""
+    return [c for c in broker.submits if (broker.orders[c]["type"] == "stop") == stops]
+
+
+def _assert_one_stop_per_open_trade(ctx, broker):
+    """Protective stops are never duplicated and never outlive their trade: at most ONE working per
+    OPEN trade, none for anything else. An open trade without one must be a deliberate skip: these
+    fixtures fill at a fixed price, which can sit at/below the plan's stop (no stop is ever placed
+    at or above the current price; the close-based stop handles that trade)."""
+    open_trades = {t["symbol"]: t for t in ctx.db.fetchall("SELECT symbol, stop_price FROM trades WHERE status='OPEN'")}
+    live = [broker.orders[c]["symbol"] for c in _orders(broker, stops=True)
+            if broker.orders[c]["status"] not in ("canceled", "filled", "expired", "rejected")]
+    if not ctx.config.get("execution.protective_stop.enabled", False):
+        assert _orders(broker, stops=True) == [], "protective stops are OFF but one was sent"
+        return
+    assert len(live) == len(set(live)), f"duplicate protective stops: {live}"
+    assert set(live) <= set(open_trades), f"stop working for a trade that is not open: {live}"
+    for sym, t in open_trades.items():
+        if sym not in live:
+            assert t["stop_price"] >= broker.pos[sym][1], f"{sym} is above its stop but has no protective stop"
+
+
 def _expire(broker, r, cids, when="2026-01-02T13:31:00Z"):
     for cid in cids:
         ev = broker.event(cid, "expired", when, status="expired")
@@ -79,7 +102,7 @@ def _expire(broker, r, cids, when="2026-01-02T13:31:00Z"):
 
 def _fill_new(broker, r, since: int, price: float = 50.0) -> list[str]:
     """Fill every order submitted after index ``since`` and feed the events to the runner."""
-    new = broker.submits[since:]
+    new = _orders(broker)[since:]
     for cid in new:
         qty = float(broker.orders[cid]["qty"])
         r.on_trade_update(broker.fill(cid, qty, price, "2026-01-02T13:36:00Z"))
@@ -103,7 +126,7 @@ def test_expired_opening_order_is_replaced_once_and_fills(world):
     _fill_new(broker, r, n_opg)                                                # it fills in the regular session
     fb = ctx.db.fetchall("SELECT symbol, qty, time_in_force, status, filled_qty FROM orders WHERE time_in_force='day'")
     assert len(fb) == n_opg and all(o["status"] == OrderStatus.FILLED.value for o in fb)
-    assert len(broker.submits) == 2 * n_opg
+    assert len(_orders(broker)) == 2 * n_opg
     trades = ctx.db.fetchall("SELECT symbol, qty, status, stop_price, strategy_id FROM trades")
     assert len(trades) == n_opg and all(t["status"] == "OPEN" for t in trades)  # positions actually taken
     # the original plan survives the fallback: an unmanaged position (no stop) would be unsafe
@@ -119,8 +142,9 @@ def test_expired_opening_order_is_replaced_once_and_fills(world):
     clock.t = at(nxt, 10, 0)
     r.tick()                                                                    # repeated scans: no second fallback
     r.tick()
-    assert len(broker.submits) == 2 * n_opg
+    assert len(_orders(broker)) == 2 * n_opg
     assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM trades")["n"] == n_opg
+    _assert_one_stop_per_open_trade(ctx, broker)                                # protected, exactly once
     r.shutdown("test")
 
 
@@ -135,16 +159,18 @@ def test_restart_does_not_duplicate_the_fallback(world):
     clock.t = at(nxt, 9, 35)
     r.tick()
     _fill_new(broker, r, len(cids))
-    n_sub, n_ord = len(broker.submits), ctx.db.fetchone("SELECT COUNT(*) AS n FROM orders")["n"]
+    n_sub = len(_orders(broker))
+    n_ord = ctx.db.fetchone("SELECT COUNT(*) AS n FROM orders WHERE order_type<>'stop'")["n"]
     r.shutdown("restart")
     r2, _ = _runner(ctx, broker, clock)
     r2.start()
     clock.t = at(nxt, 9, 50)
     r2.tick()
     r2.tick()
-    assert len(broker.submits) == n_sub
-    assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM orders")["n"] == n_ord
+    assert len(_orders(broker)) == n_sub
+    assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM orders WHERE order_type<>'stop'")["n"] == n_ord
     assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM fills")["n"] == n_ord - len(cids)
+    _assert_one_stop_per_open_trade(ctx, broker)                               # and no duplicate stop
     r2.shutdown("test")
 
 
@@ -231,7 +257,7 @@ def test_restart_at_each_lifecycle_stage_never_duplicates(world, stage):
         _expire(broker, r, cids)
         clock.t = at(nxt, 9, 35)
         r.tick()
-        assert len(broker.submits) == 2 * n_opg
+        assert len(_orders(broker)) == 2 * n_opg
         if stage == "after_fallback_submit":
             r = restart(r)
             _fill_new(broker, r, n_opg)
@@ -241,19 +267,20 @@ def test_restart_at_each_lifecycle_stage_never_duplicates(world, stage):
     clock.t = at(nxt, 9, 40)
     r.tick()
     r.tick()
-    unfilled = [cid for cid in broker.submits[n_opg:] if broker.orders[cid]["status"] != "filled"]
+    unfilled = [cid for cid in _orders(broker)[n_opg:] if broker.orders[cid]["status"] != "filled"]
     if unfilled:
         for cid in unfilled:
             r.on_trade_update(broker.fill(cid, float(broker.orders[cid]["qty"]), 50.0, "2026-01-02T13:36:00Z"))
     clock.t = at(nxt, 10, 5)
     r.tick()
-    orders = ctx.db.fetchall("SELECT symbol, time_in_force, status FROM orders")
-    assert len(broker.submits) == 2 * n_opg, f"{stage}: duplicate broker submission"
+    orders = ctx.db.fetchall("SELECT symbol, time_in_force, status FROM orders WHERE order_type<>'stop'")
+    assert len(_orders(broker)) == 2 * n_opg, f"{stage}: duplicate broker submission"
     assert len(orders) == 2 * n_opg, f"{stage}: duplicate local order"
     trades = ctx.db.fetchall("SELECT symbol, qty, status, stop_price FROM trades")
     assert len(trades) == n_opg, f"{stage}: duplicate position"
     assert all(t["stop_price"] and t["stop_price"] > 0 for t in trades)   # stop survives restart
     assert ctx.db.fetchone("SELECT COUNT(*) AS n FROM fills")["n"] == n_opg
+    _assert_one_stop_per_open_trade(ctx, broker)                          # f"{stage}": one stop each
     r.shutdown("test")
 
 
@@ -273,13 +300,13 @@ def test_expired_exit_is_replaced_so_a_stopped_position_is_not_left_open(world):
     open_trades = ctx.db.fetchall("SELECT trade_id, symbol FROM trades WHERE status='OPEN'")
     assert open_trades
     assert r.exec is not None and r.ledger is not None
-    n_before = len(broker.submits)
+    n_before = len(_orders(broker))
     # the ORIGINAL exit is submitted by the daily pipeline's service, as in production
     from quantlab.execution.service import PaperExecutionService
     pipe_exec = PaperExecutionService(ctx.db, ctx.config, "BOT", broker, r.ledger)
     ex = pipe_exec.submit_exit(open_trades[0]["trade_id"], "stop", session_date=str(nxt))
     assert not ex.get("refused"), ex
-    exit_cid = broker.submits[-1]
+    exit_cid = _orders(broker)[-1]
     assert broker.orders[exit_cid]["time_in_force"] == "opg"
     r.on_trade_update(broker.event(exit_cid, "expired", "2026-01-02T13:31:00Z", status="expired"))
     assert ctx.db.fetchone("SELECT status FROM trades WHERE trade_id=?",
@@ -287,18 +314,19 @@ def test_expired_exit_is_replaced_so_a_stopped_position_is_not_left_open(world):
 
     clock.t = at(nxt, 9, 45)
     r.tick()                                                                       # polls the broker, then scans
-    fb_cid = broker.submits[-1]
+    fb_cid = _orders(broker)[-1]
     assert broker.orders[fb_cid]["time_in_force"] == "day" and broker.orders[fb_cid]["side"] == "sell"
     r.on_trade_update(broker.fill(fb_cid, float(broker.orders[fb_cid]["qty"]), 51.0, "2026-01-02T13:46:00Z"))
     assert ctx.db.fetchone("SELECT status FROM trades WHERE trade_id=?",
                            (open_trades[0]["trade_id"],))["status"] == "CLOSED"   # position actually closed
 
-    n_after = len(broker.submits)
+    n_after = len(_orders(broker))
     clock.t = at(nxt, 9, 55)
     r.tick()
     r.tick()
-    assert len(broker.submits) == n_after                                          # never resubmitted
+    assert len(_orders(broker)) == n_after                                         # never resubmitted
     assert n_after == n_before + 2                                                 # opg exit + one fallback
+    _assert_one_stop_per_open_trade(ctx, broker)          # the closed trade has none left working
     r.shutdown("test")
 
 
