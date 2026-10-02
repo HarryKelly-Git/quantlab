@@ -45,7 +45,10 @@ providers:
     max_requests_per_minute: 180
   sec_edgar:
     user_agent_env: QUANTLAB_SEC_USER_AGENT
-    max_requests_per_second: 8    # SEC fair-access limit is 10/s
+    max_requests_per_second: 8    # SEC fair-access limit is 10/s (shared with sec_form4 below: one limiter)
+  house_clerk:                    # House Clerk financial disclosures (PTR index ZIP + PTR PDFs); no key
+    max_requests_per_second: 1    # no documented limit: stay modest
+    user_agent: "QuantLab research (personal, non-commercial)"
   nasdaq_trader:
     nasdaq_listed_url: https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt
     other_listed_url: https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt
@@ -56,6 +59,24 @@ providers:
 
 history:
   start_date: "2016-01-01"
+
+# Congress (House PTR) + insider (SEC Form 4) disclosures: CONTEXT ONLY, never scored / sized / ordered on
+# (data/alt_trades.py, docs/ALT-DATA.md). Refreshed in the evening catalyst refresh, incremental and bounded.
+alt_data:
+  insider:
+    enabled: true
+    refresh_days: 5               # daily-index days re-listed each evening (already-stored accessions skipped)
+    current_feed_pages: 10        # getcurrent Atom pages (100 entries each) for filings not yet in an index
+    max_filings_per_run: 3000     # ~1-3k Form 4s per business day at <= 8 req/s
+    max_seconds_per_run: 300
+  congress:
+    enabled: true
+    refresh_days: 60              # PTR filing dates re-listed each evening (already-stored DocIDs skipped)
+    max_filings_per_run: 60
+    max_seconds_per_run: 180
+  refresh_http_timeout_seconds: 20  # evening refresh only: short timeouts and one retry, so an outage cannot stall
+  refresh_http_max_retries: 1
+  max_consecutive_errors: 5       # this many failed filings in a row = outage: stop, report FAILED
 
 benchmarks:
   market: SPY

@@ -26,16 +26,19 @@ SM = CONTEXT_FEATURES["smart_money"]
 def _row(source, symbol, side, disclosed, cal, value=10_000.0, k=0):
     d = pd.Timestamp(disclosed)
     return {"record_id": f"{source}-{symbol}-{side}-{d.date()}-{k}", "source": source, "symbol": symbol, "actor": "a",
-            "actor_detail": "House / D" if source == "congress" else "CEO", "side": side, "amount_low_usd": value,
-            "amount_high_usd": value, "transaction_date": d - pd.Timedelta(days=20), "disclosed_date": d,
-            "available_at": conservative_available_at(d, cal), "pit_status": "PIT_CONSERVATIVE", "raw_json": "{}",
+            "actor_detail": "House / XX01" if source == "congress" else "Officer: CEO", "side": side,
+            "amount_low_usd": value, "amount_high_usd": value, "shares": np.nan, "price": np.nan,
+            "transaction_date": d - pd.Timedelta(days=20),
+            "disclosed_at": d.tz_localize("America/New_York").tz_convert("UTC"),
+            "available_at": conservative_available_at(d, cal), "pit_status": "PIT_CONSERVATIVE",
+            "record_status": "PARSED", "raw_json": "{}",
             "provider": "synthetic", "retrieved_at": pd.Timestamp("2024-06-01", tz="UTC")}
 
 
-def with_alt(b, extra=()):
+def with_alt(b, extra=(), rows=None):
     dates = b.panel.dates
     cal = b.calendar
-    rows = [_row("congress", "MOMO", "BUY", dates[10], cal, k=1),        # sources start early: whole window covered
+    rows = rows if rows is not None else [_row("congress", "MOMO", "BUY", dates[10], cal, k=1),  # sources start early
             _row("insider", "VOLX", "SELL", dates[12], cal, k=2),
             _row("congress", "MOMO", "BUY", dates[-8], cal, k=3),        # inside D's 30-day window
             _row("insider", "VOLX", "BUY", dates[-5], cal, k=4),
@@ -72,12 +75,12 @@ def test_scores_selection_and_firing_are_identical_with_and_without_disclosures(
     assert all(a.at[s, "context"]["smart_money"]["state"] == "UNKNOWN" for s in a.index)   # no source: UNKNOWN
 
 
-def test_known_only_where_the_source_covers_the_symbol(cfg, cb):
+def test_known_once_the_sources_cover_the_window(cfg, cb):
     scan = DiscoveryEngine(cfg).scan(with_alt(cb), cb.panel.dates[-1])
     t = scan.table
     momo = t.at["MOMO", "context"]["smart_money"]
     assert momo["state"] == "KNOWN" and momo["values"]["congress_buys_30d"] == 1
-    assert momo["values"]["insider_buys_30d"] is None                     # insiders never showed MOMO: UNKNOWN
+    assert momo["values"]["insider_buys_30d"] == 0                        # Form 4 covers every issuer: a real 0
     assert momo["fired"] and "never scored" in momo["reasons"][0]
     volx = t.at["VOLX", "context"]["smart_money"]
     assert volx["values"]["insider_buys_30d"] == 1 and volx["values"]["insider_sells_30d"] == 1
@@ -86,9 +89,18 @@ def test_known_only_where_the_source_covers_the_symbol(cfg, cb):
     assert drop["state"] == "KNOWN" and drop["values"]["congress_buys_30d"] == 0 and not drop["fired"]
     for s in t.index.drop(["MOMO", "VOLX", "DROP"]):
         c = t.at[s, "context"]["smart_money"]
-        assert c["state"] == "UNKNOWN" and "values" not in c and c["why"]   # never a fabricated zero
+        assert c["state"] == "KNOWN" and c["values"]["congress_buys_30d"] == 0 and not c["fired"]
     row = next(r for r in scan.coverage if r["key"] == "smart_money")
-    assert row["role"] == "context only (never scored)" and row["known"] == 3
+    assert row["role"] == "context only (never scored)" and row["known"] == len(t)
+
+
+def test_unknown_before_a_source_covers_a_full_window(cfg, cb):
+    d = cb.panel.dates[-1]
+    young = [_row("congress", "MOMO", "BUY", cb.panel.dates[-8], cb.calendar, k=1)]   # source began 8 sessions ago
+    t = DiscoveryEngine(cfg).scan(with_alt(cb, rows=young), d).table
+    for s in t.index:
+        c = t.at[s, "context"]["smart_money"]
+        assert c["state"] == "UNKNOWN" and "values" not in c and c["why"]   # never a fabricated zero
 
 
 def test_a_disclosure_after_the_cutoff_changes_nothing_at_d(cfg, cb):
@@ -97,7 +109,7 @@ def test_a_disclosure_after_the_cutoff_changes_nothing_at_d(cfg, cb):
     base = DiscoveryEngine(cfg).scan(with_alt(cb), d).table
     more = DiscoveryEngine(cfg).scan(with_alt(cb, extra=[late]), d).table
     assert base.at["N001", "context"] == more.at["N001", "context"]
-    assert more.at["N001", "context"]["smart_money"]["state"] == "UNKNOWN"
+    assert more.at["N001", "context"]["smart_money"]["values"]["congress_buys_30d"] == 0
     # truncation: the scan at an earlier session sees the same context on the full and the truncated bundle
     full = with_alt(cb, extra=[late])
     e = cb.panel.dates[-6]

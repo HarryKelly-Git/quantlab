@@ -398,8 +398,8 @@ class SyntheticMarket(
         rng3 = np.random.default_rng(self.spec.seed + 104729)
         brackets = [(1001.0, 15000.0), (15001.0, 50000.0), (50001.0, 100000.0), (100001.0, 250000.0),
                     (250001.0, 500000.0), (1000001.0, 5000000.0)]
-        members = [("Synthetic Member A", "House / D / XX01"), ("Synthetic Member B", "House / R / XX02"),
-                   ("Synthetic Senator C", "Senate / D"), ("Synthetic Senator D", "Senate / R")]
+        members = [("Synthetic Member A", "House / XX01"), ("Synthetic Member B", "House / XX02"),
+                   ("Synthetic Member C", "House / XX03 / owner SP"), ("Synthetic Member D", "House / XX04")]
         codes = ["P", "S", "S", "A", "M", "F", "G"]
         rows: list[dict] = []
         T = len(cal)
@@ -415,23 +415,33 @@ class SyntheticMarket(
                 lo, hi = brackets[int(rng3.integers(0, len(brackets)))]
                 side = "BUY" if rng3.random() < 0.5 else ("SELL" if rng3.random() < 0.9 else "OTHER")
                 rows.append({"source": "congress", "symbol": sym, "actor": who, "actor_detail": detail, "side": side,
-                             "amount_low_usd": lo, "amount_high_usd": hi, "transaction_date": cal[t],
-                             "disclosed_date": disclosed})
+                             "amount_low_usd": lo, "amount_high_usd": hi, "shares": np.nan, "price": np.nan,
+                             "transaction_date": cal[t], "disclosed_date": disclosed, "accepted": None})
             for t in live[rng3.random(len(live)) < 0.03]:
                 code = codes[int(rng3.integers(0, len(codes)))]
                 f = min(t + int(rng3.integers(0, 3)), T - 1)
                 shares = float(rng3.integers(100, 20000))
-                value = shares * float(raw[t, i]) if rng3.random() < 0.95 else np.nan
+                price = float(raw[t, i]) if rng3.random() < 0.95 else np.nan
+                value = shares * price
                 side = {"P": "BUY", "S": "SELL"}.get(code, "OTHER")
+                accepted = (pd.Timestamp(cal[f]).tz_localize("America/New_York")
+                            + pd.Timedelta(hours=int(rng3.integers(6, 22)))).tz_convert("UTC")
                 rows.append({"source": "insider", "symbol": sym, "actor": f"Synthetic Insider {i % 7}",
-                             "actor_detail": ["CEO", "CFO", "Director", "10% owner"][int(rng3.integers(0, 4))],
-                             "side": side, "amount_low_usd": value, "amount_high_usd": value, "transaction_date": cal[t],
-                             "disclosed_date": cal[f]})
+                             "actor_detail": ["Officer: CEO", "Officer: CFO", "Director", "10% owner"][int(rng3.integers(0, 4))],
+                             "side": side, "amount_low_usd": value, "amount_high_usd": value, "shares": shares,
+                             "price": price, "transaction_date": cal[t], "disclosed_date": cal[f], "accepted": accepted})
         if not rows:
             return schemas.empty("alt_trades")
         df = pd.DataFrame(rows)
-        df["available_at"] = [conservative_available_at(d, None) for d in df["disclosed_date"]]
-        df["pit_status"] = PitStatus.PIT_CONSERVATIVE.value
+        # insider: the (synthetic) acceptance time, exact (PIT); congress: date-only -> session-after cutoff
+        date_only = df["accepted"].isna()
+        df["disclosed_at"] = [a if a is not None and not pd.isna(a) else
+                              pd.Timestamp(d).tz_localize("America/New_York").tz_convert("UTC")
+                              for a, d in zip(df["accepted"], df["disclosed_date"])]
+        df["available_at"] = [conservative_available_at(d, None) if o else a
+                              for o, a, d in zip(date_only, df["disclosed_at"], df["disclosed_date"])]
+        df["pit_status"] = np.where(date_only, PitStatus.PIT_CONSERVATIVE.value, PitStatus.PIT.value)
+        df["record_status"] = "PARSED"
         df["raw_json"] = '{"synthetic": true}'
         df["provider"] = self.name
         df["retrieved_at"] = self._retrieved

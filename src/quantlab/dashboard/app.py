@@ -229,26 +229,27 @@ class _AltCache:
 _ALT_CACHE = _AltCache()
 
 
-def _smart_money_live(ctx: AppContext, now: datetime, x: dict[str, Any], real: bool,
-                      cache: "_AltCache | None" = None) -> dict[str, Any]:
-    """Congress / insider disclosures for the symbols the bot holds, plans to buy at the next open and
-    watches, plus the most recent market-wide disclosures. Read-only CONTEXT: none of it is an input
-    to selection, sizing or orders."""
-    from quantlab.data.alt_trades import recent_disclosures, source_status
+def _smart_money_live(ctx: AppContext, now: datetime, x: dict[str, Any], tracked: dict[str, Any] | None,
+                      real: bool, cache: "_AltCache | None" = None) -> dict[str, Any]:
+    """Congress / insider disclosures for the symbols the bot holds, plans to buy at the next open, watches
+    and tracks, plus the latest market-wide disclosures. Read-only CONTEXT: none of it is an input to
+    selection, sizing or orders."""
+    from quantlab.data.alt_trades import COVERAGE_GAPS, recent_disclosures, source_status
     cache = cache or _ALT_CACHE
     df = cache.frame_for(ctx, synthetic=not real, now=now)
     groups = (("Open positions", [p["symbol"] for p in x.get("positions") or []]),
               ("Next-open plan", [p["symbol"] for p in x.get("plan") or []]),
-              ("Watched (not traded)", [p["symbol"] for p in x.get("watched") or []]))
+              ("Watched (not traded)", [p["symbol"] for p in x.get("watched") or []]),
+              ("Tracked watchlist", [r["symbol"] for r in (tracked or {}).get("rows") or []]))
     by_group = []
     for label, syms in groups:
-        syms = list(dict.fromkeys(syms))
+        syms = list(dict.fromkeys(s for s in syms if s))
         rows = recent_disclosures(ctx.store, symbols=syms, limit=50, now=now, frame=df) if syms else []
         by_group.append({"label": label, "symbols": syms, "rows": rows,
                          "quiet": [s for s in syms if s not in {r["symbol"] for r in rows}]})
     return {"status": source_status(ctx.store, ctx.config, synthetic=not real), "groups": by_group,
             "market": recent_disclosures(ctx.store, limit=20, now=now, frame=df), "window_days": cache.since_days,
-            "rows_loaded": int(len(df))}
+            "rows_loaded": int(len(df)), "gaps": COVERAGE_GAPS}
 
 
 def live_state(ctx: AppContext, bench: "_BenchCache | None" = None, now: datetime | None = None) -> dict[str, Any]:

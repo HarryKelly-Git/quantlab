@@ -1,25 +1,29 @@
 """Congress / insider disclosure features (group ``alt``). CONTEXT ONLY: recorded with discovery
 candidates and exploration decisions, never scored, never a selection or sizing input.
 
-Source: ``bundle.alt_trades`` (Quiver, data/providers/quiver.py). A disclosure counts from the first
-session whose cutoff is >= its ``available_at`` (= the 16:00 ET cutoff of the session AFTER the
-disclosure date), never from its transaction date.
+Source: ``bundle.alt_trades`` (data/alt_trades.py): SEC Form 4 (insider; available_at = EDGAR acceptance
+time, PIT) and House PTRs (congress; available_at = cutoff of the session after the filing date,
+PIT_CONSERVATIVE). A disclosure counts from the first session whose cutoff is >= its ``available_at``,
+never from its transaction date.
+
+Counted rows: record_status PARSED, side BUY / SELL. Insider rows count only reporting owners who are
+directors or officers (the population of the SEC dataset import and of the pre-registered study; 10%
+owners that are funds are not "insiders" in that sense).
 
 Window: disclosures whose first usable session s satisfies D - 30 calendar days < s <= D.
 
-UNKNOWN (NaN), never 0, unless BOTH hold at D:
-  * the source (congress or insider, separately) has delivered for the whole window: D is at least
-    30 days after the first usable session of the source's earliest stored record (a window that
-    started before the source did would be a partial count);
-  * the source covers the symbol: the symbol has at least one record of that source usable by D
-    (a ticker the feed has never shown may simply not be mapped by it).
-Both conditions only look at records usable by D, so the features are truncation-invariant.
+UNKNOWN (NaN), never 0, until the source (congress or insider, separately) has delivered for the whole
+window: D must be at least 30 days after the first usable session of the source's earliest stored
+record (any record, including filings without a ticker). After that a symbol without disclosures is
+0: both sources cover every issuer / every House member, so silence is information. Coverage only looks
+at records usable by D, so the features are truncation-invariant. (A refresh gap longer than the
+refresh window would undercount; data/alt_trades.py reports every run's fetched / remaining counts.)
 
-insider_net_value_30d is UNKNOWN when any open-market buy or sale in the window has no known value
+insider_net_value_30d is UNKNOWN when any counted buy or sale in the window has no known value
 (shares x price): a sum over partly unknown values would be fabricated.
 
-Evidence status: a separate study found insider buying FLAT at realistic timing and its one positive
-variant failed the locked 2025+ holdout. These are context for the learning loop, not a signal.
+Evidence status: a pre-registered study found insider buying FLAT at realistic timing and its one
+positive variant failed the locked 2025+ holdout. These are context for the learning loop, not a signal.
 """
 from __future__ import annotations
 
@@ -30,8 +34,13 @@ from quantlab.features.base import FEATURES, FeatureSet
 from quantlab.features.price import full_like_nan, memo
 
 WINDOW_DAYS = 30
-_SRC = ("bundle.alt_trades (Quiver; available_at = cutoff of the session after the disclosure date); "
-        f"window = sessions in (D - {WINDOW_DAYS} calendar days, D]")
+_SRC = ("bundle.alt_trades (SEC Form 4: available_at = acceptance time; House PTR: cutoff of the session after the "
+        f"filing date); window = sessions in (D - {WINDOW_DAYS} calendar days, D]")
+
+
+def _is_insider_person(detail: pd.Series) -> pd.Series:
+    d = detail.fillna("").astype(str)
+    return d.str.contains("Director", regex=False) | d.str.contains("Officer", regex=False)
 
 
 def _grid(fs: FeatureSet) -> pd.DatetimeIndex:
@@ -58,9 +67,10 @@ def _build(fs: FeatureSet, source: str) -> dict[str, pd.DataFrame] | None:
         return None
     p = fs.panel
     grid = _grid(fs)
-    src_first = pd.Timestamp(a["_s"].min())
-    sym_first = a.groupby("symbol")["_s"].min()
-    in_panel = a[a["symbol"].isin(p.symbols)]
+    src_first = pd.Timestamp(a["_s"].min())                  # coverage starts with the earliest record of any kind
+    counted = a[(a["record_status"] == "PARSED") & a["symbol"].isin(p.symbols) & a["side"].isin(["BUY", "SELL"])]
+    if source == "insider":
+        counted = counted[_is_insider_person(counted["actor_detail"])]
     zero = pd.DataFrame(0.0, index=grid, columns=p.symbols)
 
     def daily(rows: pd.DataFrame, weights: pd.Series | None = None) -> pd.DataFrame:
@@ -75,22 +85,17 @@ def _build(fs: FeatureSet, source: str) -> dict[str, pd.DataFrame] | None:
     def window(df: pd.DataFrame) -> pd.DataFrame:
         return df.rolling(f"{WINDOW_DAYS}D").sum().reindex(p.dates)
 
-    buys = in_panel[in_panel["side"] == "BUY"]
-    sells = in_panel[in_panel["side"] == "SELL"]
-    trades = pd.concat([buys, sells])
-    val = pd.to_numeric(trades["amount_low_usd"], errors="coerce")
-    signed = val.where(trades["side"] == "BUY", -val)
+    buys = counted[counted["side"] == "BUY"]
+    sells = counted[counted["side"] == "SELL"]
+    val = pd.to_numeric(counted["amount_low_usd"], errors="coerce")
+    signed = val.where(counted["side"] == "BUY", -val)
     out = {"buys": window(daily(buys)), "sells": window(daily(sells)),
-           "value": window(daily(trades, signed.fillna(0.0))),
-           "unknown_value": window(daily(trades, val.isna().astype("float64")))}
-    # coverage: whole window after the source started AND the symbol already seen in the source
+           "value": window(daily(counted, signed.fillna(0.0))),
+           "unknown_value": window(daily(counted, val.isna().astype("float64")))}
+    # coverage: the whole window lies after the source's first usable record
     dates = pd.Series(p.dates, index=p.dates)
-    src_ok = (dates - pd.Timedelta(days=WINDOW_DAYS)) >= src_first
-    first = sym_first.reindex(p.symbols)
-    first_ns = pd.to_datetime(first).to_numpy(dtype="datetime64[ns]")
-    sym_ok = pd.DataFrame(p.dates.to_numpy(dtype="datetime64[ns]")[:, None] >= first_ns[None, :],
-                          index=p.dates, columns=p.symbols)          # NaT (never seen) compares False
-    out["mask"] = sym_ok & src_ok.to_numpy()[:, None]
+    src_ok = ((dates - pd.Timedelta(days=WINDOW_DAYS)) >= src_first).to_numpy()
+    out["mask"] = pd.DataFrame(src_ok[:, None].repeat(len(p.symbols), axis=1), index=p.dates, columns=p.symbols)
     return out
 
 

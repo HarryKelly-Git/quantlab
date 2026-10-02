@@ -18,10 +18,11 @@ weights, never fitted to results:
 CONTEXT families (earnings, news, fundamentals, sector, smart_money). Recorded only for symbols the
 data source actually covers; everything else is UNKNOWN, never 0. They NEVER enter the discovery
 score (the real universe has almost no coverage for them; see the feature-coverage panel).
-smart_money = congressional and insider (Form 4) disclosures from Quiver (features/alt.py). It is
-recorded so the learning loop can compare outcomes with and without that activity; insider buying
-tested FLAT at realistic timing and its one positive variant failed the locked 2025+ holdout, so it
-is context, not a signal (docs/QUIVER.md). It is not in SCORED, SCORED_POINTS or the selection score.
+smart_money = insider (SEC Form 4) and House (periodic transaction report) disclosures (features/alt.py,
+data/alt_trades.py). It is recorded so the learning loop can compare outcomes with and without that
+activity; insider buying tested FLAT at realistic timing and its one positive variant failed the locked
+2025+ holdout, so it is context, not a signal (docs/ALT-DATA.md). It is not in SCORED, SCORED_POINTS or
+the selection score.
 
 Feature states per symbol: VALID (finite value); UNKNOWN (not available: too little history for the
 feature's lookback, or the source does not cover the symbol); INVALID (the inputs should exist but
@@ -119,8 +120,8 @@ SOURCES = {
     "news": "Alpaca news (Benzinga), available_at = created_at",
     "fundamentals": "SEC EDGAR companyfacts (as-of replay)",
     "sector": "SEC SIC from each filing header, as of its acceptance -> industry groups / sector ETF (PIT)",
-    "smart_money": "Quiver congress + insider (Form 4) disclosures; usable from the session after the disclosure "
-                   "date (never the trade date). Context only: insider buying tested FLAT",
+    "smart_money": "SEC Form 4 (usable from the acceptance time) + House PTRs (usable from the session after the "
+                   "filing date); never the trade date. Senate not covered. Context only: insider buying tested FLAT",
 }
 
 

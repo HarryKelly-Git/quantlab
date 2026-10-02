@@ -54,23 +54,33 @@ NEWS = [
 ]
 NEWS_KEY = ["news_id", "symbol"]
 
-# Alternative "who is trading" disclosures (data/providers/quiver.py): congressional periodic
-# transaction reports and insider Form 4 filings. CONTEXT ONLY: never scored, never an order input.
+# Alternative "who is trading" disclosures (data/alt_trades.py, docs/ALT-DATA.md): insider Form 4
+# filings (SEC EDGAR, providers/sec_form4.py) and House periodic transaction reports (House Clerk,
+# providers/house_ptr.py). CONTEXT ONLY: never scored, never a selection, sizing or order input.
 #   source            "congress" | "insider"
-#   actor             congressperson name / insider name (as published)
-#   actor_detail      congress: "<chamber> / <party>[ / <district>]"; insider: title or role flags
-#   side              BUY | SELL | OTHER | UNKNOWN. Insider BUY = open-market purchase (Form 4 code P),
-#                     SELL = open-market sale (code S); every other code (grant, exercise, tax, gift) is OTHER
-#   amount_low_usd /  congress: the disclosed value RANGE (NaN = not disclosed / unparsable);
-#   amount_high_usd   insider: shares x price for both when both are known, else NaN (UNKNOWN, never 0)
+#   symbol            ticker as disclosed (Form 4 issuerTradingSymbol / the "(TICKER)" of a PTR asset);
+#                     None when the disclosure names no ticker (record_status NO_SYMBOL / UNPARSEABLE)
+#   actor             reporting owner name / House member name (as published)
+#   actor_detail      insider: relationship flags + officer title; congress: "House / <state+district>[ / owner]"
+#   side              BUY | SELL | OTHER | UNKNOWN. Insider BUY = open-market purchase (code P), SELL =
+#                     open-market sale (code S), every other code (grant, exercise, tax, gift) OTHER.
+#                     Congress P = BUY, S / S (partial) = SELL, E (exchange) = OTHER
+#   amount_low_usd /  congress: the disclosed value RANGE; insider: shares x price for both when both are
+#   amount_high_usd   known; NaN = UNKNOWN (never 0)
+#   shares / price    insider only (NaN for congress or when not reported)
 #   transaction_date  when the trade happened (NOT when it became public)
-#   disclosed_date    when it was disclosed (congress report date / Form 4 filing date)
-#   available_at      point in time: the cutoff of the session AFTER disclosed_date (date-only source)
-#   record_id         stable hash of the identifying fields + an ordinal for genuine duplicates
-#                     (see quiver.py ``_record_ids``); dedupe key = (source, record_id)
+#   disclosed_at      insider: the filing's EDGAR acceptance datetime (exact); congress: the FilingDate
+#                     (date-only, stored as 00:00 America/New_York of that date)
+#   available_at      point in time. Insider: = disclosed_at (PIT). Congress (date-only): the cutoff of
+#                     the session AFTER the filing date (PIT_CONSERVATIVE, the repo's date-only rule)
+#   record_status     PARSED | NO_SYMBOL (no ticker named) | NO_TRANSACTIONS (filing had no transaction
+#                     rows) | UNPARSEABLE (e.g. a scanned paper PTR: recorded, never guessed)
+#   record_id         stable per disclosure line: "form4:<accession>:<content hash>[#n]" /
+#                     "house:<DocID>:<line no>" / "house:<DocID>:unparseable"; dedupe key = (source, record_id)
 ALT_TRADES = [
     "record_id", "source", "symbol", "actor", "actor_detail", "side", "amount_low_usd", "amount_high_usd",
-    "transaction_date", "disclosed_date", "available_at", "pit_status", "raw_json", "provider", "retrieved_at",
+    "shares", "price", "transaction_date", "disclosed_at", "available_at", "pit_status", "record_status",
+    "raw_json", "provider", "retrieved_at",
 ]
 ALT_TRADES_KEY = ["source", "record_id"]
 
@@ -100,7 +110,7 @@ UTC_COLUMNS: dict[str, list[str]] = {
     "events": ["event_time", "available_at", "retrieved_at"],
     "fundamentals": ["available_at", "retrieved_at"],
     "news": ["created_at", "updated_at", "available_at", "retrieved_at"],
-    "alt_trades": ["available_at", "retrieved_at"],
+    "alt_trades": ["disclosed_at", "available_at", "retrieved_at"],
 }
 # tz-naive session-date columns per kind
 DATE_COLUMNS: dict[str, list[str]] = {
@@ -110,10 +120,11 @@ DATE_COLUMNS: dict[str, list[str]] = {
     "events": ["reaction_date"],
     "fundamentals": ["period_start", "period_end", "filed_date"],
     "news": [],
-    "alt_trades": ["transaction_date", "disclosed_date"],
+    "alt_trades": ["transaction_date"],
 }
 ALT_SOURCES = ("congress", "insider")
 ALT_SIDES = ("BUY", "SELL", "OTHER", "UNKNOWN")
+ALT_RECORD_STATUSES = ("PARSED", "NO_SYMBOL", "NO_TRANSACTIONS", "UNPARSEABLE")
 
 
 class SchemaError(ValueError):
@@ -143,7 +154,10 @@ def conform(kind: str, df: pd.DataFrame) -> pd.DataFrame:
             col = col.dt.tz_convert("America/New_York").dt.tz_localize(None)
         out[c] = col.dt.normalize()
     if "symbol" in out.columns:
+        no_sym = out["symbol"].isna()
         out["symbol"] = out["symbol"].astype(str).str.upper()
+        if kind == "alt_trades":                # a disclosure may name no ticker: None, never "NONE"
+            out["symbol"] = out["symbol"].astype("object").where(~no_sym, None)
     if kind == "bars":
         for c in ["open", "high", "low", "close", "volume", "vwap", "trade_count"]:
             out[c] = pd.to_numeric(out[c], errors="coerce").astype("float64")
@@ -153,14 +167,17 @@ def conform(kind: str, df: pd.DataFrame) -> pd.DataFrame:
         out["ratio"] = pd.to_numeric(out["ratio"], errors="coerce").astype("float64")
         out["amount"] = pd.to_numeric(out["amount"], errors="coerce").astype("float64")
     if kind == "alt_trades":
-        for c in ("amount_low_usd", "amount_high_usd"):
+        for c in ("amount_low_usd", "amount_high_usd", "shares", "price"):
             out[c] = pd.to_numeric(out[c], errors="coerce").astype("float64")
+        bad_rs = ~out["record_status"].isin(ALT_RECORD_STATUSES)
+        if bool(bad_rs.any()):
+            raise SchemaError(f"alt_trades.record_status must be one of {ALT_RECORD_STATUSES}")
         bad_src = ~out["source"].isin(ALT_SOURCES)
         if bool(bad_src.any()):
             raise SchemaError(f"alt_trades.source must be one of {ALT_SOURCES}: {sorted(set(out.loc[bad_src, 'source']))[:5]}")
         bad_side = ~out["side"].isin(ALT_SIDES)
         if bool(bad_side.any()):
             raise SchemaError(f"alt_trades.side must be one of {ALT_SIDES}: {sorted(set(out.loc[bad_side, 'side']))[:5]}")
-        for c in ("record_id", "actor", "actor_detail", "raw_json", "provider", "pit_status"):
+        for c in ("record_id", "actor", "actor_detail", "raw_json", "provider", "pit_status", "record_status"):
             out[c] = out[c].astype("object").where(out[c].notna(), None)
     return out.reset_index(drop=True)

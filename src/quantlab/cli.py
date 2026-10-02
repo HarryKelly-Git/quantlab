@@ -404,28 +404,39 @@ def cmd_catalysts(args) -> int:
 
 
 def cmd_alt(args) -> int:
-    """Congress / insider disclosures from Quiver (CONTEXT ONLY: never scored, never an order input).
+    """Congress (House PTR) / insider (SEC Form 4) disclosures (CONTEXT ONLY: never scored, never an order
+    input; docs/ALT-DATA.md).
 
-    ingest  fetch and store (needs QUIVER_API_KEY in the git-ignored .env; without it: SKIPPED)
-    recent  stored disclosures, newest first (optionally one symbol)
-    status  key configured? datasets, latest disclosure, last pull"""
+    ingest         fetch and store the last --days days (default: each source's refresh window); needs
+                   QUANTLAB_SEC_USER_AGENT for insiders and pypdf for congress PTRs
+    import-insider map the research parquet (SEC Insider Transactions Data Sets) into the store
+    recent         stored disclosures, newest first (optionally one symbol)
+    status         per source: datasets, latest disclosure, last pull"""
     ctx = _ctx(args)
     from quantlab.data import alt_trades as alt
     if args.action == "ingest":
         sources = alt.SOURCES if args.source == "both" else (args.source,)
         res = alt.ingest_alt_trades(ctx, days=args.days, mode="history", sources=sources)
         _print(res)
-        return 0 if res["status"] == "OK" else 2
+        return 0 if res["status"] in ("OK", "PARTIAL") else 2
+    if args.action == "import-insider":
+        if not args.path:
+            print("--path is required (e.g. ../research/2026-10-01-new-data-tests/data/insider_tx_2017-2026.parquet)")
+            return 2
+        _print(alt.import_insider_parquet(ctx, args.path, since=args.since))
+        return 0
     syn = _data_flag(ctx, args.data)
     if args.action == "status":
         _print({"synthetic": syn, "sources": alt.source_status(ctx.store, ctx.config, synthetic=syn),
+                "coverage_gaps": alt.COVERAGE_GAPS,
                 "note": "context only: never scored, never a selection, sizing or order input"})
         return 0
     rows = alt.recent_disclosures(ctx.store, symbols=[args.symbol] if args.symbol else None, limit=args.limit,
-                                  since_days=args.days or 120, synthetic=syn)
+                                  since_days=args.days or 120, synthetic=syn,
+                                  source=None if args.source == "both" else args.source)
     _print({"synthetic": syn, "symbol": args.symbol.upper() if args.symbol else None, "rows": rows,
-            "note": "usable_from = cutoff of the session after the disclosure date (never the trade date); "
-                    "context only, never scored"})
+            "note": "usable_from: insider = EDGAR acceptance time; congress = cutoff of the session after the filing "
+                    "date (never the trade date). Context only, never scored"})
     return 0
 
 
@@ -667,13 +678,16 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--no-sic", action="store_true", help="ingest-sec: skip SIC header reads")
     s.set_defaults(fn=cmd_catalysts)
 
-    s = sub.add_parser("alt", help="congress / insider disclosures (Quiver): ingest | recent | status (context only)")
-    s.add_argument("action", choices=["ingest", "recent", "status"])
-    s.add_argument("--days", type=int, help="ingest: history window (default providers.quiver.lookback_days); "
+    s = sub.add_parser("alt", help="congress (House) / insider (SEC Form 4) disclosures: ingest | import-insider | "
+                                   "recent | status (context only, never scored)")
+    s.add_argument("action", choices=["ingest", "import-insider", "recent", "status"])
+    s.add_argument("--days", type=int, help="ingest: filing window in days (default: alt_data.<source>.refresh_days); "
                                             "recent: disclosed within N days (default 120)")
-    s.add_argument("--source", choices=["both", "congress", "insider"], default="both", help="ingest: which feed")
+    s.add_argument("--source", choices=["both", "insider", "congress"], default="both", help="which source")
     s.add_argument("--symbol", help="recent: one symbol")
     s.add_argument("--limit", type=int, default=25, help="recent: max rows")
+    s.add_argument("--path", help="import-insider: the research insider parquet")
+    s.add_argument("--since", help="import-insider: only filings on/after this date")
     s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
     s.set_defaults(fn=cmd_alt)
 

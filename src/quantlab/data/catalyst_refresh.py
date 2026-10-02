@@ -8,6 +8,9 @@ minutes to hours. Every day only the recent tail is needed:
   sec    each symbol's recent filings (submissions ``recent`` block only; older history pages are
          skipped), SIC headers only when a new periodic report appears;
   facts  companyfacts only for symbols that filed a new 10-Q / 10-K in this refresh.
+  alt    insider Form 4 filings (SEC EDGAR) + House periodic transaction reports (House Clerk), market-
+         wide, daily refresh only (data/alt_trades.py): incremental, time- and filing-budgeted, short HTTP
+         timeouts. Context only, never scored; an outage reports FAILED and never stalls the pipeline.
 
 Every part is best effort and independent: a failure is reported, never raised into the caller's
 trading path. Rows are written as new immutable datasets; the store de-duplicates on each kind's
@@ -42,8 +45,13 @@ def _news_resume_point(store, now: pd.Timestamp, max_days: int) -> pd.Timestamp:
 
 
 def refresh_catalysts(ctx, session, *, symbols: Iterable[str] | None = None, parts=("news", "sec", "facts"),
-                      sec_days: int = 10, news_max_days: int = 30, workers: int = 6, now=None) -> dict[str, Any]:
-    """Refresh recent catalyst data. ``symbols``: SEC scope (default: stored-bar COMMON stocks)."""
+                      sec_days: int = 10, news_max_days: int = 30, workers: int = 6, now=None,
+                      alt: bool | None = None, alt_providers: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Refresh recent catalyst data. ``symbols``: SEC scope (default: stored-bar COMMON stocks).
+
+    ``alt``: refresh insider / congress disclosures (data/alt_trades.py). ``None`` (default) = only in
+    the market-wide daily refresh (``symbols is None``: the runner's evening run, never its candidate-
+    scoped pre-open refresh); ``"alt"`` in ``parts`` forces it. It never raises."""
     from quantlab.secrets import load_dotenv
     load_dotenv(ctx.config.root / ".env")
     now = pd.Timestamp(now) if now is not None else pd.Timestamp.now(tz="UTC")
@@ -108,6 +116,13 @@ def refresh_catalysts(ctx, session, *, symbols: Iterable[str] | None = None, par
             log_event(log, "catalyst refresh: facts failed", level=30, error=repr(exc)[:300])
     elif "facts" in parts:
         out["facts"] = {"ok": True, "symbols": 0, "rows": 0, "note": "no new 10-Q/10-K in this refresh"}
+    if "alt" in parts or (alt if alt is not None else symbols is None):
+        try:
+            from quantlab.data.alt_trades import refresh_alt
+            out["alt"] = refresh_alt(ctx, now=now, providers=alt_providers)
+        except Exception as exc:                 # context data: an outage is reported, never raised
+            out["alt"] = {"ok": False, "status": "FAILED", "rows": "FAILED", "error": repr(exc)[:300]}
+            log_event(log, "catalyst refresh: alt failed", level=30, error=repr(exc)[:300])
     log_event(log, "catalyst refresh", **{k: (v.get("rows") if isinstance(v, dict) else v) for k, v in out.items()})
     return out
 

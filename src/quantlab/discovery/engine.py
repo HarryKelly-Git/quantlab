@@ -347,17 +347,16 @@ class DiscoveryEngine:
         sic_now = fs.cross_section(d, ["sic_code_asof"])["sic_code_asof"] if "sic_code_asof" in fs.registry else None
         covered["sector"] = set(sic_now.index[sic_now.notna()]) if sic_now is not None else set()
         why["sector"] = "no SIC observed in a filing header by the decision time"
-        # congress / insider disclosures (features/alt.py): KNOWN only where a source has delivered for the
-        # whole 30-day window AND has already shown this symbol; never a zero for a symbol it does not cover
+        # congress / insider disclosures (features/alt.py): KNOWN once a source has delivered for the whole
+        # 30-day window (both sources cover every issuer, so a quiet symbol is a real 0); UNKNOWN before
         sm_feats = [f for f in CONTEXT_FEATURES["smart_money"] if f in fs.registry]
         covered["smart_money"] = set()
         if sm_feats and not view.alt_trades.empty:
             sm = fs.cross_section(d, sm_feats).reindex(list(syms))
             covered["smart_money"] = set(sm.index[sm.notna().any(axis=1)])
-        why["smart_money"] = ("no congress/insider disclosure source (Quiver key not set or nothing ingested)"
+        why["smart_money"] = ("no congress/insider disclosures ingested (quantlab alt ingest)"
                               if view.alt_trades.empty else
-                              "the congress/insider feed has not shown this symbol yet, or has not covered a full "
-                              "30-day window")
+                              "the congress/insider sources have not yet covered a full 30-day window")
 
         vals: dict[str, pd.DataFrame] = {}
         for fam in CONTEXT:

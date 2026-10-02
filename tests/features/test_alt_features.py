@@ -18,13 +18,16 @@ DATES = pd.bdate_range("2024-01-01", periods=120)
 CAL = TradingCalendar.from_dates(DATES)
 
 
-def trade(source, symbol, side, disclosed, traded=None, value=1000.0):
+def trade(source, symbol, side, disclosed, traded=None, value=1000.0, detail=None, status="PARSED"):
     d = pd.Timestamp(disclosed)
-    return {"record_id": f"{source}-{symbol}-{side}-{disclosed}-{value}", "source": source, "symbol": symbol,
-            "actor": "x", "actor_detail": "x", "side": side, "amount_low_usd": value, "amount_high_usd": value,
-            "transaction_date": pd.Timestamp(traded) if traded else d - pd.Timedelta(days=10), "disclosed_date": d,
-            "available_at": conservative_available_at(d, CAL), "pit_status": "PIT_CONSERVATIVE", "raw_json": "{}",
-            "provider": "test", "retrieved_at": pd.Timestamp("2025-01-01", tz="UTC")}
+    return {"record_id": f"{source}-{symbol}-{side}-{disclosed}-{value}-{detail}", "source": source, "symbol": symbol,
+            "actor": "x", "actor_detail": detail or ("Officer: CEO" if source == "insider" else "House / XX01"),
+            "side": side, "amount_low_usd": value, "amount_high_usd": value, "shares": np.nan, "price": np.nan,
+            "transaction_date": pd.Timestamp(traded) if traded else d - pd.Timedelta(days=10),
+            "disclosed_at": d.tz_localize("America/New_York").tz_convert("UTC"),
+            "available_at": conservative_available_at(d, CAL), "pit_status": "PIT_CONSERVATIVE",
+            "record_status": status, "raw_json": "{}", "provider": "test",
+            "retrieved_at": pd.Timestamp("2025-01-01", tz="UTC")}
 
 
 ROWS = [
@@ -37,7 +40,9 @@ ROWS = [
     trade("insider", "AAA", "BUY", "2024-03-05", value=20_000.0),
     trade("insider", "AAA", "SELL", "2024-03-06", value=5_000.0),
     trade("insider", "AAA", "SELL", "2024-04-02", value=np.nan),          # value UNKNOWN
-    trade("insider", "BBB", "OTHER", "2024-03-05"),                       # a grant: covers BBB, counts nothing
+    trade("insider", "BBB", "OTHER", "2024-03-05"),                       # a grant: counts nothing
+    trade("insider", "BBB", "BUY", "2024-03-05", detail="10% owner"),     # not a director/officer: not counted
+    trade("congress", None, "BUY", "2024-03-05", status="NO_SYMBOL"),     # no ticker: never counted
 ]
 
 
@@ -71,7 +76,7 @@ def test_counts_from_the_disclosure_with_a_30_day_window():
     assert at(buys, "2024-02-21", "AAA") == 1                              # traded 2023-12-01: irrelevant
     assert at(sells, "2024-02-23", "AAA") == 1 and at(net, "2024-02-23", "AAA") == 0
     assert at(buys, "2024-03-21", "AAA") == 1 and at(buys, "2024-03-22", "AAA") == 0   # (D - 30 days, D]
-    assert at(buys, "2024-02-15", "AAA") == 0                              # a KNOWN zero: source and symbol covered
+    assert at(buys, "2024-02-15", "AAA") == 0                              # a KNOWN zero: the source covers the window
 
 
 def test_unknown_before_coverage_never_zero():
@@ -80,11 +85,22 @@ def test_unknown_before_coverage_never_zero():
     # the congress source starts 01-03: no 30-day count is complete before 02-02
     assert np.isnan(at(buys, "2024-01-25", "AAA")) and np.isnan(at(buys, "2024-02-01", "AAA"))
     assert at(buys, "2024-02-02", "AAA") == 0
-    assert buys["BBB"].isna().all()                                        # congress never showed BBB: UNKNOWN
-    assert np.isnan(at(buys, "2024-03-01", "CCC")) and at(buys, "2024-03-04", "CCC") == 0
+    # both sources cover every issuer: once the window is covered, a quiet symbol is a KNOWN zero
+    assert np.isnan(at(buys, "2024-02-01", "BBB")) and at(buys, "2024-02-02", "BBB") == 0
+    assert at(buys, "2024-03-01", "CCC") == 0 and at(buys, "2024-03-04", "CCC") == 0
     assert at(fs.get("congress_sells_30d"), "2024-03-04", "CCC") == 1
     ib = fs.get("insider_buys_30d")
-    assert ib["CCC"].isna().all() and at(ib, "2024-03-06", "BBB") == 0 and np.isnan(at(ib, "2024-03-05", "BBB"))
+    # the insider source starts 2024-01-08 (disclosed Fri 01-05): UNKNOWN until 30 days later
+    assert np.isnan(at(ib, "2024-02-06", "CCC")) and at(ib, "2024-02-07", "CCC") == 0
+    assert at(ib, "2024-03-07", "BBB") == 0                                # 10% owner buy and grant not counted
+
+
+def test_only_parsed_rows_with_a_ticker_count_but_any_record_starts_coverage():
+    rows = [trade("congress", None, "BUY", "2024-01-02", status="NO_SYMBOL"),     # coverage starts 01-03
+            trade("congress", "AAA", "BUY", "2024-02-20", status="UNPARSEABLE")]
+    buys = FeatureSet(make_bundle(rows)).get("congress_buys_30d")
+    assert np.isnan(at(buys, "2024-02-01", "AAA")) and at(buys, "2024-02-02", "AAA") == 0
+    assert at(buys, "2024-02-22", "AAA") == 0
 
 
 def test_insider_net_value_is_unknown_when_any_value_is_unknown():

@@ -61,7 +61,7 @@ class MarketDataStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         df.to_parquet(path, index=False)
         date_col = {"bars": "date", "corporate_actions": "ex_date", "events": "reaction_date",
-                    "fundamentals": "period_end", "news": "created_at", "alt_trades": "disclosed_date"}.get(kind)
+                    "fundamentals": "period_end", "news": "created_at", "alt_trades": "disclosed_at"}.get(kind)
         start = end = None
         if date_col and len(df):
             start, end = str(pd.Timestamp(df[date_col].min()).date()), str(pd.Timestamp(df[date_col].max()).date())

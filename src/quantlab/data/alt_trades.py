@@ -1,13 +1,15 @@
-"""Congress / insider disclosures (Quiver): ingestion into the store, the daily refresh, and read
-helpers for the dashboard and the CLI. CONTEXT ONLY (docs/QUIVER.md).
+"""Congress (House PTR) + insider (SEC Form 4) disclosures: ingestion into the store, the bounded
+daily refresh, the research-parquet import, and read helpers for the dashboard and CLI.
+CONTEXT ONLY: never scored, never a selection, sizing or order input (docs/ALT-DATA.md).
 
-Status vocabulary (per source, ``congress`` and ``insider``):
-  OK        fetched; ``rows`` rows written (0 = the provider returned nothing new in the window)
-  SKIPPED   no key configured (``providers.quiver.key_env``) or ``providers.quiver.enabled: false``:
-            nothing fetched, the data is UNKNOWN (never zero)
-  FAILED    the request failed (network, 401/403, 5xx, malformed body): UNKNOWN, reported, never raised
+Status vocabulary (per source, ``insider`` and ``congress``):
+  OK        every listed filing in the window is stored (``rows`` rows written this run, 0 = nothing new)
+  PARTIAL   the time / filing budget ran out: ``remaining`` filings are fetched by the next run
+  SKIPPED   disabled in config, or the SEC user agent is not set: nothing fetched, data UNKNOWN (never zero)
+  FAILED    an outage (network, 403, 5xx, malformed index) or a missing PDF library: UNKNOWN, reported,
+            never raised. Whatever was fetched before the failure is still written.
 
-Nothing here raises into a caller's trading path: every source is wrapped and reported.
+Incremental: a filing whose accession (Form 4) / DocID (PTR) is already stored is never fetched again.
 Rows are written as new immutable ``alt_trades`` datasets; the store de-duplicates on
 (source, record_id), so re-running an ingest never duplicates a disclosure.
 """
@@ -15,7 +17,7 @@ from __future__ import annotations
 
 import json
 import time as _time
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import pandas as pd
 
@@ -23,10 +25,15 @@ from quantlab.logging_setup import get_logger, log_event
 
 log = get_logger(__name__)
 
-SOURCES = ("congress", "insider")
-PIT_NOTES = ("Quiver disclosures. available_at = 16:00 ET cutoff of the session AFTER the disclosure date "
-             "(congress report date / Form 4 filing date; date-only). The transaction date is NOT availability. "
-             "Look-ahead return fields are dropped. CONTEXT ONLY: never scored.")
+SOURCES = ("insider", "congress")
+PIT_NOTES = {
+    "insider": "SEC Form 4. available_at = EDGAR acceptance datetime of the filing (PIT). The transaction "
+               "date is NOT availability. CONTEXT ONLY: never scored.",
+    "congress": "House Clerk PTRs. available_at = cutoff of the session AFTER the index FilingDate (date-only, "
+                "PIT_CONSERVATIVE). The transaction date is NOT availability. CONTEXT ONLY: never scored.",
+}
+COVERAGE_GAPS = ("Senate: no free automated source (the official eFD site refuses automated access; the "
+                 "community dataset stopped in 2020). Senate trades are UNKNOWN, not zero.")
 
 
 def _utc(now: Any = None) -> pd.Timestamp:
@@ -34,185 +41,358 @@ def _utc(now: Any = None) -> pd.Timestamp:
     return t.tz_localize("UTC") if t.tzinfo is None else t.tz_convert("UTC")
 
 
-def quiver_settings(config) -> dict[str, Any]:
-    g = lambda k, d: config.get(f"providers.quiver.{k}", d)   # noqa: E731
-    return {"enabled": bool(g("enabled", True)), "key_env": str(g("key_env", "QUIVER_API_KEY")),
-            "lookback_days": int(g("lookback_days", 365)), "refresh_days": int(g("refresh_days", 7)),
-            "congress_resync_days": float(g("congress_resync_days", 7)),
-            "congress_resync_window_days": int(g("congress_resync_window_days", 120))}
+def alt_settings(config) -> dict[str, Any]:
+    g = lambda k, d: config.get(f"alt_data.{k}", d)          # noqa: E731
+    return {
+        "insider": {"enabled": bool(g("insider.enabled", True)), "refresh_days": int(g("insider.refresh_days", 5)),
+                    "current_pages": int(g("insider.current_feed_pages", 10)),
+                    "max_filings": int(g("insider.max_filings_per_run", 3000)),
+                    "max_seconds": float(g("insider.max_seconds_per_run", 300))},
+        "congress": {"enabled": bool(g("congress.enabled", True)), "refresh_days": int(g("congress.refresh_days", 60)),
+                     "max_filings": int(g("congress.max_filings_per_run", 60)),
+                     "max_seconds": float(g("congress.max_seconds_per_run", 180))},
+        "refresh_http": {"timeout": float(g("refresh_http_timeout_seconds", 20)),
+                         "retries": int(g("refresh_http_max_retries", 1))},
+        "max_consecutive_errors": int(g("max_consecutive_errors", 5)),
+    }
 
 
-def key_status(config, root=None) -> dict[str, Any]:
-    """Whether a key is configured (presence only; the value is never read out or shown)."""
-    from quantlab.secrets import get_secret, load_dotenv
-    s = quiver_settings(config)
-    if root is not None:
-        load_dotenv(root / ".env")
-    present = get_secret(s["key_env"]) is not None
-    return {"enabled": s["enabled"], "key_env": s["key_env"], "key_present": present,
-            "configured": bool(s["enabled"] and present)}
-
-
-def _error_status(exc: Exception) -> str:
-    from quantlab.data.providers.base import ProviderNotConfigured
-    from quantlab.data.providers.http import ProviderAuthError, ProviderForbidden
-    if isinstance(exc, ProviderNotConfigured):
-        return "SKIPPED"
-    if isinstance(exc, ProviderForbidden):
-        return "FAILED (403: the key's plan may not include this endpoint; insiders are 'Tier 2')"
-    if isinstance(exc, ProviderAuthError):
-        return "FAILED (401: key not accepted)"
-    return "FAILED"
-
-
-def _last_pull(store, what: str) -> pd.Timestamp | None:
-    ends = []
-    for r in store.db.fetchall("SELECT params_json FROM datasets WHERE kind='alt_trades' AND is_synthetic=0"):
-        pj = json.loads(r["params_json"] or "{}")
-        if pj.get("what") == what and pj.get("end"):
-            ends.append(_utc(pj["end"]))
-    return max(ends) if ends else None
-
-
-def _write(store, df: pd.DataFrame, what: str, params: dict[str, Any]) -> str | None:
-    if df is None or not len(df):
+def _calendar(ctx):
+    try:
+        from quantlab.data.sec_catalysts import market_calendar
+        return market_calendar(ctx.store, ctx.config.get("benchmarks.market", "SPY"))
+    except Exception:                         # no bars yet: next-business-day fallback (documented)
         return None
-    meta = {k: v for k, v in df.attrs.items() if isinstance(v, (str, int, float, bool, dict, type(None)))}
-    return store.write("alt_trades", df, "quiver", params={"what": what, **params, **meta}, pit_notes=PIT_NOTES)
 
 
-def ingest_alt_trades(ctx, *, days: int | None = None, mode: str = "history", sources: Iterable[str] = SOURCES,
-                      now: Any = None, provider=None) -> dict[str, Any]:
-    """Fetch congress and/or insider disclosures and write them to the store.
+def stored_filing_ids(store, source: str) -> set[str]:
+    """Accessions (insider) / DocIDs (congress) already stored (real data only)."""
+    if not store.dataset_ids("alt_trades", synthetic=False):
+        return set()
+    ids = store.load("alt_trades", synthetic=False, columns=["record_id"])
+    ids = ids.loc[ids["source"] == source, "record_id"].dropna().astype(str)
+    return {r.split(":")[1] for r in ids if r.count(":") >= 1}
 
-    ``mode="history"`` (``quantlab alt ingest --days N``): congress from the bulk endpoint (rows
-    disclosed in the last N days), insiders day by day over the last N days.
-    ``mode="refresh"`` (daily, from the catalyst refresh): congress from the live endpoint, plus a
-    bulk re-pull (last ``congress_resync_window_days``) when the previous one is older than
-    ``congress_resync_days`` (late disclosures arrive up to 45 days after the trade); insiders day by
-    day over the last ``refresh_days``.
-    Never raises: each source reports OK / SKIPPED / FAILED (see module docstring)."""
-    from quantlab.secrets import load_dotenv
-    cfg = ctx.config
-    s = quiver_settings(cfg)
-    load_dotenv(cfg.root / ".env")
+
+def _write(store, rows: list[dict[str, Any]], source: str, params: dict[str, Any]) -> str | None:
+    if not rows:
+        return None
+    from quantlab.data import schemas
+    df = schemas.conform("alt_trades", pd.DataFrame(rows))
+    provider = "sec_form4" if source == "insider" else "house_clerk"
+    return store.write("alt_trades", df, provider, params={"what": f"alt_{source}", **params},
+                       pit_notes=PIT_NOTES[source])
+
+
+def _status_for(exc: Exception) -> str:
+    from quantlab.data.providers.base import ProviderNotConfigured
+    return "SKIPPED" if isinstance(exc, ProviderNotConfigured) else "FAILED"
+
+
+def _fetch_loop(todo: list[dict[str, Any]], fetch: Callable[[dict[str, Any]], list[dict[str, Any]]], *,
+                max_filings: int | None, deadline: float | None, max_errors: int) -> dict[str, Any]:
+    """Fetch filings oldest first within the budget. Per-filing errors are counted; ``max_errors`` in a
+    row (or any 403 / rate-limit / missing PDF library) stops the loop as an outage."""
+    from quantlab.data.providers.house_ptr import PdfLibraryMissing
+    from quantlab.data.providers.http import ProviderForbidden, ProviderRateLimited
+    rows: list[dict[str, Any]] = []
+    fetched = failed = consecutive = 0
+    stop: str | None = None
+    errors: list[str] = []
+    for item in todo:
+        if max_filings is not None and fetched + failed >= max_filings:
+            stop = "budget"
+            break
+        if deadline is not None and _time.time() >= deadline:
+            stop = "budget"
+            break
+        try:
+            rows.extend(fetch(item))
+            fetched += 1
+            consecutive = 0
+        except (ProviderForbidden, ProviderRateLimited, PdfLibraryMissing) as exc:
+            errors.append(repr(exc)[:200])
+            stop = "outage"
+            break
+        except Exception as exc:              # one bad filing never stops the rest
+            failed += 1
+            consecutive += 1
+            errors.append(f"{item.get('accession') or item.get('doc_id')}: {exc!r}"[:200])
+            if consecutive >= max_errors:
+                stop = "outage"
+                break
+    return {"rows": rows, "fetched": fetched, "failed": failed, "remaining": len(todo) - fetched - failed,
+            "stop": stop, "errors": errors[:5]}
+
+
+def ingest_insider(ctx, *, days: int, now: Any = None, provider=None, include_current: bool = True,
+                   max_filings: int | None = None, max_seconds: float | None = None) -> dict[str, Any]:
+    """Form 4 filings listed in the daily indexes of the last ``days`` calendar days (plus the current
+    feed, for filings not yet in a published index), minus those already stored."""
+    s = alt_settings(ctx.config)
     now = _utc(now)
-    out: dict[str, Any] = {"mode": mode, "now": now.isoformat()}
+    t0 = _time.time()
+    if not s["insider"]["enabled"]:
+        return {"status": "SKIPPED", "rows": 0, "reason": "alt_data.insider.enabled is false"}
     if provider is None:
-        try:
-            from quantlab.data.providers.quiver import QuiverProvider
-            from quantlab.data.sec_catalysts import market_calendar
-            cal = market_calendar(ctx.store, cfg.get("benchmarks.market", "SPY"))
-            provider = QuiverProvider(cfg, calendar=cal)
-        except Exception as exc:              # a broken config is reported like any other failure
-            for src in sources:
-                out[src] = {"status": _error_status(exc), "rows": 0, "error": repr(exc)[:300]}
-            return _summarise(out)
-    if not provider.configured():
-        why = ("providers.quiver.enabled is false" if not s["enabled"]
-               else f"{s['key_env']} is not set: congress/insider activity is UNKNOWN (not zero)")
-        for src in sources:
-            out[src] = {"status": "SKIPPED", "rows": 0, "reason": why}
-        log_event(log, "quiver skipped", reason=why)
-        return _summarise(out)
-    window = int(days if days is not None else (s["lookback_days"] if mode == "history" else s["refresh_days"]))
-    start = (now - pd.Timedelta(days=window)).tz_localize(None).normalize()
-    end = now.tz_localize(None).normalize()
+        from quantlab.data.providers.sec_form4 import SecForm4Provider
+        provider = SecForm4Provider(ctx.config, calendar=_calendar(ctx))
+    today = now.tz_convert("America/New_York").tz_localize(None).normalize()
+    listed: dict[str, dict[str, Any]] = {}
+    unpublished: list[str] = []
+    try:
+        for d in pd.date_range(today - pd.Timedelta(days=max(int(days), 0)), today):
+            if d.dayofweek >= 5:
+                continue
+            got = provider.daily_index(d)
+            if got is None:
+                unpublished.append(str(d.date()))
+                continue
+            for f in got:
+                listed.setdefault(f["accession"], f)
+        if include_current:
+            for f in provider.current_filings(pages=s["insider"]["current_pages"]):
+                listed.setdefault(f["accession"], f)
+    except Exception as exc:                  # the listing itself failed: nothing to fetch this run
+        log_event(log, "alt insider listing failed", level=30, error=repr(exc)[:300])
+        return {"status": _status_for(exc), "rows": 0, "error": repr(exc)[:300]}
+    have = stored_filing_ids(ctx.store, "insider")
+    todo = sorted((f for a, f in listed.items() if a not in have), key=lambda f: (f.get("date_filed") or "", f["accession"]))
+    deadline = t0 + max_seconds if max_seconds else None
+    res = _fetch_loop(todo, lambda f: provider.fetch_filing(f["cik"], f["accession"], f.get("date_filed")),
+                      max_filings=max_filings, deadline=deadline, max_errors=s["max_consecutive_errors"])
+    params = {"start": str((today - pd.Timedelta(days=days)).date()), "end": now.isoformat(), "listed": len(listed),
+              "already_stored": len(listed) - len(todo), "fetched": res["fetched"], "failed": res["failed"],
+              "remaining": res["remaining"], "unpublished_days": unpublished}
+    ds = _write(ctx.store, res["rows"], "insider", params)
+    status = "FAILED" if res["stop"] == "outage" else ("PARTIAL" if res["remaining"] > 0 else "OK")
+    out = {"status": status, "rows": len(res["rows"]), "dataset": ds, **{k: v for k, v in params.items() if k != "end"},
+           "secs": round(_time.time() - t0, 1), "requests": getattr(provider.http, "request_count", None)}
+    if res["errors"]:
+        out["errors"] = res["errors"]
+    return out
+
+
+def ingest_congress(ctx, *, days: int, now: Any = None, provider=None, max_filings: int | None = None,
+                    max_seconds: float | None = None) -> dict[str, Any]:
+    """House PTRs (FilingType P) filed in the last ``days`` calendar days, minus those already stored."""
+    s = alt_settings(ctx.config)
+    now = _utc(now)
+    t0 = _time.time()
+    if not s["congress"]["enabled"]:
+        return {"status": "SKIPPED", "rows": 0, "reason": "alt_data.congress.enabled is false"}
+    if provider is None:
+        from quantlab.data.providers.house_ptr import HousePtrProvider
+        provider = HousePtrProvider(ctx.config, calendar=_calendar(ctx))
+    today = now.tz_convert("America/New_York").tz_localize(None).normalize()
+    since = today - pd.Timedelta(days=max(int(days), 0))
+    filings: list[dict[str, Any]] = []
+    missing_years = []
+    try:
+        for year in range(since.year, today.year + 1):
+            idx = provider.index(year)
+            if idx is None:
+                missing_years.append(year)
+                continue
+            filings += [f for f in idx if f["filing_type"] == "P" and f["doc_id"] and f["filing_date"]
+                        and since <= pd.Timestamp(f["filing_date"]) <= today]
+    except Exception as exc:
+        log_event(log, "alt congress index failed", level=30, error=repr(exc)[:300])
+        return {"status": _status_for(exc), "rows": 0, "error": repr(exc)[:300]}
+    have = stored_filing_ids(ctx.store, "congress")
+    uniq = {f["doc_id"]: f for f in filings}
+    todo = sorted((f for d, f in uniq.items() if d not in have), key=lambda f: (f["filing_date"], f["doc_id"]))
+    deadline = t0 + max_seconds if max_seconds else None
+    res = _fetch_loop(todo, provider.ptr, max_filings=max_filings, deadline=deadline,
+                      max_errors=s["max_consecutive_errors"])
+    unparseable = sum(1 for r in res["rows"] if r["record_status"] == "UNPARSEABLE")
+    params = {"start": str(since.date()), "end": now.isoformat(), "listed": len(uniq),
+              "already_stored": len(uniq) - len(todo), "fetched": res["fetched"], "failed": res["failed"],
+              "remaining": res["remaining"], "unparseable_filings": unparseable, "missing_index_years": missing_years}
+    ds = _write(ctx.store, res["rows"], "congress", params)
+    status = "FAILED" if res["stop"] == "outage" else ("PARTIAL" if res["remaining"] > 0 else "OK")
+    out = {"status": status, "rows": len(res["rows"]), "dataset": ds, **{k: v for k, v in params.items() if k != "end"},
+           "secs": round(_time.time() - t0, 1), "requests": getattr(provider.http, "request_count", None)}
+    if res["errors"]:
+        out["errors"] = res["errors"]
+    return out
+
+
+def _bounded_http(ctx, s: dict[str, Any], name: str, rate_key: str, rps: float, **kw):
+    from quantlab.data.providers.http import HttpClient, shared_rate_limiter
+    http = HttpClient.from_config(ctx.config, rate_limiter=shared_rate_limiter(rate_key, rps), name=name, **kw)
+    http.timeout = min(http.timeout, s["refresh_http"]["timeout"])
+    http.max_retries = min(http.max_retries, s["refresh_http"]["retries"])
+    return http
+
+
+def ingest_alt_trades(ctx, *, days: int | None = None, sources: Iterable[str] = SOURCES, mode: str = "history",
+                      now: Any = None, providers: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Ingest the chosen sources. ``mode="refresh"`` (evening pipeline): each source's ``refresh_days``
+    window, time/filing budgets and short HTTP timeouts. ``mode="history"`` (CLI): ``days`` window, no
+    time budget (the CLI user waits). Never raises: each source reports its status."""
+    from quantlab.secrets import load_dotenv
+    load_dotenv(ctx.config.root / ".env")
+    s = alt_settings(ctx.config)
+    now = _utc(now)
+    providers = dict(providers or {})
+    out: dict[str, Any] = {"mode": mode, "now": now.isoformat()}
     for src in sources:
-        t0 = _time.time()
+        cfg = s[src]
         try:
-            written, rows = [], 0
-            if src == "congress":
-                if mode == "history":
-                    df = provider.congress_history(since=start)
-                    written.append(_write(ctx.store, df, "quiver_congress_bulk",
-                                          {"start": str(start.date()), "end": now.isoformat(), "mode": mode}))
-                    rows += len(df)
+            if mode == "refresh" and src not in providers:
+                cal = _calendar(ctx)
+                if src == "insider":
+                    from quantlab.data.providers.sec_form4 import SecForm4Provider
+                    rps = float(ctx.config.get("providers.sec_edgar.max_requests_per_second", 8.0))
+                    providers[src] = SecForm4Provider(ctx.config, calendar=cal,
+                                                      http=_bounded_http(ctx, s, "sec_form4", "sec-edgar", rps))
                 else:
-                    df = provider.congress_recent()
-                    written.append(_write(ctx.store, df, "quiver_congress_live", {"end": now.isoformat(), "mode": mode}))
-                    rows += len(df)
-                    last = _last_pull(ctx.store, "quiver_congress_bulk")
-                    if last is None or now - last >= pd.Timedelta(days=s["congress_resync_days"]):
-                        rs = (now - pd.Timedelta(days=s["congress_resync_window_days"])).tz_localize(None).normalize()
-                        bulk = provider.congress_history(since=rs)
-                        written.append(_write(ctx.store, bulk, "quiver_congress_bulk",
-                                              {"start": str(rs.date()), "end": now.isoformat(), "mode": mode}))
-                        rows += len(bulk)
-                        out.setdefault("notes", []).append(f"congress bulk re-pull since {rs.date()}: {len(bulk)} rows")
-            else:
-                df = provider.insiders_history(start, end)
-                written.append(_write(ctx.store, df, "quiver_insider_daily",
-                                      {"start": str(start.date()), "end": now.isoformat(), "mode": mode}))
-                rows += len(df)
-            out[src] = {"status": "OK", "rows": int(rows), "datasets": [w for w in written if w],
-                        "secs": round(_time.time() - t0, 1), "requests": getattr(provider.http, "request_count", None)}
+                    from quantlab.data.providers.house_ptr import HousePtrProvider
+                    rps = float(ctx.config.get("providers.house_clerk.max_requests_per_second", 1.0))
+                    ua = ctx.config.get("providers.house_clerk.user_agent", "QuantLab research (personal, non-commercial)")
+                    providers[src] = HousePtrProvider(ctx.config, calendar=cal, http=_bounded_http(
+                        ctx, s, "house_clerk", "house-clerk", rps, user_agent=ua))
+            window = int(days if days is not None else cfg["refresh_days"])
+            budget = {"max_filings": cfg["max_filings"], "max_seconds": cfg["max_seconds"]} if mode == "refresh" else {}
+            fn = ingest_insider if src == "insider" else ingest_congress
+            out[src] = fn(ctx, days=window, now=now, provider=providers.get(src), **budget)
         except Exception as exc:              # an outage is reported, never raised into the pipeline
-            out[src] = {"status": _error_status(exc), "rows": 0, "error": repr(exc)[:300]}
-            log_event(log, f"quiver {src} failed", level=30, error=repr(exc)[:300])
+            out[src] = {"status": _status_for(exc), "rows": 0, "error": repr(exc)[:300]}
+            log_event(log, f"alt {src} failed", level=30, error=repr(exc)[:300])
     return _summarise(out)
 
 
 def _summarise(out: dict[str, Any]) -> dict[str, Any]:
     st = [out[s]["status"] for s in SOURCES if s in out]
-    ok = [x for x in st if x == "OK"]
-    skipped = [x for x in st if x == "SKIPPED"]
-    if st and len(skipped) == len(st):
+    if st and all(x == "SKIPPED" for x in st):
         status = "SKIPPED"
-    elif st and len(ok) == len(st):
+    elif st and all(x == "OK" for x in st):
         status = "OK"
-    elif ok:
+    elif any(x in ("OK", "PARTIAL") for x in st):
         status = "PARTIAL"
     else:
         status = "FAILED" if st else "UNKNOWN"
     out["status"] = status
-    out["ok"] = status in ("OK", "SKIPPED")
+    out["ok"] = status in ("OK", "PARTIAL", "SKIPPED")
     n = sum(int(out[s].get("rows") or 0) for s in SOURCES if s in out)
-    # ``rows`` is what the paper runner prints for each refresh part: a count when something was
-    # fetched, otherwise the status itself (SKIPPED / FAILED is never shown as "0 rows")
-    out["rows"] = n if ok else status
-    if status != "OK":
-        out["error"] = "; ".join(f"{s}: {out[s].get('reason') or out[s].get('error') or out[s]['status']}"
-                                 for s in SOURCES if s in out and out[s]["status"] != "OK")[:500]
-    log_event(log, "quiver ingest", status=status, rows=n, mode=out.get("mode"))
+    # ``rows`` is what the paper runner prints per refresh part: a count when something was fetched,
+    # otherwise the status itself (SKIPPED / FAILED is never shown as "0 rows")
+    out["rows"] = n if status in ("OK", "PARTIAL") else status
+    bad = [f"{s}: {out[s]['status']} {out[s].get('reason') or out[s].get('error') or ''}".strip()
+           for s in SOURCES if s in out and out[s]["status"] != "OK"]
+    if bad:
+        out["error"] = "; ".join(bad)[:500]
+    log_event(log, "alt ingest", status=status, rows=n, mode=out.get("mode"))
     return out
 
 
-def refresh_quiver(ctx, now: Any = None, provider=None) -> dict[str, Any]:
+def refresh_alt(ctx, now: Any = None, providers: dict[str, Any] | None = None) -> dict[str, Any]:
     """Daily refresh entry point used by :func:`quantlab.data.catalyst_refresh.refresh_catalysts`."""
     try:
-        return ingest_alt_trades(ctx, mode="refresh", now=now, provider=provider)
+        return ingest_alt_trades(ctx, mode="refresh", now=now, providers=providers)
     except Exception as exc:                  # pragma: no cover - ingest_alt_trades already never raises
         return {"status": "FAILED", "ok": False, "rows": "FAILED", "error": repr(exc)[:300]}
+
+
+# ------------------------------------------------------------------------------------------------
+# historical insider import (research parquet built from the SEC Insider Transactions Data Sets)
+# ------------------------------------------------------------------------------------------------
+def insider_parquet_rows(df: pd.DataFrame, calendar=None, retrieved_at: Any = None) -> pd.DataFrame:
+    """research/2026-10-01-new-data-tests/data/insider_tx*.parquet -> alt_trades rows.
+
+    That file holds only open-market P (acquired) / S (disposed) lines of Form 4s by directors/officers
+    with price > 0, one reporting owner per accession, and a date-only FILING_DATE. So availability is
+    the cutoff of the session after the filing date (PIT_CONSERVATIVE), and the record ids are the live
+    parser's (accession + content hash), so a later live fetch of the same filing never double-counts."""
+    from quantlab.core.types import PitStatus
+    from quantlab.data import schemas
+    from quantlab.data.providers.sec_edgar import conservative_available_at
+    from quantlab.data.providers.sec_form4 import form4_record_id
+    need = {"accession", "filing_date", "trans_date", "issuer_symbol", "owner_cik", "relationship", "title", "code",
+            "shares", "price", "value"}
+    miss = need - set(df.columns)
+    if miss:
+        raise ValueError(f"insider parquet: missing columns {sorted(miss)}")
+    d = df[df["code"].isin(["P", "S"])].copy()
+    filed = pd.to_datetime(d["filing_date"]).dt.normalize()
+    days = sorted(set(filed.dropna()))
+    avail = {f: conservative_available_at(f, calendar) for f in days}
+    seen: dict[str, int] = {}
+    ad = d["code"].map({"P": "A", "S": "D"})
+    rid = [form4_record_id(a, "nd", c, t, sh, pr, x, seen)
+           for a, c, t, sh, pr, x in zip(d["accession"], d["code"], d["trans_date"], d["shares"], d["price"], ad)]
+
+    def detail(rel: Any, title: Any) -> str:
+        parts = [p.strip() for p in str(rel or "").split(",") if p.strip()]
+        t = str(title or "").strip()
+        return "; ".join(f"Officer: {t}" if p == "Officer" and t else ("10% owner" if p == "TenPercentOwner" else p)
+                         for p in parts) or "UNKNOWN"
+
+    sym = d["issuer_symbol"].astype("object").where(d["issuer_symbol"].astype(str).str.match(r"^[A-Z][A-Z0-9.\-]{0,9}$"))
+    out = pd.DataFrame({
+        "record_id": rid, "source": "insider", "symbol": sym.to_numpy(),
+        "actor": ("CIK " + d["owner_cik"].astype(str).str.lstrip("0")).to_numpy(),
+        "actor_detail": [detail(r, t) for r, t in zip(d["relationship"], d["title"])],
+        "side": d["code"].map({"P": "BUY", "S": "SELL"}).to_numpy(),
+        "amount_low_usd": d["value"].to_numpy(dtype="float64"), "amount_high_usd": d["value"].to_numpy(dtype="float64"),
+        "shares": d["shares"].to_numpy(dtype="float64"), "price": d["price"].to_numpy(dtype="float64"),
+        "transaction_date": pd.to_datetime(d["trans_date"]).to_numpy(),
+        "disclosed_at": [f.tz_localize("America/New_York").tz_convert("UTC") for f in filed],
+        "available_at": [avail[f] for f in filed],
+        "pit_status": PitStatus.PIT_CONSERVATIVE.value,
+        "record_status": ["PARSED" if isinstance(x, str) else "NO_SYMBOL" for x in sym],
+        "raw_json": [json.dumps({"accession": a, "code": c, "import": "sec_insider_dataset"}, separators=(",", ":"))
+                     for a, c in zip(d["accession"], d["code"])],
+        "provider": "sec_insider_dataset", "retrieved_at": _utc(retrieved_at)})
+    return schemas.conform("alt_trades", out)
+
+
+def import_insider_parquet(ctx, path, *, since: Any = None) -> dict[str, Any]:
+    """Write the research parquet into the store (one dataset; idempotent through record ids)."""
+    df = pd.read_parquet(path)
+    if since is not None:
+        df = df[pd.to_datetime(df["filing_date"]) >= pd.Timestamp(since)]
+    rows = insider_parquet_rows(df, calendar=_calendar(ctx))
+    if not len(rows):
+        return {"status": "OK", "rows": 0, "dataset": None}
+    ds = ctx.store.write("alt_trades", rows, "sec_insider_dataset",
+                         params={"what": "alt_insider_import", "path": str(path), "rows": int(len(rows))},
+                         pit_notes="SEC Insider Transactions Data Sets via research parquet: directors/officers, "
+                                   "open-market P/S only; available_at = cutoff of the session after the filing "
+                                   "date (PIT_CONSERVATIVE). CONTEXT ONLY.")
+    return {"status": "OK", "rows": int(len(rows)), "dataset": ds,
+            "first_filing": str(rows["disclosed_at"].min())[:10], "last_filing": str(rows["disclosed_at"].max())[:10]}
 
 
 # ------------------------------------------------------------------------------------------------
 # read helpers (dashboard / CLI)
 # ------------------------------------------------------------------------------------------------
 DISPLAY_COLUMNS = ["source", "symbol", "actor", "actor_detail", "side", "amount_low_usd", "amount_high_usd",
-                   "transaction_date", "disclosed_date", "available_at", "pit_status", "retrieved_at", "record_id"]
+                   "shares", "price", "transaction_date", "disclosed_at", "available_at", "pit_status",
+                   "record_status", "retrieved_at", "record_id"]
 
 
 def load_recent(store, *, since_days: int = 120, synthetic: bool = False, now: Any = None) -> pd.DataFrame:
-    """Disclosures with disclosed_date in the last ``since_days`` (column projection + row filter per
+    """Disclosures with disclosed_at in the last ``since_days`` (column projection + row filter per
     dataset, so the dashboard never loads the whole history). De-duplicated like ``store.load``."""
     import pyarrow.parquet as pq
     now = _utc(now)
-    lo = (now - pd.Timedelta(days=since_days)).tz_localize(None).normalize()
+    lo = now - pd.Timedelta(days=since_days)
     frames = []
     for ds in store.dataset_ids("alt_trades", synthetic=synthetic):
-        row = store.db.fetchone("SELECT path FROM datasets WHERE dataset_id=?", (ds,))
-        if row is None:
+        row = store.db.fetchone("SELECT path, end_date FROM datasets WHERE dataset_id=?", (ds,))
+        if row is None or (row["end_date"] and pd.Timestamp(row["end_date"]) < lo.tz_localize(None).normalize()):
             continue
         t = pq.read_table(store.data_dir / row["path"], columns=DISPLAY_COLUMNS).to_pandas()
-        t = t[pd.to_datetime(t["disclosed_date"]) >= lo]
+        t = t[pd.to_datetime(t["disclosed_at"], utc=True) >= lo]
         if len(t):
             frames.append(t)
     if not frames:
         return pd.DataFrame(columns=DISPLAY_COLUMNS)
     df = pd.concat(frames, ignore_index=True)
     df = df.sort_values("retrieved_at", kind="mergesort").drop_duplicates(["source", "record_id"], keep="last")
-    return df.sort_values(["disclosed_date", "available_at", "symbol"], ascending=[False, False, True]).reset_index(drop=True)
+    return df.sort_values(["disclosed_at", "symbol"], ascending=[False, True]).reset_index(drop=True)
 
 
 def _num(x: Any) -> float | None:
@@ -225,7 +405,7 @@ def _num(x: Any) -> float | None:
 
 def records(df: pd.DataFrame, now: Any = None) -> list[dict[str, Any]]:
     """Display rows: amounts as text (UNKNOWN when missing), dates as ISO, and whether the record is
-    already usable by the decision chain (available_at <= now) or only from the next cutoff."""
+    already usable by the decision chain (available_at <= now) or only from a later cutoff."""
     now = _utc(now)
     out = []
     for r in df.itertuples(index=False):
@@ -235,25 +415,31 @@ def records(df: pd.DataFrame, now: Any = None) -> list[dict[str, Any]]:
         elif r.source == "insider" or (lo is not None and hi is not None and lo == hi):
             amount = f"${(lo if lo is not None else hi):,.0f}"
         elif hi is None:
-            amount = f"${lo:,.0f}+ (upper bound UNKNOWN)"
+            amount = f"over ${lo:,.0f}"
         elif lo is None:
             amount = f"up to ${hi:,.0f}"
         else:
             amount = f"${lo:,.0f} - ${hi:,.0f}"
-        av = pd.Timestamp(r.available_at)
-        av = av.tz_localize("UTC") if av.tzinfo is None else av.tz_convert("UTC")
+        av = _utc(r.available_at)
+        disc = _utc(r.disclosed_at)
         tx = pd.Timestamp(r.transaction_date) if pd.notna(r.transaction_date) else None
         out.append({"source": r.source, "symbol": r.symbol, "actor": r.actor, "detail": r.actor_detail, "side": r.side,
                     "amount": amount, "traded": str(tx.date()) if tx is not None else "UNKNOWN",
-                    "disclosed": str(pd.Timestamp(r.disclosed_date).date()),
+                    "disclosed": (disc.tz_convert("America/New_York").strftime("%Y-%m-%d %H:%M ET")
+                                  if r.source == "insider" else str(disc.tz_convert("America/New_York").date())),
                     "usable_from": av.tz_convert("America/New_York").strftime("%Y-%m-%d %H:%M ET"),
-                    "usable_now": bool(av <= now)})
+                    "usable_now": bool(av <= now), "status": r.record_status})
     return out
 
 
 def recent_disclosures(store, *, symbols: Iterable[str] | None = None, limit: int = 20, since_days: int = 120,
-                       synthetic: bool = False, now: Any = None, frame: pd.DataFrame | None = None) -> list[dict[str, Any]]:
+                       synthetic: bool = False, now: Any = None, frame: pd.DataFrame | None = None,
+                       source: str | None = None) -> list[dict[str, Any]]:
+    """Newest first; only rows naming a ticker (filings without one are counted in ``source_status``)."""
     df = frame if frame is not None else load_recent(store, since_days=since_days, synthetic=synthetic, now=now)
+    df = df[df["symbol"].notna()]
+    if source:
+        df = df[df["source"] == source]
     if symbols is not None:
         want = {str(s).upper() for s in symbols}
         df = df[df["symbol"].isin(want)]
@@ -261,29 +447,28 @@ def recent_disclosures(store, *, symbols: Iterable[str] | None = None, limit: in
 
 
 def source_status(store, config, synthetic: bool = False) -> list[dict[str, Any]]:
-    """Per source: key configured?, rows stored, latest disclosure, last pull. Counts only."""
-    ks = key_status(config, getattr(config, "root", None))
+    """Per source: enabled?, datasets, latest disclosure, last pull and its status counts."""
+    s = alt_settings(config)
     rows = []
-    for src, what in (("congress", ("quiver_congress_live", "quiver_congress_bulk")), ("insider", ("quiver_insider_daily",))):
-        pulls = [p for p in (_last_pull(store, w) for w in what) if p is not None] if not synthetic else []
-        rows.append({"source": src, "key": "configured" if ks["configured"] else
-                     ("disabled" if not ks["enabled"] else f"{ks['key_env']} not set (SKIPPED: UNKNOWN, not zero)"),
-                     "last_pull": str(max(pulls))[:16] if pulls else None})
-    agg = {}
-    for ds in store.dataset_ids("alt_trades", synthetic=synthetic):
-        r = store.db.fetchone("SELECT row_count, end_date, params_json FROM datasets WHERE dataset_id=?", (ds,))
-        pj = json.loads(r["params_json"] or "{}")
-        src = "insider" if "insider" in str(pj.get("what", "")) else ("congress" if "congress" in str(pj.get("what", ""))
-                                                                     else "mixed")
-        a = agg.setdefault(src, {"datasets": 0, "latest_disclosure": None})
-        a["datasets"] += 1
-        if r["end_date"] and (a["latest_disclosure"] is None or r["end_date"] > a["latest_disclosure"]):
-            a["latest_disclosure"] = r["end_date"]
-    for row in rows:
-        a = agg.get(row["source"]) or agg.get("mixed") or {}
-        row.update(datasets=a.get("datasets", 0), latest_disclosure=a.get("latest_disclosure"))
+    for src in SOURCES:
+        last, n, latest = None, 0, None
+        for ds in store.dataset_ids("alt_trades", synthetic=synthetic):
+            r = store.db.fetchone("SELECT end_date, params_json, created_at FROM datasets WHERE dataset_id=?", (ds,))
+            pj = json.loads(r["params_json"] or "{}")
+            what = str(pj.get("what", ""))
+            if synthetic or src in what:
+                n += 1
+                if r["end_date"] and (latest is None or r["end_date"] > latest):
+                    latest = r["end_date"]
+                if not synthetic and what == f"alt_{src}" and (last is None or str(r["created_at"]) > str(last.get("at"))):
+                    last = {"at": str(r["created_at"])[:16], "fetched": pj.get("fetched"), "remaining": pj.get("remaining"),
+                            "failed": pj.get("failed"), "unparseable": pj.get("unparseable_filings")}
+        rows.append({"source": src, "enabled": s[src]["enabled"], "datasets": n, "latest_disclosure": latest,
+                     "last_pull": (last or {}).get("at"), "last_pull_detail": last,
+                     "coverage": ("SEC Form 4, all issuers" if src == "insider" else "House PTRs only (Senate: not covered)")})
     return rows
 
 
-__all__ = ["DISPLAY_COLUMNS", "SOURCES", "ingest_alt_trades", "key_status", "load_recent", "quiver_settings",
-           "recent_disclosures", "records", "refresh_quiver", "source_status"]
+__all__ = ["COVERAGE_GAPS", "DISPLAY_COLUMNS", "SOURCES", "alt_settings", "import_insider_parquet", "ingest_alt_trades",
+           "ingest_congress", "ingest_insider", "insider_parquet_rows", "load_recent", "recent_disclosures", "records",
+           "refresh_alt", "source_status", "stored_filing_ids"]
