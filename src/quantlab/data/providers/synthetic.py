@@ -375,6 +375,8 @@ class SyntheticMarket(
                                                                        "reaction_date", "source_id", "payload_json"]).assign(
                 pit_status=PitStatus.PIT.value, provider=self.name, retrieved_at=self._retrieved)], ignore_index=True)
 
+        alt_trades = self._alt_trades(syms, cal, raw)
+
         return {
             "bars": schemas.conform("bars", bars),
             "corporate_actions": schemas.conform("corporate_actions", actions),
@@ -382,9 +384,59 @@ class SyntheticMarket(
             "events": schemas.conform("events", events),
             "fundamentals": schemas.conform("fundamentals", fundamentals),
             "news": schemas.conform("news", news),
+            "alt_trades": alt_trades,
             # ground truth for method-validation tests (never exposed through provider methods)
             "_truth_returns": pd.DataFrame(ret, index=dates, columns=syms),
         }
+
+    def _alt_trades(self, syms: list[str], cal: pd.DatetimeIndex, raw: np.ndarray) -> pd.DataFrame:
+        """SYNTHETIC congress / insider disclosures (schema ``alt_trades``) from their OWN random stream
+        (drawn after everything else, so every other synthetic series is unchanged). No edge is
+        planted: sides, sizes and timing are independent of future returns. Congress reports land
+        1-45 days after the trade, Form 4s 0-2 sessions after it; some values are left UNKNOWN."""
+        from quantlab.data.providers.sec_edgar import conservative_available_at
+        rng3 = np.random.default_rng(self.spec.seed + 104729)
+        brackets = [(1001.0, 15000.0), (15001.0, 50000.0), (50001.0, 100000.0), (100001.0, 250000.0),
+                    (250001.0, 500000.0), (1000001.0, 5000000.0)]
+        members = [("Synthetic Member A", "House / D / XX01"), ("Synthetic Member B", "House / R / XX02"),
+                   ("Synthetic Senator C", "Senate / D"), ("Synthetic Senator D", "Senate / R")]
+        codes = ["P", "S", "S", "A", "M", "F", "G"]
+        rows: list[dict] = []
+        T = len(cal)
+        for i, sym in enumerate(syms):
+            live = np.flatnonzero(~np.isnan(raw[:, i]))
+            if not len(live):
+                continue
+            congress_rate = 0.02 if rng3.random() < 0.5 else 0.0
+            for t in live[rng3.random(len(live)) < congress_rate]:
+                lag = int(rng3.integers(1, 46))
+                disclosed = (cal[t] + pd.Timedelta(days=lag)).normalize()
+                who, detail = members[int(rng3.integers(0, len(members)))]
+                lo, hi = brackets[int(rng3.integers(0, len(brackets)))]
+                side = "BUY" if rng3.random() < 0.5 else ("SELL" if rng3.random() < 0.9 else "OTHER")
+                rows.append({"source": "congress", "symbol": sym, "actor": who, "actor_detail": detail, "side": side,
+                             "amount_low_usd": lo, "amount_high_usd": hi, "transaction_date": cal[t],
+                             "disclosed_date": disclosed})
+            for t in live[rng3.random(len(live)) < 0.03]:
+                code = codes[int(rng3.integers(0, len(codes)))]
+                f = min(t + int(rng3.integers(0, 3)), T - 1)
+                shares = float(rng3.integers(100, 20000))
+                value = shares * float(raw[t, i]) if rng3.random() < 0.95 else np.nan
+                side = {"P": "BUY", "S": "SELL"}.get(code, "OTHER")
+                rows.append({"source": "insider", "symbol": sym, "actor": f"Synthetic Insider {i % 7}",
+                             "actor_detail": ["CEO", "CFO", "Director", "10% owner"][int(rng3.integers(0, 4))],
+                             "side": side, "amount_low_usd": value, "amount_high_usd": value, "transaction_date": cal[t],
+                             "disclosed_date": cal[f]})
+        if not rows:
+            return schemas.empty("alt_trades")
+        df = pd.DataFrame(rows)
+        df["available_at"] = [conservative_available_at(d, None) for d in df["disclosed_date"]]
+        df["pit_status"] = PitStatus.PIT_CONSERVATIVE.value
+        df["raw_json"] = '{"synthetic": true}'
+        df["provider"] = self.name
+        df["retrieved_at"] = self._retrieved
+        df["record_id"] = [f"syn-alt-{k}" for k in range(len(df))]
+        return schemas.conform("alt_trades", df)
 
     # -- provider interface ---------------------------------------------------------------------
     def _slice(self, kind: str, symbols, start, end, date_col: str | None) -> pd.DataFrame:

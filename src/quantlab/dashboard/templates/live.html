@@ -92,6 +92,23 @@ Candidates and decisions are recorded, and no paper orders are placed. Promotion
 </tbody></table>
 {% else %}<p class="muted">No tracked symbols (exploration.tracked_watchlist, set in config/local.yaml).</p>{% endif %}
 
+{% set M = d.smart_money or {} %}
+<h2 id="smart-money">Congress &amp; insider disclosures (context only)</h2>
+<p class="muted">Quiver congressional trades and insider Form 4 filings. Recorded with each decision for the learning loop; <b>never scored, never used to pick, size or place a trade</b>. Insider buying tested FLAT at realistic timing (its one positive variant failed the locked 2025+ holdout). A disclosure is usable by the model from the cutoff of the session after its disclosure date, never from the trade date.</p>
+{% if M.error %}<div class="warnbox">Congress/insider panel unavailable: {{ M.error }}</div>{% endif %}
+{% if M.status %}{{ table(M.status, ["source","key","datasets","latest_disclosure","last_pull"]) }}{% endif %}
+{% macro alt_rows(rows) %}<table><thead><tr><th>symbol</th><th>source</th><th>side</th><th>who</th><th>detail</th><th>amount</th><th>traded</th><th>disclosed</th><th>usable from</th></tr></thead><tbody>
+{% for r in rows %}<tr><td><b>{{ r.symbol }}</b></td><td>{{ r.source }}</td><td class="{{ 'pos' if r.side == 'BUY' else ('neg' if r.side == 'SELL' else '') }}">{{ r.side }}</td><td>{{ r.actor }}</td><td>{{ r.detail }}</td><td>{{ r.amount }}</td><td>{{ r.traded }}</td><td>{{ r.disclosed }}</td><td>{{ r.usable_from }}{% if not r.usable_now %} <span class="muted">(not yet)</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table>{% endmacro %}
+{% for g in M.groups or [] %}
+<h3>{{ g.label }}{% if g.symbols %}: {{ g.symbols|join(", ") }}{% endif %}</h3>
+{% if g.rows %}{{ alt_rows(g.rows) }}{% if g.quiet %}<p class="muted">No stored disclosure in the last {{ M.window_days }} days for {{ g.quiet|join(", ") }} (absence in the feed, not proof of no activity).</p>{% endif %}
+{% elif g.symbols %}<p class="muted">No stored disclosure in the last {{ M.window_days }} days for these symbols (absence in the feed, not proof of no activity).</p>
+{% else %}<p class="muted">none</p>{% endif %}
+{% endfor %}
+<h3>Latest market-wide disclosures</h3>
+{% if M.market %}{{ alt_rows(M.market) }}{% else %}<p class="muted">No congress/insider data stored{% if M.status %} ({{ M.status[0].key }}){% endif %}. Add QUIVER_API_KEY to the git-ignored .env and run <code>quantlab alt ingest</code>; see docs/QUIVER.md.</p>{% endif %}
+
 <h2>System</h2>
 <div class="grid">
 <div class="kv"><b>session</b>{{ s.session.session_id if s.session else "none" }}</div>

@@ -15,9 +15,13 @@ weights, never fitted to results:
   breakout_compression  breakout_55, -range_contraction_20_60
   mean_reversion        -ret_z_3d, -dist_ma20                (oversold magnitude)
 
-CONTEXT families (earnings, news, fundamentals, sector). Recorded only for symbols the data source
-actually covers; everything else is UNKNOWN, never 0. They NEVER enter the discovery score (the
-real universe has almost no coverage for them; see the feature-coverage panel).
+CONTEXT families (earnings, news, fundamentals, sector, smart_money). Recorded only for symbols the
+data source actually covers; everything else is UNKNOWN, never 0. They NEVER enter the discovery
+score (the real universe has almost no coverage for them; see the feature-coverage panel).
+smart_money = congressional and insider (Form 4) disclosures from Quiver (features/alt.py). It is
+recorded so the learning loop can compare outcomes with and without that activity; insider buying
+tested FLAT at realistic timing and its one positive variant failed the locked 2025+ holdout, so it
+is context, not a signal (docs/QUIVER.md). It is not in SCORED, SCORED_POINTS or the selection score.
 
 Feature states per symbol: VALID (finite value); UNKNOWN (not available: too little history for the
 feature's lookback, or the source does not cover the symbol); INVALID (the inputs should exist but
@@ -32,7 +36,7 @@ import numpy as np
 import pandas as pd
 
 SCORED = ("momentum", "relative_strength", "volume_activity", "breakout_compression", "mean_reversion")
-CONTEXT = ("earnings", "news", "fundamentals", "sector")
+CONTEXT = ("earnings", "news", "fundamentals", "sector", "smart_money")
 POINTS = 20.0
 
 # Families whose percentile ranks contribute POINTS to the composite score.
@@ -83,7 +87,7 @@ def selection_score(xs: pd.DataFrame) -> pd.Series:
 LABELS = {
     "momentum": "Momentum", "relative_strength": "Relative strength", "volume_activity": "Volume/activity",
     "breakout_compression": "Breakout/compression", "mean_reversion": "Mean reversion", "earnings": "Earnings",
-    "news": "News", "fundamentals": "Fundamentals", "sector": "Sector",
+    "news": "News", "fundamentals": "Fundamentals", "sector": "Sector", "smart_money": "Congress/insider",
 }
 
 # (feature, sign) per scored family: sign -1 means "lower is more interesting" (ranked on -value)
@@ -101,6 +105,8 @@ CONTEXT_FEATURES = {
     "news": ("news_count_1d", "news_count_z"),
     "fundamentals": ("rev_growth_yoy", "eps_growth_yoy", "ni_margin", "roe"),
     "sector": ("industry_rank_63", "rs_industry_20", "sector_rs_spy_63_pit"),
+    "smart_money": ("congress_buys_30d", "congress_sells_30d", "congress_net_30d", "insider_buys_30d",
+                    "insider_sells_30d", "insider_net_value_30d"),
 }
 SOURCES = {
     "price_volume": "Alpaca SIP daily bars (raw + in-house split/dividend adjustment)",
@@ -113,6 +119,8 @@ SOURCES = {
     "news": "Alpaca news (Benzinga), available_at = created_at",
     "fundamentals": "SEC EDGAR companyfacts (as-of replay)",
     "sector": "SEC SIC from each filing header, as of its acceptance -> industry groups / sector ETF (PIT)",
+    "smart_money": "Quiver congress + insider (Form 4) disclosures; usable from the session after the disclosure "
+                   "date (never the trade date). Context only: insider buying tested FLAT",
 }
 
 
@@ -327,9 +335,39 @@ def fire_context(fam: str, r: pd.Series, t: Triggers) -> tuple[bool, list[str]]:
         fired = k is not None and np.isfinite(k) and k >= 0.7 and rs is not None and np.isfinite(rs) and rs > 0
         return bool(fired), [f"industry group in the top {100 - k * 100:.0f}% (63 sessions) and the stock leads it "
                              f"by {rs * 100:+.1f} pp (20 sessions)"] if fired else []
+    if fam == "smart_money":
+        return smart_money_activity(r)
     raise ValueError(fam)
+
+
+def smart_money_activity(r: pd.Series) -> tuple[bool, list[str]]:
+    """Descriptive only: 'fired' = at least one congressional or insider open-market PURCHASE disclosed
+    in the window. Never scored, never a selection input; sales and counts are recorded as values."""
+    def n(k: str) -> float | None:
+        v = r.get(k)
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return None
+        return v if np.isfinite(v) else None
+    def cnt(x: float | None) -> str:
+        return "UNKNOWN" if x is None else f"{x:.0f}"
+
+    cb, cs = n("congress_buys_30d"), n("congress_sells_30d")
+    ib, isl = n("insider_buys_30d"), n("insider_sells_30d")
+    nv = n("insider_net_value_30d")
+    parts = []
+    if cb is not None or cs is not None:
+        parts.append(f"congress {cnt(cb)} buy / {cnt(cs)} sell disclosure(s)")
+    if ib is not None or isl is not None:
+        parts.append(f"insiders {cnt(ib)} open-market buy / {cnt(isl)} sell"
+                     + (f", net {nv:+,.0f} USD" if nv is not None else ", net value UNKNOWN"))
+    if not parts:
+        return False, []
+    fired = bool((cb is not None and cb >= 1) or (ib is not None and ib >= 1))
+    return fired, ["30-day disclosures: " + "; ".join(parts) + " (context only, never scored)"]
 
 
 __all__ = ["AUX_FEATURES", "CONTEXT", "CONTEXT_FEATURES", "FIRE", "LABELS", "POINTS", "SCORED", "SCORED_FEATURES",
            "SCORED_POINTS", "SELECTION_FEATURES", "fired_masks", "selection_score", "stabilising",
-           "SOURCES", "Triggers", "fire_context", "pct_rank"]
+           "SOURCES", "Triggers", "fire_context", "pct_rank", "smart_money_activity"]

@@ -243,6 +243,21 @@ def hold_for(session: str, symbol: str, pol: "ExplorationPolicy") -> int:
     return arms[h % len(arms)]
 
 
+def smart_money_record(r) -> dict[str, Any]:
+    """The candidate's congress / insider context (discovery family ``smart_money``) as recorded by the
+    scan at the decision cutoff. UNKNOWN when the scan did not record it -- never zero. Pure record:
+    selection and sizing never read it."""
+    keys = r.keys() if hasattr(r, "keys") else []
+    ctx = (from_json(r["catalyst_json"], {}) or {}) if "catalyst_json" in keys else {}
+    sm = ctx.get("smart_money") if isinstance(ctx, dict) else None
+    role = "context only: never scored, never a selection or sizing input (insider buying tested FLAT)"
+    if not isinstance(sm, dict) or sm.get("state") != "KNOWN":
+        return {"state": "UNKNOWN", "why": (sm or {}).get("why") if isinstance(sm, dict) else
+                "not recorded by the discovery scan", "role": role}
+    return {"state": "KNOWN", "values": sm.get("values") or {}, "any_purchase_disclosed": bool(sm.get("fired")),
+            "reasons": sm.get("reasons") or [], "role": role}
+
+
 def _selection_of(r) -> float | None:
     """The candidate's selection score from its setup record (None = UNKNOWN)."""
     return _f((from_json(r["setup_json"], {}) or {}).get("selection_score"))
@@ -454,6 +469,9 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
             "data_timestamps": {"information_cutoff_at": run["info_cutoff_at"], "decision_session_bar": d,
                                 "dataset_ids": dataset_ids},
             "features": {"discovery": facts, "catalyst": (cat or {}).get("features")},
+            # congress / insider disclosures as known at the decision cutoff: recorded for the learning
+            # loop (outcomes with vs without that activity); never read by selection or sizing above
+            "smart_money": smart_money_record(r),
             "sizing": {"equity": equity, "qty": qty, "notional": qty * (close or 0.0), "stop": stop,
                        "limits": {k: getattr(pol, k) for k in ("max_position_pct", "max_session_exposure_pct",
                                                                "max_total_exposure_pct", "max_open_positions")}},

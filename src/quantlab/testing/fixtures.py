@@ -23,6 +23,7 @@ def make_synthetic_bundle(spec: SyntheticSpec | None = None, market: SyntheticMa
         events=w["events"],
         fundamentals=w["fundamentals"],
         news=w["news"],
+        alt_trades=w["alt_trades"],
         benchmarks=SYNTHETIC_BENCHMARKS,
         dataset_ids=["synthetic"],
         is_synthetic=True,

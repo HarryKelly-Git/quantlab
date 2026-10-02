@@ -77,6 +77,11 @@ class IngestionService:
             ds = self.store.write(kind, df, "synthetic", params=params, is_synthetic=True,
                                   pit_notes="SYNTHETIC test data — not market evidence")
             rep.outcomes[kind] = KindOutcome(kind, "ok", [ds], len(df))
+        alt = mkt.world.get("alt_trades")
+        if alt is not None and len(alt):          # synthetic congress/insider disclosures (context only)
+            ds = self.store.write("alt_trades", alt, "synthetic", params=params, is_synthetic=True,
+                                  pit_notes="SYNTHETIC test data — not market evidence")
+            rep.outcomes["alt_trades"] = KindOutcome("alt_trades", "ok", [ds], len(alt))
         log_event(log, "synthetic world ingested", **{k: o.rows for k, o in rep.outcomes.items()})
         return rep
 

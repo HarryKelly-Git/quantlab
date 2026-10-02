@@ -239,6 +239,8 @@ class DataBundle:
     dataset_ids: list[str] = field(default_factory=list)
     is_synthetic: bool = False
     as_of: pd.Timestamp | None = None
+    # congress / insider disclosures (schema ``alt_trades``); context only, never scored
+    alt_trades: pd.DataFrame = field(default_factory=lambda: schemas.empty("alt_trades"))
 
     def truncate(self, as_of) -> "DataBundle":
         """Point-in-time view: only information available at cutoff(as_of)."""
@@ -260,6 +262,7 @@ class DataBundle:
             events=_avail(self.events),
             fundamentals=_avail(self.fundamentals),
             news=_avail(self.news),
+            alt_trades=_avail(self.alt_trades),
             as_of=d,
         )
 

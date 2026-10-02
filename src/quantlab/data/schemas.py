@@ -54,6 +54,26 @@ NEWS = [
 ]
 NEWS_KEY = ["news_id", "symbol"]
 
+# Alternative "who is trading" disclosures (data/providers/quiver.py): congressional periodic
+# transaction reports and insider Form 4 filings. CONTEXT ONLY: never scored, never an order input.
+#   source            "congress" | "insider"
+#   actor             congressperson name / insider name (as published)
+#   actor_detail      congress: "<chamber> / <party>[ / <district>]"; insider: title or role flags
+#   side              BUY | SELL | OTHER | UNKNOWN. Insider BUY = open-market purchase (Form 4 code P),
+#                     SELL = open-market sale (code S); every other code (grant, exercise, tax, gift) is OTHER
+#   amount_low_usd /  congress: the disclosed value RANGE (NaN = not disclosed / unparsable);
+#   amount_high_usd   insider: shares x price for both when both are known, else NaN (UNKNOWN, never 0)
+#   transaction_date  when the trade happened (NOT when it became public)
+#   disclosed_date    when it was disclosed (congress report date / Form 4 filing date)
+#   available_at      point in time: the cutoff of the session AFTER disclosed_date (date-only source)
+#   record_id         stable hash of the identifying fields + an ordinal for genuine duplicates
+#                     (see quiver.py ``_record_ids``); dedupe key = (source, record_id)
+ALT_TRADES = [
+    "record_id", "source", "symbol", "actor", "actor_detail", "side", "amount_low_usd", "amount_high_usd",
+    "transaction_date", "disclosed_date", "available_at", "pit_status", "raw_json", "provider", "retrieved_at",
+]
+ALT_TRADES_KEY = ["source", "record_id"]
+
 SCHEMAS: dict[str, list[str]] = {
     "bars": BARS,
     "corporate_actions": CORPORATE_ACTIONS,
@@ -61,6 +81,7 @@ SCHEMAS: dict[str, list[str]] = {
     "events": EVENTS,
     "fundamentals": FUNDAMENTALS,
     "news": NEWS,
+    "alt_trades": ALT_TRADES,
 }
 KEYS: dict[str, list[str]] = {
     "bars": BARS_KEY,
@@ -69,6 +90,7 @@ KEYS: dict[str, list[str]] = {
     "events": EVENTS_KEY,
     "fundamentals": FUNDAMENTALS_KEY,
     "news": NEWS_KEY,
+    "alt_trades": ALT_TRADES_KEY,
 }
 # tz-aware UTC timestamp columns per kind (validated on write)
 UTC_COLUMNS: dict[str, list[str]] = {
@@ -78,6 +100,7 @@ UTC_COLUMNS: dict[str, list[str]] = {
     "events": ["event_time", "available_at", "retrieved_at"],
     "fundamentals": ["available_at", "retrieved_at"],
     "news": ["created_at", "updated_at", "available_at", "retrieved_at"],
+    "alt_trades": ["available_at", "retrieved_at"],
 }
 # tz-naive session-date columns per kind
 DATE_COLUMNS: dict[str, list[str]] = {
@@ -87,7 +110,10 @@ DATE_COLUMNS: dict[str, list[str]] = {
     "events": ["reaction_date"],
     "fundamentals": ["period_start", "period_end", "filed_date"],
     "news": [],
+    "alt_trades": ["transaction_date", "disclosed_date"],
 }
+ALT_SOURCES = ("congress", "insider")
+ALT_SIDES = ("BUY", "SELL", "OTHER", "UNKNOWN")
 
 
 class SchemaError(ValueError):
@@ -126,4 +152,15 @@ def conform(kind: str, df: pd.DataFrame) -> pd.DataFrame:
     if kind == "corporate_actions":
         out["ratio"] = pd.to_numeric(out["ratio"], errors="coerce").astype("float64")
         out["amount"] = pd.to_numeric(out["amount"], errors="coerce").astype("float64")
+    if kind == "alt_trades":
+        for c in ("amount_low_usd", "amount_high_usd"):
+            out[c] = pd.to_numeric(out[c], errors="coerce").astype("float64")
+        bad_src = ~out["source"].isin(ALT_SOURCES)
+        if bool(bad_src.any()):
+            raise SchemaError(f"alt_trades.source must be one of {ALT_SOURCES}: {sorted(set(out.loc[bad_src, 'source']))[:5]}")
+        bad_side = ~out["side"].isin(ALT_SIDES)
+        if bool(bad_side.any()):
+            raise SchemaError(f"alt_trades.side must be one of {ALT_SIDES}: {sorted(set(out.loc[bad_side, 'side']))[:5]}")
+        for c in ("record_id", "actor", "actor_detail", "raw_json", "provider", "pit_status"):
+            out[c] = out[c].astype("object").where(out[c].notna(), None)
     return out.reset_index(drop=True)

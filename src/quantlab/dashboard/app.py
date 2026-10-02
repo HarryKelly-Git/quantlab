@@ -209,6 +209,48 @@ def _tracked_live(ctx: AppContext, real: bool) -> dict[str, Any]:
     return {"configured": configured, "rows": rows}
 
 
+class _AltCache:
+    """Recent congress / insider disclosures (last ``since_days``), re-read only when the stored
+    datasets change or after ``ttl`` seconds, so the 5-second live refresh stays cheap."""
+
+    def __init__(self, ttl: float = 300.0, since_days: int = 120):
+        self.ttl, self.since_days, self.at, self.key, self.frame = ttl, since_days, 0.0, None, None
+
+    def frame_for(self, ctx: AppContext, synthetic: bool, now: datetime) -> pd.DataFrame:
+        from quantlab.data.alt_trades import load_recent
+        key = (synthetic, tuple(ctx.store.dataset_ids("alt_trades", synthetic=synthetic)))
+        if self.frame is not None and self.key == key and time.monotonic() - self.at < self.ttl:
+            return self.frame
+        self.frame = load_recent(ctx.store, since_days=self.since_days, synthetic=synthetic, now=now)
+        self.key, self.at = key, time.monotonic()
+        return self.frame
+
+
+_ALT_CACHE = _AltCache()
+
+
+def _smart_money_live(ctx: AppContext, now: datetime, x: dict[str, Any], real: bool,
+                      cache: "_AltCache | None" = None) -> dict[str, Any]:
+    """Congress / insider disclosures for the symbols the bot holds, plans to buy at the next open and
+    watches, plus the most recent market-wide disclosures. Read-only CONTEXT: none of it is an input
+    to selection, sizing or orders."""
+    from quantlab.data.alt_trades import recent_disclosures, source_status
+    cache = cache or _ALT_CACHE
+    df = cache.frame_for(ctx, synthetic=not real, now=now)
+    groups = (("Open positions", [p["symbol"] for p in x.get("positions") or []]),
+              ("Next-open plan", [p["symbol"] for p in x.get("plan") or []]),
+              ("Watched (not traded)", [p["symbol"] for p in x.get("watched") or []]))
+    by_group = []
+    for label, syms in groups:
+        syms = list(dict.fromkeys(syms))
+        rows = recent_disclosures(ctx.store, symbols=syms, limit=50, now=now, frame=df) if syms else []
+        by_group.append({"label": label, "symbols": syms, "rows": rows,
+                         "quiet": [s for s in syms if s not in {r["symbol"] for r in rows}]})
+    return {"status": source_status(ctx.store, ctx.config, synthetic=not real), "groups": by_group,
+            "market": recent_disclosures(ctx.store, limit=20, now=now, frame=df), "window_days": cache.since_days,
+            "rows_loaded": int(len(df))}
+
+
 def live_state(ctx: AppContext, bench: "_BenchCache | None" = None, now: datetime | None = None) -> dict[str, Any]:
     """Everything the live page shows. Read-only."""
     from quantlab.data.audit import expected_sessions
@@ -347,8 +389,13 @@ def live_state(ctx: AppContext, bench: "_BenchCache | None" = None, now: datetim
         tracked = _tracked_live(ctx, real)
     except Exception as exc:              # the page must still render if this section fails
         tracked = {"error": f"{type(exc).__name__}: {exc}", "configured": [], "rows": []}
-    return {"generated_at": now.isoformat(), "exploration": exploration, "tracked": tracked, "system": system,
-            "signals": signals,
+    # CONGRESS / INSIDER trades: context only, fault-isolated like the sections above -------------
+    try:
+        smart_money = _smart_money_live(ctx, now, exploration, tracked, real)
+    except Exception as exc:              # the page must still render if this section fails
+        smart_money = {"error": f"{type(exc).__name__}: {exc}"[:300], "status": [], "groups": [], "market": []}
+    return {"generated_at": now.isoformat(), "exploration": exploration, "tracked": tracked,
+            "smart_money": smart_money, "system": system, "signals": signals,
             "signal_run": run,
             "stage_counts": stage_counts, "orders": orders, "order_updates": updates, "refusals": refusals,
             "portfolio": portfolio, "performance": perf, "audit": audit}

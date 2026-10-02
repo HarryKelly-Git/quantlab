@@ -168,7 +168,8 @@ def research_bundle(ctx, start: str, end: str, symbols: list[str] | None = None,
     import pyarrow.parquet as pq
     store = ctx.store
     snap = store.snapshot(synthetic=False)
-    lean = {k: v for k, v in snap.items() if k in ("bars", "corporate_actions", "reference", "events", "fundamentals")}
+    lean = {k: v for k, v in snap.items() if k in ("bars", "corporate_actions", "reference", "events", "fundamentals",
+                                                   "alt_trades")}
     b = store.load_bundle(ctx.config.section("benchmarks"), symbols=symbols, start=start, end=end, snapshot=lean,
                           synthetic=False)
     frames = []
@@ -198,6 +199,9 @@ def research_bundle(ctx, start: str, end: str, symbols: list[str] | None = None,
         keep_rows = (fav < hi) & ((fav >= pd.Timestamp(facts_since, tz="UTC")) if facts_since else True)
         fu = fu[keep_rows][keep]
         b = replace(b, fundamentals=fu.reset_index(drop=True))
+    alt = b.alt_trades
+    if len(alt):                       # congress / insider disclosures: context only, nothing after ``end``
+        b = replace(b, alt_trades=alt[pd.to_datetime(alt["available_at"], utc=True) < hi].reset_index(drop=True))
     return b
 
 

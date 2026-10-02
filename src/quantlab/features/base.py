@@ -29,7 +29,7 @@ MARKET_COLUMN = "__market__"
 @dataclass(frozen=True)
 class FeatureSpec:
     name: str
-    group: str                    # price | volume | relative | event | fundamental | news | market
+    group: str                    # price | volume | relative | event | fundamental | news | market | industry | alt
     description: str              # exact calculation in words
     source: str                   # which bundle fields / datasets it reads
     pit_status: PitStatus
@@ -79,7 +79,7 @@ FEATURES = FeatureRegistry()
 
 def load_all_features() -> FeatureRegistry:
     import importlib
-    for mod in ("price", "volume", "relative", "event", "fundamental", "news", "market", "industry"):
+    for mod in ("price", "volume", "relative", "event", "fundamental", "news", "market", "industry", "alt"):
         try:
             importlib.import_module(f"quantlab.features.{mod}")
         except ModuleNotFoundError as exc:  # a group may not exist yet

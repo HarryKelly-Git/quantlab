@@ -403,6 +403,32 @@ def cmd_catalysts(args) -> int:
     return 0
 
 
+def cmd_alt(args) -> int:
+    """Congress / insider disclosures from Quiver (CONTEXT ONLY: never scored, never an order input).
+
+    ingest  fetch and store (needs QUIVER_API_KEY in the git-ignored .env; without it: SKIPPED)
+    recent  stored disclosures, newest first (optionally one symbol)
+    status  key configured? datasets, latest disclosure, last pull"""
+    ctx = _ctx(args)
+    from quantlab.data import alt_trades as alt
+    if args.action == "ingest":
+        sources = alt.SOURCES if args.source == "both" else (args.source,)
+        res = alt.ingest_alt_trades(ctx, days=args.days, mode="history", sources=sources)
+        _print(res)
+        return 0 if res["status"] == "OK" else 2
+    syn = _data_flag(ctx, args.data)
+    if args.action == "status":
+        _print({"synthetic": syn, "sources": alt.source_status(ctx.store, ctx.config, synthetic=syn),
+                "note": "context only: never scored, never a selection, sizing or order input"})
+        return 0
+    rows = alt.recent_disclosures(ctx.store, symbols=[args.symbol] if args.symbol else None, limit=args.limit,
+                                  since_days=args.days or 120, synthetic=syn)
+    _print({"synthetic": syn, "symbol": args.symbol.upper() if args.symbol else None, "rows": rows,
+            "note": "usable_from = cutoff of the session after the disclosure date (never the trade date); "
+                    "context only, never scored"})
+    return 0
+
+
 def cmd_catalyst_research(args) -> int:
     """Point-in-time catalyst replay with forward outcomes (research only; locked holdout respected)."""
     import pandas as pd
@@ -640,6 +666,16 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--workers", type=int, default=6, help="threads sharing the SEC 8 req/s limiter")
     s.add_argument("--no-sic", action="store_true", help="ingest-sec: skip SIC header reads")
     s.set_defaults(fn=cmd_catalysts)
+
+    s = sub.add_parser("alt", help="congress / insider disclosures (Quiver): ingest | recent | status (context only)")
+    s.add_argument("action", choices=["ingest", "recent", "status"])
+    s.add_argument("--days", type=int, help="ingest: history window (default providers.quiver.lookback_days); "
+                                            "recent: disclosed within N days (default 120)")
+    s.add_argument("--source", choices=["both", "congress", "insider"], default="both", help="ingest: which feed")
+    s.add_argument("--symbol", help="recent: one symbol")
+    s.add_argument("--limit", type=int, default=25, help="recent: max rows")
+    s.add_argument("--data", choices=["auto", "synthetic", "real"], default="auto")
+    s.set_defaults(fn=cmd_alt)
 
     s = sub.add_parser("catalyst-research", help="point-in-time catalyst replay with forward outcomes (research only)")
     s.add_argument("--start", default="2021-03-12"), s.add_argument("--end", default="2024-11-27")

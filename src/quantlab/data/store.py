@@ -61,7 +61,7 @@ class MarketDataStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         df.to_parquet(path, index=False)
         date_col = {"bars": "date", "corporate_actions": "ex_date", "events": "reaction_date",
-                    "fundamentals": "period_end", "news": "created_at"}.get(kind)
+                    "fundamentals": "period_end", "news": "created_at", "alt_trades": "disclosed_date"}.get(kind)
         start = end = None
         if date_col and len(df):
             start, end = str(pd.Timestamp(df[date_col].min()).date()), str(pd.Timestamp(df[date_col].max()).date())
@@ -85,11 +85,11 @@ class MarketDataStore:
         return dataset_id
 
     # -- read -----------------------------------------------------------------------------------
-    def read(self, dataset_id: str) -> pd.DataFrame:
+    def read(self, dataset_id: str, columns: list[str] | None = None) -> pd.DataFrame:
         row = self.db.fetchone("SELECT path FROM datasets WHERE dataset_id=?", (dataset_id,))
         if row is None:
             raise DataStoreError(f"unknown dataset {dataset_id}")
-        return pd.read_parquet(self.data_dir / row["path"])
+        return pd.read_parquet(self.data_dir / row["path"], columns=columns)
 
     def dataset_ids(self, kind: str, provider: str | None = None, synthetic: bool | None = None) -> list[str]:
         sql = "SELECT dataset_id FROM datasets WHERE kind=?"
@@ -110,14 +110,18 @@ class MarketDataStore:
         rows = self.db.fetchall(f"SELECT DISTINCT is_synthetic FROM datasets WHERE dataset_id IN ({q})", dataset_ids)
         return {bool(r["is_synthetic"]) for r in rows}
 
-    def load(self, kind: str, dataset_ids: list[str] | None = None, synthetic: bool | None = None) -> pd.DataFrame:
+    def load(self, kind: str, dataset_ids: list[str] | None = None, synthetic: bool | None = None,
+             columns: list[str] | None = None) -> pd.DataFrame:
+        """``columns``: read only these columns (the key and ``retrieved_at`` are always read)."""
         ids = dataset_ids if dataset_ids is not None else self.dataset_ids(kind, synthetic=synthetic)
         if not ids:
-            return schemas.empty(kind)
+            return schemas.empty(kind) if columns is None else schemas.empty(kind)[
+                list(dict.fromkeys([*schemas.KEYS[kind], "retrieved_at", *columns]))]
         flags = self.is_synthetic(ids)
         if len(flags) > 1:
             raise DataStoreError(f"refusing to mix synthetic and real {kind} datasets")
-        frames = [self.read(i) for i in ids]
+        cols = None if columns is None else list(dict.fromkeys([*schemas.KEYS[kind], "retrieved_at", *columns]))
+        frames = [self.read(i, columns=cols) for i in ids]
         df = pd.concat(frames, ignore_index=True)
         key = [k for k in schemas.KEYS[kind] if k in df.columns]
         df = df.sort_values("retrieved_at", kind="mergesort").drop_duplicates(key, keep="last")
@@ -171,6 +175,13 @@ class MarketDataStore:
                 df = df[df["symbol"].isin(wanted)]
             return df.reset_index(drop=True)
 
+        def _alt() -> pd.DataFrame:
+            cols = [c for c in schemas.ALT_TRADES if c != "raw_json"]
+            df = self.load("alt_trades", snap.get("alt_trades", []), columns=cols)
+            if wanted is not None:
+                df = df[df["symbol"].isin(wanted)]
+            return df.assign(raw_json=None)[schemas.ALT_TRADES].reset_index(drop=True)
+
         return DataBundle(
             panel=panel,
             calendar=calendar,
@@ -179,6 +190,8 @@ class MarketDataStore:
             events=_load("events"),
             fundamentals=_load("fundamentals"),
             news=_load("news"),
+            # raw_json stays on disk: features never read it and it is most of the bytes
+            alt_trades=_alt(),
             benchmarks=benchmarks,
             dataset_ids=all_ids,
             is_synthetic=flags == {True},
