@@ -95,11 +95,28 @@ class ExplorationPolicy:
     submit_after_et: str = "08:30"
     min_observations_to_propose: int = 30
     max_considered: int = 60
+    # research tracking only (see quantlab.exploration.tracked): recorded every session, NEVER traded or sized
+    tracked_watchlist: tuple = ()
 
     @classmethod
     def from_config(cls, config) -> "ExplorationPolicy":
         c = dict(config.get("exploration", {}) or {})
+        if "tracked_watchlist" in c:
+            c["tracked_watchlist"] = normalize_symbols(c["tracked_watchlist"])
         return cls(**{k: type(getattr(cls, k))(v) for k, v in c.items() if hasattr(cls, k)})
+
+
+def normalize_symbols(x: Any) -> tuple[str, ...]:
+    """A configured symbol list as unique upper-case tickers, in order (None / '' -> empty)."""
+    if x is None:
+        return ()
+    items = [x] if isinstance(x, str) else list(x)
+    out: list[str] = []
+    for s in items:
+        t = str(s or "").strip().upper()
+        if t and t not in out:
+            out.append(t)
+    return tuple(out)
 
 
 def _f(x: Any) -> float | None:
@@ -238,10 +255,17 @@ def _selection_key(r) -> tuple:
 
 
 def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None = None, equity: float | None = None,
-                     mode: str | None = None, now=None, synthetic: bool | None = None) -> dict[str, Any]:
+                     mode: str | None = None, now=None, synthetic: bool | None = None, scan=None) -> dict[str, Any]:
     """Choose this session's exploratory candidates and record the COMPLETE pre-trade state.
-    Idempotent per (session, mode). Never submits anything (see :func:`preopen_submit`)."""
+    Idempotent per (session, mode). Never submits anything (see :func:`preopen_submit`).
+
+    The regime throttle (``exploration.regime_throttle``, see exploration.regime_throttle) may lower the
+    session's new-entry cap; the regime is recorded on every decision. Tracked-watchlist symbols
+    (``exploration.tracked_watchlist``, see exploration.tracked) are recorded as TRACKED and never traded;
+    ``scan`` is the session's discovery ScanResult, used only for them (features and universe percentile
+    of tracked symbols outside the candidate pool)."""
     from quantlab.data.validation import quarantine_map
+    from quantlab.exploration.regime_throttle import RegimeThrottle, throttle_state, throttle_text
     from quantlab.monitoring.killswitch import KillSwitch
     db, cfg = ctx.db, ctx.config
     mode = (mode or paper_mode(cfg)).upper()
@@ -281,10 +305,18 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
     rows = sorted(rows, key=_selection_key)
     order = {r["symbol"]: i + 1 for i, r in enumerate(rows)}
     dataset_ids = from_json(run["dataset_ids_json"], [])
-    selected = watched = 0
+    # regime throttle: the market metric of D (exact date, never later) may lower the new-entry cap
+    regime = throttle_state(db, d, pol.max_new_per_session, RegimeThrottle.from_config(cfg))
+    cap_new = int(regime["effective_max_new"])
+    n_displace = max(pol.max_new_per_session - cap_new, 0) if regime["throttled"] else 0
+    # tracked symbols leave the tradeable pool here (never traded, never sized, never counted) and get
+    # their own TRACKED record below; an empty watchlist leaves the pool unchanged
+    tracked = set(pol.tracked_watchlist)
+    pool = [r for r in rows if r["symbol"] not in tracked] if tracked else rows
+    selected = watched = displaced = 0
     session_notional = 0.0
     out = []
-    for r in rows[:pol.max_considered]:
+    for r in pool[:pol.max_considered]:
         s = r["symbol"]
         hold = hold_for(d, s, pol)
         setup = from_json(r["setup_json"], {}) or {}
@@ -327,7 +359,8 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
         eligible = all(c["passed"] for c in ck)
         qty = 0
         stop = None
-        if eligible and selected < pol.max_new_per_session:
+        by_throttle = False
+        if eligible and selected < cap_new:
             n_open = ox["exploration_open"] + selected
             chk("max_open_positions", n_open < min(pol.max_open_positions, pol.max_concurrent_experiments),
                 f"{n_open} open exploratory position(s) (max {min(pol.max_open_positions, pol.max_concurrent_experiments)})")
@@ -352,6 +385,12 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
                     ind_held[ind] += 1
             else:
                 selection, qty = "SKIPPED", 0
+        elif eligible and displaced < n_displace:
+            # within the normal budget but beyond the regime-throttled cap: the throttle's counterfactual,
+            # recorded whatever the watched-not-traded allowance
+            selection = "WATCHED_NOT_TRADED"
+            displaced += 1
+            by_throttle = True
         elif eligible and watched < pol.watched_not_traded:
             selection = "WATCHED_NOT_TRADED"
             watched += 1
@@ -364,12 +403,18 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
                        and x.get("stage") in ("VALIDATION", "RISK", "EV", "PAPER ELIGIBILITY")]
         best = next((x for x in links if x.get("decision") == "TRADE"), links[0] if links else None)
         sel_s = _selection_of(r)
-        reason = (f"experimental setup #{selected} of up to {pol.max_new_per_session} for {d} "
-                  f"({setup.get('setup_type')}; {r['setup_class'] or 'class UNKNOWN'}; selection score "
-                  f"{f'{sel_s:.2f}' if sel_s is not None else 'UNKNOWN'}, order {order.get(s)}; discovery rank {r['rank']}; hold {hold} sessions)"
-                  if selection in ("SELECTED", "SHADOW") else
-                  ("eligible but beyond the session budget: tracked for comparison" if selection == "WATCHED_NOT_TRADED"
-                   else "skipped: " + "; ".join(f"{c['name']}: {c['reason']}" for c in failed)))
+        if selection in ("SELECTED", "SHADOW"):
+            reason = (f"experimental setup #{selected} of up to {cap_new} for {d} "
+                      f"({setup.get('setup_type')}; {r['setup_class'] or 'class UNKNOWN'}; selection score "
+                      f"{f'{sel_s:.2f}' if sel_s is not None else 'UNKNOWN'}, order {order.get(s)}; discovery rank {r['rank']}; hold {hold} sessions)"
+                      + (f"; {throttle_text(regime)}" if regime["throttled"] else ""))
+        elif by_throttle:
+            reason = (f"eligible and within the normal budget of {pol.max_new_per_session}, not traded because of the "
+                      f"{throttle_text(regime)}: tracked for comparison")
+        elif selection == "WATCHED_NOT_TRADED":
+            reason = "eligible but beyond the session budget: tracked for comparison"
+        else:
+            reason = "skipped: " + "; ".join(f"{c['name']}: {c['reason']}" for c in failed)
         pre = {
             "ticker": s, "decided_at": now.isoformat(), "mode": mode, "selection": selection,
             "session_date": d, "next_session": run["next_session"], "information_cutoff_at": run["info_cutoff_at"],
@@ -413,6 +458,7 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
                        "limits": {k: getattr(pol, k) for k in ("max_position_pct", "max_session_exposure_pct",
                                                                "max_total_exposure_pct", "max_open_positions")}},
             "evidence_chain": chain,
+            "regime": {**regime, "displaced_by_throttle": by_throttle},
         }
         out.append({"decision_id": new_id("expl"), "session_date": d, "next_session": run["next_session"], "symbol": s,
                     "mode": mode, "selection": selection, "rank": r["rank"], "discovery_run_id": run["discovery_run_id"],
@@ -423,6 +469,12 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
                     "holding_sessions": hold, "strict_blocker": "; ".join(pre["strict_would_reject_because"])[:2000] or None,
                     "reason": reason[:2000], "info_cutoff_at": run["info_cutoff_at"], "pre_trade_json": to_json(pre),
                     "is_synthetic": int(run["is_synthetic"]), "created_at": utcnow_iso()})
+    tracked_absent: dict[str, str] = {}
+    if tracked:
+        from quantlab.exploration.tracked import tracked_decisions
+        trk, tracked_absent = tracked_decisions(pol=pol, run=run, rows=rows, order=order, scan=scan, now=now, mode=mode,
+                                                regime=regime, dataset_ids=dataset_ids)
+        out.extend(trk)
     with db.transaction():
         if out:
             db.insert_many("exploration_decisions", out)
@@ -433,10 +485,15 @@ def plan_exploration(ctx, *, book: str = "BOT", session=None, run_id: str | None
     counts: dict[str, int] = {}
     for o in out:
         counts[o["selection"]] = counts.get(o["selection"], 0) + 1
-    log_event(log, "exploration planned", session=d, mode=mode, **counts)
-    return {"ok": True, "session": d, "mode": mode, "counts": counts,
-            "selected": [{"symbol": o["symbol"], "qty": o["qty"], "stop": o["stop_price"], "setup": o["setup_type"],
-                          "reason": o["reason"]} for o in out if o["selection"] in ("SELECTED", "SHADOW")]}
+    log_event(log, "exploration planned", session=d, mode=mode, regime=regime["state"], max_new=cap_new, **counts)
+    res = {"ok": True, "session": d, "mode": mode, "counts": counts,
+           "regime": {k: regime[k] for k in ("state", "label", "metric", "value", "throttled", "effective_max_new")},
+           "selected": [{"symbol": o["symbol"], "qty": o["qty"], "stop": o["stop_price"], "setup": o["setup_type"],
+                         "reason": o["reason"]} for o in out if o["selection"] in ("SELECTED", "SHADOW")]}
+    if tracked:
+        res["tracked"] = {"recorded": [o["symbol"] for o in out if o["selection"] == "TRACKED"],
+                          "not_recorded": tracked_absent}
+    return res
 
 
 def preopen_submit(ctx, exec_service, *, now=None, session: str | None = None, mode: str | None = None) -> dict[str, Any]:

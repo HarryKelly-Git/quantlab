@@ -385,9 +385,13 @@ class DailyPipeline:
         sim_now = (pd.Timestamp.now(tz="UTC") if self.exploration_submit == "preopen"
                    else self.cfg_cutoff(st["as_of"]) + pd.Timedelta(minutes=5))
         mtm = st.get("mtm") or {}
+        # the regime throttle reads D's regime snapshot, written by the 'research' step of this run (before
+        # 'discover' and 'explore'); the scan is the same session's, used only for tracked-watchlist records
         plan = plan_exploration(self.ctx, book=self.book, run_id=dr.discovery_run_id, equity=mtm.get("equity"),
-                                mode=mode, now=sim_now)
+                                mode=mode, now=sim_now, scan=dr.scan)
         out = {"mode": mode, **{f"planned_{k.lower()}": v for k, v in (plan.get("counts") or {}).items()}}
+        if plan.get("regime"):
+            out["regime_throttle"] = plan["regime"]["state"]
         if mode == "EXPLORATION" and self.exploration_submit == "now":
             sub_ = preopen_submit(self.ctx, self.exec, now=sim_now, session=plan.get("session"))
             out.update({"submitted": sub_.get("submitted", 0), "cancelled": sub_.get("cancelled", 0),

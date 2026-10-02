@@ -289,6 +289,19 @@ exploration:                      # PAPER_EXPLORATION controls (simulation hygie
   watched_not_traded: 10          # next-ranked eligible candidates recorded for comparison
   submit_after_et: "08:30"        # runner: revalidate + submit planned entries from this time until the order cutoff
   min_observations_to_propose: 30 # a hypothesis needs this many exploratory outcomes before a historical test
+  # Market-regime RISK THROTTLE (not a ban), docs/REGIME-THROTTLE.md: when D's regime metric (SPY vs its
+  # 200-session average, regime_snapshots) is below `below`, at most `max_new_per_session` new entries
+  # (min with the cap above); the rest of the normal budget is WATCHED_NOT_TRADED. Missing = UNKNOWN = no
+  # throttle. Not validated: pre-registered PIT evidence from 2021-23 only. Switch off: enabled: false.
+  regime_throttle:
+    enabled: true
+    metric: market_trend_200
+    below: 0.0
+    max_new_per_session: 2
+  # Research tracking only (exploration/tracked.py): each symbol present in the data gets a TRACKED decision
+  # record every session, scored by outcomes like the others, and is NEVER traded or sized. Keep the
+  # owner's list in the git-ignored config/local.yaml.
+  tracked_watchlist: []
 
 risk:
   max_drawdown_pause: 0.20        # bot book drawdown beyond this => SYSTEM_PAUSED
