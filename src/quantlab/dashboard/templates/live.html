@@ -17,7 +17,7 @@
 <div id="live-root">
 {% set s = d.system %}{% set det = s.detail or {} %}{% set p = d.portfolio %}{% set perf = d.performance %}{% set x = d.exploration %}
 <p class="muted">Data as of {{ d.generated_at[11:19] }} UTC.</p>
-{% if x.mode == 'EXPLORATION' %}<div class="infobox"><b>EXPLORATION mode.</b> The bot paper-trades up to 5 new discovered setups per session (10 open, max 2 per industry, 2% each), ranked by the selection score, each with a 5, 10 or 20-session hold, <b>without</b> proven edge, to gather forward evidence. No strategy is validated yet.</div>
+{% if x.mode == 'EXPLORATION' %}<div class="infobox"><b>EXPLORATION mode.</b> The bot paper-trades up to 5 new discovered setups per session (2 while SPY is below its 200-day average: regime throttle; 10 open, max 2 per industry, 2% each), ranked by the selection score, each with a 5, 10 or 20-session hold, <b>without</b> proven edge, to gather forward evidence. No strategy is validated yet.</div>
 {% elif s.no_paper_eligible %}<div class="warnbox">NO PAPER-ELIGIBLE STRATEGY. Every strategy is SHADOW/research.
 Candidates and decisions are recorded, and no paper orders are placed. Promotion needs evidence (<a href="/strategies">strategies</a>).</div>{% endif %}
 {% if x.error %}<div class="warnbox">Exploration panel unavailable: {{ x.error }}</div>{% endif %}

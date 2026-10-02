@@ -376,6 +376,16 @@ in the decision chain. With no ACTIVE strategy at stage PAPER/PROMOTED the runne
   (PLANNED / REVALIDATED / SUBMITTED / CANCELLED_PREOPEN / REFUSED), `exploration_outcomes`
   (1/3/5/10/20 sessions from the next open, cost-adjusted, MFE/MAE, stop breached, catalyst
   persisted) are append-only. Exploratory trades carry `strategy_id = EXPLORATION`.
+* **Regime throttle (`exploration/regime_throttle.py`, docs/REGIME-THROTTLE.md).** If D's
+  `regime_snapshots` metric (`market_trend_200`, SPY vs its 200-day average, exact date only) is below
+  `exploration.regime_throttle.below`, the new-entry cap is `min(max_new_per_session, 2)`. The displaced
+  part of the normal budget is WATCHED_NOT_TRADED, and a missing metric is UNKNOWN, which means no
+  throttle. The regime is recorded on every decision. This is a risk throttle, not a ban, and it is unvalidated.
+* **Tracked watchlist (`exploration/tracked.py`).** Symbols in `exploration.tracked_watchlist`
+  (default empty) get a `selection = 'TRACKED'` decision every session. The record carries features,
+  the selection score and its universe percentile, the upside profile and the regime. Outcomes are scored
+  like every other decision. A tracked symbol is removed from the tradeable pool: it is never traded or
+  sized, counts toward no cap, gets no PLANNED event, and is never pending.
 * **Runner integration.** After D's bars the runner runs the daily catalyst refresh
   (`data/catalyst_refresh.py`: news since the last window, recent SEC filings, facts for new
   10-Q/10-K; best effort). From `exploration.submit_after_et` (08:30 ET) until the order cutoff it runs
