@@ -169,6 +169,10 @@ caches. `a*` means tri-scaled OHLC. `SMA(x,n)` is a trailing simple mean. `vol` 
 | industry_rank_63 | industry | percentile rank (0..1] of the group's mean 63-session return among groups at D |
 | rs_sector_20_pit | industry | `ret_20(stock) - ret_20(sector ETF)`, sector ETF from the point-in-time SIC via `sectors.SIC_SECTOR_RANGES` |
 | sector_rs_spy_63_pit | industry | `ret_63(sector ETF) - ret_63(SPY)` for the point-in-time sector |
+| congress_buys_30d, congress_sells_30d | alt | House PTR purchases / sales (stock rows) usable in (D-30 days, D]; UNKNOWN until the source covers a full window. CONTEXT ONLY (docs/ALT-DATA.md) |
+| congress_net_30d | alt | `congress_buys_30d - congress_sells_30d` |
+| insider_buys_30d, insider_sells_30d | alt | Form 4 open-market P / S lines by directors/officers usable in (D-30 days, D]; context only |
+| insider_net_value_30d | alt | USD buys minus sales (shares x price) in the window; UNKNOWN if any value is unknown |
 | market_trend_200 | market | SPY `aclose/SMA(aclose,200)-1` |
 | market_mom_60 | market | SPY 60-session return |
 | market_vol_20 | market | SPY `std(ret,20)*sqrt(252)` |
