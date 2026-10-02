@@ -333,7 +333,7 @@ class PaperRunner:
         # broker-held protective stops (execution/protective_stops.py): a GTC stop-market sell rests at
         # the broker for every open long trade, so a stop fires intraday and while QuantLab is down
         ps = lambda k, d: self.cfg.get(f"execution.protective_stop.{k}", d)   # noqa: E731
-        self.protective_stops = bool(ps("enabled", True))
+        self.protective_stops = bool(ps("enabled", False))
         self.stop_poll_seconds = float(ps("poll_seconds", 30))
         self.stop_max_replacements = int(ps("max_replacements_per_session", 3))
         self._last_stop_scan: datetime | None = None
