@@ -1,0 +1,31 @@
+﻿# Prop-firm rules TEMPLATE. Copy to <firm>-<account>.yaml and fill EVERY value from the firm's OFFICIAL
+# documentation (help-centre / terms pages), with the URLs in `sources` and the date checked in `notes`.
+# Discord, Reddit, YouTube and affiliate sites are NOT sources. Anything not verified stays UNKNOWN, and
+# the simulator refuses to run until it is filled.
+name: UNKNOWN
+verified: false
+sources: []
+notes: "checked on YYYY-MM-DD"
+start_balance: UNKNOWN
+profit_target: UNKNOWN
+max_drawdown: UNKNOWN
+drawdown_type: UNKNOWN          # static | trailing_eod | trailing_intraday
+trail_lock_profit: UNKNOWN      # floor stops trailing at start + this (omit the line if it never locks)
+daily_loss_limit: UNKNOWN       # omit the line if there is none
+dll_action: UNKNOWN             # stop_day | fail
+max_contracts: UNKNOWN
+eval_consistency: UNKNOWN       # best day <= share of total profit to pass (omit if none)
+funded_consistency: UNKNOWN
+min_eval_days: UNKNOWN
+min_days_between_payouts: UNKNOWN
+payout_min_profit: UNKNOWN
+payout_keep: UNKNOWN
+payout_min_amount: UNKNOWN
+payout_cap: UNKNOWN
+payout_split: UNKNOWN
+max_payouts: UNKNOWN
+eval_fee: UNKNOWN
+eval_fee_period_days: UNKNOWN   # monthly subscription ~21 trading days; omit if one-off
+reset_fee: UNKNOWN
+activation_fee: UNKNOWN
+restart_after_funded_fail: true
