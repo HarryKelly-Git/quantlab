@@ -100,6 +100,8 @@ def load_rules(path: str | Path) -> PropRules:
     for k in ("start_balance", "profit_target", "max_drawdown"):     # required numbers: placeholder if unknown
         if k in unknown:
             vals[k] = 1.0
+    if "name" in unknown:
+        vals["name"] = f"UNNAMED ({Path(path).name})"
     return PropRules(**vals, unknown=unknown)
 
 
