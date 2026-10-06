@@ -93,3 +93,129 @@ def summarize(x: pd.DataFrame, ret_col: str, n: int = 10) -> dict[str, Any]:
 
 def load_features() -> pd.DataFrame:
     return pd.read_parquet(options_dir() / "features.parquet")
+
+
+# ------------------------------------------------------------------------------------------------------
+# observation builder (features at the snapshot session; outcomes only from the features' outcome cols)
+# ------------------------------------------------------------------------------------------------------
+def build_obs(d, feat: pd.DataFrame | None = None, cal: pd.DataFrame | None = None) -> pd.DataFrame:
+    from quantlab.alpha.experiments.earnings import clean_calendar
+    feat = load_features() if feat is None else feat
+    m = monthly_panel(feat)
+    m = m[m["act_symbol"].isin(d.p.symbols)].copy()
+    # term structure: same snapshot, expiry nearest 60 days (40..80)
+    f60 = feat[(feat["dte"] >= 40) & (feat["dte"] <= 80)].copy()
+    f60["dd"] = (f60["dte"] - 60).abs()
+    f60 = f60.loc[f60.groupby(["date", "act_symbol"])["dd"].idxmin(), ["date", "act_symbol", "iv_atm"]].rename(columns={"iv_atm": "iv_60"})
+    m = m.merge(f60, on=["date", "act_symbol"], how="left")
+    # trailing realised vol and range vol at the snapshot session (adjusted prices, PIT)
+    lr = np.log(d.p["adj_close"] / d.p["adj_close"].shift(1))
+    hv = {k: lr.rolling(k, min_periods=int(0.8 * k)).std() * np.sqrt(252) for k in (5, 21, 63)}
+    pk = (np.log(d.p["adj_high"] / d.p["adj_low"]) ** 2 / (4 * np.log(2))).rolling(21, min_periods=17).mean().pow(0.5) * np.sqrt(252)
+    ci = d.p["close"].columns.get_indexer(m["act_symbol"])
+    si = d.p.dates.get_indexer(pd.to_datetime(m["session"]))
+    ok = (ci >= 0) & (si >= 0)
+    for name, mat in (("hv5", hv[5]), ("hv21", hv[21]), ("hv63", hv[63]), ("rangevol21", pk)):
+        a = mat.to_numpy()
+        m[name] = np.where(ok, a[np.clip(si, 0, None), np.clip(ci, 0, None)], np.nan)
+    # earnings inside the straddle's life (realised dates, PIT_ASSUMED)
+    cal = clean_calendar(d) if cal is None else cal
+    cal = cal[["act_symbol", "react_session"]].copy()
+    cal["react_session"] = pd.to_datetime(cal["react_session"])
+    mm = m[["act_symbol", "session", "expiration"]].reset_index().merge(cal, on="act_symbol", how="inner")
+    hit = mm[(mm["react_session"] > pd.to_datetime(mm["session"])) & (mm["react_session"] <= pd.to_datetime(mm["expiration"]))]
+    m["earn_in_window"] = m.index.isin(hit["index"].unique())
+    m["cal_covered"] = pd.to_datetime(m["session"]) >= pd.Timestamp("2020-01-22")
+    # IV percentile within the underlying's trailing year of one-month IVs, and 1-week IV change
+    m = m.sort_values(["act_symbol", "session"])
+    def _pct(s):
+        return s.rolling(150, min_periods=60).apply(lambda w: (w[:-1] < w[-1]).mean(), raw=True)
+    m["iv_pctile"] = m.groupby("act_symbol", observed=True)["iv_atm"].transform(_pct)
+    m["iv_chg_1w"] = m.groupby("act_symbol", observed=True)["iv_atm"].pct_change()
+    # option momentum: mean hold-to-expiry return of this underlying's straddles that EXPIRED before now
+    m["opt_mom_3m"] = np.nan
+    m["opt_mom_12m"] = np.nan
+    for sym, g in m.groupby("act_symbol", observed=True):
+        done = g[["exp_session", "ret_hold_mid"]].dropna().sort_values("exp_session")
+        if done.empty:
+            continue
+        es = pd.to_datetime(done["exp_session"]).to_numpy()
+        rr = done["ret_hold_mid"].to_numpy()
+        cs = np.r_[0, np.cumsum(rr)]
+        sess = pd.to_datetime(g["session"]).to_numpy()
+        hi = np.searchsorted(es, sess, side="left")             # expiries strictly before the snapshot session
+        for col, days in (("opt_mom_3m", 91), ("opt_mom_12m", 365)):
+            lo = np.searchsorted(es, sess - np.timedelta64(days, "D"), side="left")
+            n = hi - lo
+            val = np.where(n >= (2 if days == 91 else 6), (cs[hi] - cs[lo]) / np.maximum(n, 1), np.nan)
+            m.loc[g.index, col] = val
+    # underlying 1-month return (for the option-momentum control) and next-21-session return (skew test)
+    r21 = d.p["adj_close"].pct_change(21)
+    fwd21 = d.p["adj_close"].shift(-21) / d.p["adj_close"] - 1 - (d.p["adj_close"]["SPY"].shift(-21) / d.p["adj_close"]["SPY"] - 1).to_numpy()[:, None]
+    ci = d.p["close"].columns.get_indexer(m["act_symbol"])
+    si = d.p.dates.get_indexer(pd.to_datetime(m["session"]))
+    ok = (ci >= 0) & (si >= 0)
+    m["ret_1m_underlying"] = np.where(ok, r21.to_numpy()[np.clip(si, 0, None), np.clip(ci, 0, None)], np.nan)
+    m["fwd21_mkt_adj"] = np.where(ok, fwd21.to_numpy()[np.clip(si, 0, None), np.clip(ci, 0, None)], np.nan)
+    m["skew"] = m["iv_put25"] - m["iv_call25"]
+    m["term_slope"] = m["iv_60"] - m["iv_atm"]
+    m["hv_minus_iv"] = m["hv21"] - m["iv_atm"]
+    m["log_rv_iv"] = np.log(m["rv_to_exp"] / m["iv_atm"])
+    m["fly_ret"] = iron_fly_return(m["spot"].to_numpy(), m["k_atm"].to_numpy(), m["straddle_bid"].to_numpy(),
+                                   m["em_pct"].to_numpy(), m["exp_close"].to_numpy())
+    m["short_straddle_ret_per_credit"] = (m["straddle_bid"] - m["payoff"]) / m["straddle_bid"]
+    return m.reset_index(drop=True)
+
+
+def fit_rv_model(m: pd.DataFrame, with_iv: bool = False) -> dict:
+    """Pooled OLS of log RV-to-expiry on log trailing vols (+ earnings flag) fitted on TRAIN only."""
+    cols = ["hv5", "hv21", "hv63", "rangevol21"] + (["iv_atm"] if with_iv else [])
+    a, b = splits.window("options", "TRAIN")
+    x = m[(pd.to_datetime(m["session"]) >= a) & (pd.to_datetime(m["session"]) <= b)]
+    x = x.dropna(subset=cols + ["rv_to_exp"])
+    x = x[(x[cols] > 0).all(axis=1) & (x["rv_to_exp"] > 0)]
+    X = np.column_stack([np.ones(len(x))] + [np.log(x[c].to_numpy()) for c in cols] + [x["earn_in_window"].astype(float).to_numpy()])
+    y = np.log(x["rv_to_exp"].to_numpy())
+    coef = np.linalg.lstsq(X, y, rcond=None)[0]
+    resid = y - X @ coef
+    return {"cols": cols, "coef": coef.tolist(), "n_train": int(len(x)), "resid_var": float(resid.var())}
+
+
+def predict_rv(m: pd.DataFrame, model: dict) -> pd.Series:
+    cols = model["cols"]
+    X = np.column_stack([np.ones(len(m))] + [np.log(m[c].where(m[c] > 0).to_numpy()) for c in cols] + [m["earn_in_window"].astype(float).to_numpy()])
+    return pd.Series(np.exp(X @ np.array(model["coef"]) + model["resid_var"] / 2), index=m.index)
+
+
+def forecast_vs_iv(m: pd.DataFrame, fc: pd.Series) -> dict:
+    """Out-of-sample accuracy of the forecast vs IV for log RV, and the encompassing regression."""
+    out = {}
+    for sp in ("VALIDATION", "OOS"):
+        a, b = splits.window("options", sp)
+        x = m[(pd.to_datetime(m["session"]) >= a) & (pd.to_datetime(m["session"]) <= b)].copy()
+        x["fc"] = fc.reindex(x.index)
+        x = x.dropna(subset=["fc", "iv_atm", "rv_to_exp"])
+        x = x[(x["iv_atm"] > 0) & (x["rv_to_exp"] > 0) & (x["fc"] > 0)]
+        if len(x) < 100:
+            continue
+        ly, li, lf = np.log(x["rv_to_exp"]), np.log(x["iv_atm"]), np.log(x["fc"])
+        mse_iv = float(((ly - li) ** 2).mean())
+        mse_iv_debiased = float(((ly - li - (ly - li).mean()) ** 2).mean())
+        mse_fc = float(((ly - lf) ** 2).mean())
+        X = np.column_stack([np.ones(len(x)), li, lf])
+        coef, *_ = np.linalg.lstsq(X, ly, rcond=None)
+        res = ly - X @ coef
+        # cluster-robust (by week) standard errors for the encompassing regression
+        wk = pd.to_datetime(x["session"]).dt.to_period("W-FRI").astype(str).to_numpy()
+        XtX_inv = np.linalg.inv(X.T @ X)
+        meat = np.zeros((3, 3))
+        for w in np.unique(wk):
+            idx = wk == w
+            sc = X[idx].T @ res[idx]
+            meat += np.outer(sc, sc)
+        se = np.sqrt(np.diag(XtX_inv @ meat @ XtX_inv))
+        out[sp] = {"n": int(len(x)), "mse_log_iv": mse_iv, "mse_log_iv_debiased": mse_iv_debiased, "mse_log_forecast": mse_fc,
+                   "encompassing_coef_iv": float(coef[1]), "encompassing_coef_fc": float(coef[2]),
+                   "t_iv": float(coef[1] / se[1]), "t_fc": float(coef[2] / se[2]),
+                   "mean_log_rv_minus_log_iv": float((ly - li).mean())}
+    return out
