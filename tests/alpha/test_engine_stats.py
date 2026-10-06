@@ -172,3 +172,12 @@ def test_registry_oos_once_and_classification(tmp_path, monkeypatch):
     assert registry.classify(E(True, 2.5, 3.0, 0.3, 0.0001, 0.33, 0.97, 0.01, 0.2, True, True))[0] == "G"
     assert registry.classify(E(True, 2.5, 3.0, 2.4, 0.0005, 1.0, 0.97, 0.01, 0.2, True, True))[0] == "A"
     assert registry.classify(E(True, 2.5, 3.0, 2.4, 0.0005, 1.0, 0.97, 0.01, 0.2, False, True))[0] == "B"
+
+
+def test_intraday_roundtrip_costs():
+    d = _idx(3)
+    w = pd.DataFrame({"A": [1.0, 1.0, 1.0]}, index=d)
+    roo = pd.DataFrame({"A": [0.0, 0.0, 0.0]}, index=d)
+    cost = pd.DataFrame(10.0, index=d, columns=["A"])
+    r = run_weights(w, roo, cost, roundtrip_each_period=True, borrow_bps=0.0)
+    assert list(r.costs) == pytest.approx([0.002, 0.002, 0.002])        # in at the open, out at the close, daily

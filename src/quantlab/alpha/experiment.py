@@ -53,6 +53,7 @@ class Context:
     alt_ret_oo: dict[str, pd.DataFrame] = field(default_factory=dict)   # delisting-return sensitivities
     dataset: str = "equity"
     data_manifest: dict[str, Any] = field(default_factory=dict)
+    intraday_only: bool = False                # books opened at the open and closed at the close each day
 
 
 def _split_stats(net: pd.Series, gross: pd.Series, ds: str) -> dict[str, Any]:
@@ -79,7 +80,8 @@ def _split_stats(net: pd.Series, gross: pd.Series, ds: str) -> dict[str, Any]:
 
 def _bt(v: Variant, ctx: Context, w: pd.DataFrame, **kw) -> BacktestResult:
     return run_weights(w, kw.pop("ret_oo", ctx.ret_oo), ctx.cost_bps, holding=v.holding,
-                       execution=kw.pop("execution", v.execution), ret_cc=ctx.ret_cc, **kw)
+                       execution=kw.pop("execution", v.execution), ret_cc=ctx.ret_cc,
+                       roundtrip_each_period=ctx.intraday_only, **kw)
 
 
 def run_family(*, family: str, hypothesis_id: str, variants: list[Variant], ctx: Context,
@@ -132,7 +134,7 @@ def run_family(*, family: str, hypothesis_id: str, variants: list[Variant], ctx:
     rob: dict[str, Any] = {}
     x2 = _bt(bv, ctx, wbest, cost_mult=2.0)
     rob["dev_t_net_2x_costs"] = newey_west_tstat(pd.concat([splits.slice_split(x2.net, ds, s) for s in splits.DEVELOPMENT]).dropna().to_numpy()).t
-    if bv.execution == "open":
+    if bv.execution == "open" and not ctx.intraday_only:
         mc = _bt(bv, ctx, wbest, execution="close")
         rob["dev_t_net_next_close_exec"] = newey_west_tstat(pd.concat([splits.slice_split(mc.net, ds, s) for s in splits.DEVELOPMENT]).dropna().to_numpy()).t
     for nm, alt in ctx.alt_ret_oo.items():

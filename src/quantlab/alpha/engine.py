@@ -53,7 +53,8 @@ class BacktestResult:
 
 def run_weights(weights: pd.DataFrame, ret_oo: pd.DataFrame, cost_bps: pd.DataFrame, *, holding: int = 1,
                 execution: str = "open", ret_cc: pd.DataFrame | None = None, cost_mult: float = 1.0,
-                borrow_bps: float = 50.0, keep_contrib: bool = False, impact: dict | None = None) -> BacktestResult:
+                borrow_bps: float = 50.0, keep_contrib: bool = False, impact: dict | None = None,
+                roundtrip_each_period: bool = False) -> BacktestResult:
     if execution not in ("open", "close"):
         raise ValueError(execution)
     W = weights.fillna(0.0)
@@ -73,6 +74,8 @@ def run_weights(weights: pd.DataFrame, ret_oo: pd.DataFrame, cost_bps: pd.DataFr
     gross = pnl_by_name.sum(axis=1)
     dW = W.diff().abs()
     dW.iloc[0] = W.iloc[0].abs()
+    if roundtrip_each_period:                   # intraday-only books: open and close every position every day
+        dW = 2.0 * W.abs()
     c = (dW * cost_bps.reindex_like(W).fillna(cost_bps.max().max()) * cost_mult / 1e4).sum(axis=1)
     if impact:
         aum = float(impact["aum"])
@@ -83,6 +86,8 @@ def run_weights(weights: pd.DataFrame, ret_oo: pd.DataFrame, cost_bps: pd.DataFr
         c = c + (dW * k * sig * np.sqrt(part)).sum(axis=1).fillna(0.0)
     short_gross = W.clip(upper=0).abs().sum(axis=1)
     borrow = short_gross * borrow_bps / 1e4 / 252.0
+    if roundtrip_each_period:
+        borrow = borrow * 0.0                   # no overnight short position -> no borrow fee
     net = gross - c - borrow
     # P&L is realised on the day after the decision; index by decision date (callers shift if needed)
     res = BacktestResult(
