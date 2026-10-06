@@ -31,67 +31,84 @@ FEATURES = ["ret_5", "ret_21", "ret_63", "mom_12_1", "resid_21", "vol20", "vol60
 
 
 def build_dataset(d) -> pd.DataFrame:
-    p = d.p
-    r = p["ret_cc"]
-    ac = p["adj_close"]
-    week_last = p.dates.to_series().groupby(p.dates.to_period("W-FRI")).last()
-    obs_dates = pd.DatetimeIndex(week_last.to_numpy())
-    feats = {
-        "ret_5": r.rolling(5).sum(), "ret_21": r.rolling(21).sum(), "ret_63": r.rolling(63).sum(),
-        "mom_12_1": r.rolling(231, min_periods=180).sum().shift(21), "resid_21": d.resid.rolling(21, min_periods=17).sum(),
-        "vol20": d.vol20, "vol60": d.vol60, "vol_ratio": d.vol20 / d.vol60,
-        "rangevol21": (np.log(p["adj_high"] / p["adj_low"]) ** 2 / (4 * np.log(2))).rolling(21, min_periods=17).mean() ** 0.5,
-        "volume_ratio": p["volume"].rolling(20).mean() / p["volume"].rolling(60).mean(),
-        "log_mdv20": np.log(d.mdv20), "dist_52w_high": ac / ac.rolling(252, min_periods=200).max() - 1,
-        "max21": r.rolling(21, min_periods=17).max(), "ivol21": d.resid.rolling(21, min_periods=17).std(),
-        "beta_mkt": d.betas["beta_mkt"],
-    }
+    """Memory-lean: each (dates x names) matrix is computed, sampled at the weekly observation dates for
+    names ever in the universe, and freed before the next one (the full set at once needs > 13 GB)."""
+    import gc
     from quantlab.alpha.panel import SECTOR_ETFS
-    sec63 = pd.DataFrame(np.nan, index=r.index, columns=r.columns)
+    p = d.p
+    U = d.u_liquid
+    cols = U.columns[U.any(axis=0).to_numpy()]
+    week_last = p.dates.to_series().groupby(p.dates.to_period("W-FRI")).last()
+    obs = pd.DatetimeIndex([t for t in week_last.to_numpy() if t in p.dates])
+    r = p["ret_cc"][cols]
+    ac = p["adj_close"]
+    S: dict[str, pd.DataFrame] = {}
+
+    def keep(name, mat):
+        S[name] = mat.reindex(index=obs, columns=cols).astype("float32")
+
+    keep("ret_5", r.rolling(5).sum()); keep("ret_21", r.rolling(21).sum()); keep("ret_63", r.rolling(63).sum())
+    keep("mom_12_1", r.rolling(231, min_periods=180).sum().shift(21))
+    res = d.resid[cols]
+    keep("resid_21", res.rolling(21, min_periods=17).sum()); keep("ivol21", res.rolling(21, min_periods=17).std())
+    del res; gc.collect()
+    keep("vol20", d.vol20[cols]); keep("vol60", d.vol60[cols]); S["vol_ratio"] = S["vol20"] / S["vol60"]
+    hl = np.log(p["adj_high"][cols] / p["adj_low"][cols]) ** 2 / (4 * np.log(2))
+    keep("rangevol21", hl.rolling(21, min_periods=17).mean() ** 0.5); del hl; gc.collect()
+    v = p["volume"][cols]
+    keep("volume_ratio", v.rolling(20).mean() / v.rolling(60).mean()); del v; gc.collect()
+    keep("log_mdv20", np.log(d.mdv20[cols]))
+    a = ac[cols]
+    keep("dist_52w_high", a / a.rolling(252, min_periods=200).max() - 1)
+    keep("max21", r.rolling(21, min_periods=17).max())
+    keep("beta_mkt", d.betas["beta_mkt"][cols])
+    sec_at = d.sectors.reindex(index=obs, columns=cols)
+    sec63 = pd.DataFrame(np.nan, index=obs, columns=cols, dtype="float32")
     for e in SECTOR_ETFS:
         if e in ac.columns:
-            sec63 = sec63.mask(d.sectors == e, pd.DataFrame(np.broadcast_to(ac[e].pct_change(63).to_numpy()[:, None], r.shape),
-                                                             index=r.index, columns=r.columns))
-    feats["sector_mom63"] = sec63
+            val = ac[e].pct_change(63).reindex(obs).to_numpy()[:, None]
+            sec63 = sec63.mask(sec_at == e, pd.DataFrame(np.broadcast_to(val, sec63.shape), index=obs, columns=cols))
+    S["sector_mom63"] = sec63
     spy = ac["SPY"]
-    mkt = {"spy_vol20": r["SPY"].rolling(20).std(), "spy_trend": spy / spy.rolling(200, min_periods=200).mean() - 1}
-    # targets from the next open (adjusted prices), market-adjusted with beta
+    spy_vol20 = p["ret_cc"]["SPY"].rolling(20).std().reindex(obs)
+    spy_trend = (spy / spy.rolling(200, min_periods=200).mean() - 1).reindex(obs)
+    # targets (outcomes), from the next open, beta-adjusted with SPY
     ao = p["adj_open"]
-    fwd5 = ac.shift(-5) / ao.shift(-1) - 1
-    fwd5_m = (ac["SPY"].shift(-5) / ao["SPY"].shift(-1) - 1)
-    fwd5_adj = fwd5 - d.betas["beta_mkt"].fillna(1.0).mul(fwd5_m, axis=0)
-    fwd21 = ac.shift(-21) / ao.shift(-1) - 1
-    lr = np.log(ac / ac.shift(1))
-    fvol21 = lr[::-1].rolling(21, min_periods=17).std()[::-1].shift(-1) * np.sqrt(252)
-    # timing: +5% before -5% within 10 sessions (closes vs next open)
+    nxt_open = ao[cols].shift(-1)
+    fwd5 = ac[cols].shift(-5) / nxt_open - 1
+    fwd5_m = ac["SPY"].shift(-5) / ao["SPY"].shift(-1) - 1
+    T: dict[str, pd.DataFrame] = {}
+    T["fwd5_adj"] = (fwd5 - d.betas["beta_mkt"][cols].fillna(1.0).mul(fwd5_m, axis=0)).reindex(obs).astype("float32")
+    del fwd5; gc.collect()
+    T["fwd21"] = (ac[cols].shift(-21) / nxt_open - 1).reindex(obs).astype("float32")
+    lr = np.log(a / a.shift(1))
+    T["fvol21"] = (lr[::-1].rolling(21, min_periods=17).std()[::-1].shift(-1) * np.sqrt(252)).reindex(obs).astype("float32")
+    del lr; gc.collect()
     rows = []
-    U = d.u_liquid
-    for t in obs_dates:
-        if t not in r.index:
-            continue
-        i = r.index.get_loc(t)
-        u = U.loc[t]
-        names = u.index[u.to_numpy()]
+    pos = {t: i for i, t in enumerate(p.dates)}
+    for t in obs:
+        u = U.loc[t, cols]
+        names = cols[u.to_numpy()]
         if len(names) < 100:
             continue
-        df = pd.DataFrame({k: v.loc[t, names] for k, v in feats.items()})
-        for k, v in mkt.items():
-            df[k] = float(v.loc[t])
+        df = pd.DataFrame({k: v.loc[t, names].to_numpy() for k, v in S.items()})
+        df["spy_vol20"] = float(spy_vol20.loc[t]); df["spy_trend"] = float(spy_trend.loc[t])
         df["date"] = t
         df["symbol"] = names
-        df["y_dir"] = (fwd5_adj.loc[t, names] > 0).astype(float).where(fwd5_adj.loc[t, names].notna())
-        df["y_mag"] = fwd5_adj.loc[t, names].abs()
-        df["y_vol"] = fvol21.loc[t, names]
-        df["y_tail"] = (fwd21.loc[t, names].abs() > 0.10).astype(float).where(fwd21.loc[t, names].notna())
-        if i + 11 < len(r.index):
-            entry = ao.iloc[i + 1][names]
-            path = ac.iloc[i + 1: i + 11][names] / entry - 1
-            up = (path >= 0.05).to_numpy()
-            dn = (path <= -0.05).to_numpy()
-            first_up = np.where(up.any(axis=0), up.argmax(axis=0), 99)
-            first_dn = np.where(dn.any(axis=0), dn.argmax(axis=0), 99)
-            y = np.where((first_up == 99) & (first_dn == 99), np.nan, (first_up < first_dn).astype(float))
-            df["y_timing"] = y
+        f5 = T["fwd5_adj"].loc[t, names].to_numpy()
+        df["y_dir"] = np.where(np.isfinite(f5), (f5 > 0).astype(float), np.nan)
+        df["y_mag"] = np.abs(f5)
+        df["y_vol"] = T["fvol21"].loc[t, names].to_numpy()
+        f21 = T["fwd21"].loc[t, names].to_numpy()
+        df["y_tail"] = np.where(np.isfinite(f21), (np.abs(f21) > 0.10).astype(float), np.nan)
+        i = pos[t]
+        if i + 11 < len(p.dates):
+            entry = ao.iloc[i + 1][names].to_numpy()
+            path = ac.iloc[i + 1: i + 11][names].to_numpy() / entry - 1
+            up, dn = path >= 0.05, path <= -0.05
+            fu = np.where(up.any(axis=0), up.argmax(axis=0), 99)
+            fd = np.where(dn.any(axis=0), dn.argmax(axis=0), 99)
+            df["y_timing"] = np.where((fu == 99) & (fd == 99), np.nan, (fu < fd).astype(float))
         rows.append(df)
     out = pd.concat(rows, ignore_index=True)
     out["split"] = splits.label_series(pd.DatetimeIndex(out["date"]), "equity").to_numpy()

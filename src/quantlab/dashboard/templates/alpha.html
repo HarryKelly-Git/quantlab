@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% from "_macros.html" import table %}{% block title %}alpha discovery{% endblock %}{% block body %}
+<h2>Alpha discovery</h2>
+<p>Research only (paper). {{ a.n_hypotheses }} hypotheses: {{ a.n_done }} tested, {{ a.n_queued }} queued.
+{{ a.n_runs }} ledger runs, {{ a.n_configs }} distinct configurations tried, {{ a.n_oos_evaluations }} out-of-sample evaluations.
+Classes: {% for k, v in a.classes.items() %}{{ k }}={{ v }} {% endfor %}
+(A strong, B promising, C regime-dependent, D implementation problem, E no edge, F data-limited, G overfit).</p>
+<h2>Families</h2>{{ table(a.families) }}
+<h2>Options: variance premium and costs</h2>{{ table(a.options_baseline) }}
+<h2>Options: QuantLab volatility forecast vs implied volatility (log RV MSE)</h2>{{ table(a.forecast_accuracy) }}
+<h2>Portfolio of strategy streams</h2>{{ table(a.portfolio) }}
+<h2>Research health: data quality</h2>{{ table(a.quality) }}
+<h2>Research queue</h2>{{ table(a.queue) }}
+{% endblock %}
