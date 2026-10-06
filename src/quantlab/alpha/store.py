@@ -352,3 +352,39 @@ def main() -> None:   # pragma: no cover - network
 
 if __name__ == "__main__":   # pragma: no cover
     main()
+
+
+def download_minutes(symbols: Iterable[str], *, start: str = RESEARCH_START, end: str = RESEARCH_END,
+                     per_minute: int = 100) -> dict[str, int]:
+    """1-minute SIP bars (raw) for a few symbols, e.g. SPY/QQQ for intraday studies. Resumable per year."""
+    if pd.Timestamp(end) >= pd.Timestamp(HOLDOUT_START):
+        raise ValueError("refusing holdout dates")
+    limiter = RateLimiter(per_minute)
+    s = requests.Session()
+    s.headers.update(_auth())
+    out = {}
+    d = store_dir() / "minute"
+    d.mkdir(parents=True, exist_ok=True)
+    for sym in symbols:
+        for y in range(pd.Timestamp(start).year, pd.Timestamp(end).year + 1):
+            path = d / f"{sym}_{y}.parquet"
+            if path.exists():
+                continue
+            params = {"symbols": sym, "timeframe": "1Min", "start": f"{y}-01-01T00:00:00Z",
+                      "end": f"{min(pd.Timestamp(f'{y}-12-31'), pd.Timestamp(end)).date()}T23:59:59Z",
+                      "adjustment": "raw", "feed": FEED, "limit": 10000, "sort": "asc"}
+            rows, token = [], None
+            while True:
+                p = dict(params, page_token=token) if token else params
+                j = _get(s, f"{DATA_URL}/v2/stocks/bars", p, limiter)
+                for b in (j.get("bars") or {}).get(sym, []) or []:
+                    rows.append((b["t"], b["o"], b["h"], b["l"], b["c"], b["v"]))
+                token = j.get("next_page_token")
+                if not token:
+                    break
+            df = pd.DataFrame(rows, columns=["t", "open", "high", "low", "close", "volume"])
+            df["t"] = pd.to_datetime(df["t"], utc=True).dt.tz_convert("America/New_York")
+            df.to_parquet(path, index=False)
+            out[f"{sym}_{y}"] = len(df)
+            print(sym, y, len(df), flush=True)
+    return out

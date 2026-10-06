@@ -95,8 +95,12 @@ def get(refresh: bool = False) -> EquityData:
 
 
 def build(refresh: bool = False) -> EquityData:
+    return from_panel(build_panel())
+
+
+def from_panel(p: AlphaPanel, manifest: dict | None = None) -> EquityData:
+    """Every derived research matrix from an AlphaPanel (used on truncated panels by the PIT tests)."""
     t0 = time.time()
-    p = build_panel()
     u_liquid = research_universe(p)
     mdv20 = median_dollar_volume(p, 20)
     mdv60 = median_dollar_volume(p, 60)
@@ -119,22 +123,26 @@ def build(refresh: bool = False) -> EquityData:
     vol20 = r.rolling(20, min_periods=15).std()
     vol60 = r.rolling(60, min_periods=45).std()
     spy = p["adj_close"]["SPY"]
-    regimes = {
+    ac = p["adj_close"]
+    regimes: dict[str, pd.Series] = {
         "spy_trend": pd.Series(np.where(spy > spy.rolling(200, min_periods=200).mean(), "above_200d", "below_200d"),
                                index=p.dates).where(spy.rolling(200, min_periods=200).mean().notna()),
         "spy_vol": pd.Series(pd.qcut(r["SPY"].rolling(20).std().rolling(504, min_periods=126).rank(pct=True),
                                      [0, 1 / 3, 2 / 3, 1.0], labels=["calm", "normal", "stressed"]).astype(object),
                              index=p.dates),
-        "credit": pd.Series(np.where((p["adj_close"]["HYG"] / p["adj_close"]["LQD"]).pct_change(63) > 0,
-                                     "risk_on", "risk_off"), index=p.dates),
-        "rates": pd.Series(np.where(p["adj_close"]["TLT"].pct_change(63) > 0, "yields_falling", "yields_rising"),
-                           index=p.dates),
-        "dollar": pd.Series(np.where(p["adj_close"]["UUP"].pct_change(63) > 0, "usd_up", "usd_down"), index=p.dates),
     }
+    if {"HYG", "LQD"} <= set(ac.columns):
+        regimes["credit"] = pd.Series(np.where((ac["HYG"] / ac["LQD"]).pct_change(63) > 0, "risk_on", "risk_off"), index=p.dates)
+    if "TLT" in ac.columns:
+        regimes["rates"] = pd.Series(np.where(ac["TLT"].pct_change(63) > 0, "yields_falling", "yields_rising"), index=p.dates)
+    if "UUP" in ac.columns:
+        regimes["dollar"] = pd.Series(np.where(ac["UUP"].pct_change(63) > 0, "usd_up", "usd_down"), index=p.dates)
     buckets = {"liquidity": _terciles(mdv20, u_liquid), "volatility": _terciles(vol60, u_liquid)}
     alt = {"distressed_minus100": _delist_variant(p, -1.0, 0.0), "all_zero": _delist_variant(p, 0.0, 0.0)}
     dl = p.meta["delistings"]
-    manifest = json.loads((store_dir() / "manifest.json").read_text())
+    if manifest is None:
+        mp = store_dir() / "manifest.json"
+        manifest = json.loads(mp.read_text()) if mp.exists() else {}
     manifest.update({"n_delisted_in_panel": int(len(dl)), "n_delisted_distressed": int(dl["distressed"].sum()),
                      "n_survivor_symbols": len(survivors), "panel_symbols": int(p.meta["n_symbols"]),
                      "universe_liquid_avg_names": float(u_liquid.sum(axis=1).mean()),
