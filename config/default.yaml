@@ -494,3 +494,27 @@ discovery:
     max_discovery_rate: 0.5
     one_rule_share: 0.95          # >= this share of blocked setups with one identical reason -> warning
     min_feature_coverage: 0.8
+
+# Momentum-breakout research (branch momentum-breakout). PRE-REGISTERED values:
+# docs/MOMENTUM-BREAKOUT-PREREG.md section 4. Changing one = a new variant (amend the prereg first).
+momentum_breakout:
+  scanner:
+    min_median_dollar_volume: 20000000   # raw USD, 20-session median (stricter than master's $5M)
+    dollar_volume_window: 20
+    regime_fast: 10                      # SPY close > SMA10 > SMA20
+    regime_slow: 20
+    momentum_lookback: 63
+    momentum_min_pct: 0.95               # top 5% of the universe by 63-session return
+    stock_rs_min_excess: 0.10            # stock 63d return - sector ETF 63d return
+    impulse_lookback: 63
+    impulse_min_gain: 0.30               # low -> later high leg inside 63 sessions
+    consol_min_days: 3                   # 63-session high set 3..40 sessions ago
+    consol_max_days: 40
+    consol_min_frac_of_high: 0.85
+    consol_sma: 20
+    atr_fast: 5
+    atr_slow: 20
+    contraction_max_ratio: 0.75
+    vol_fast: 5
+    vol_slow: 50
+    dryup_max_ratio: 0.80
