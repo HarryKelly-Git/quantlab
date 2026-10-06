@@ -73,7 +73,7 @@ def month_features(chain: pd.DataFrame, closes: pd.DataFrame, sessions: pd.Datet
     implied = atm_c_mid - atm_p_mid + atm["strike"].to_numpy()
     out["parity_err"] = np.abs(implied / out["spot"].to_numpy() - 1)
     out["k_dist"] = np.abs(out["k_atm"] / out["spot"] - 1)
-    out = out[(out["parity_err"] <= 0.05) & (out["k_dist"] <= 0.10)]
+    out["chain_matches_stock"] = (out["parity_err"] <= 0.05) & (out["k_dist"] <= 0.10)
     return out
 
 
@@ -100,10 +100,21 @@ def build_features() -> pd.DataFrame:
         syms = [s for s in ch["act_symbol"].astype(str).unique() if s in closes.columns]
         feats.append(month_features(ch, closes[syms], sessions))
     df = pd.concat(feats, ignore_index=True)
+    ok = df["chain_matches_stock"].to_numpy()
+    rej = df.loc[~ok]
+    report = {"rows_before_parity_filter": int(len(df)), "rows_rejected": int((~ok).sum()),
+              "rejected_tickers": int(rej["act_symbol"].nunique()),
+              "rejected_by_year": {str(k): int(v) for k, v in pd.to_datetime(rej["session"]).dt.year.value_counts().sort_index().items()},
+              "top_rejected_tickers": {str(k): int(v) for k, v in rej["act_symbol"].value_counts().head(25).items()}}
+    df = df.loc[ok].drop(columns=["chain_matches_stock"]).reset_index(drop=True)
     # the store entity behind each (ticker, session): what every equity lookup must use (audit fixes C2/M1)
     ent = bars[["symbol", "date", "entity"]].rename(columns={"symbol": "act_symbol", "date": "session"})
     df = df.merge(ent, on=["act_symbol", "session"], how="left")
-    print(f"features: {len(df)} rows in {time.time() - t0:.0f}s", flush=True)
+    report["rows_kept"] = int(len(df))
+    report["rows_on_delisted_entities"] = int(df["entity"].astype(str).str.contains("@").sum())
+    import json
+    (options_dir() / "features_report.json").write_text(json.dumps(report, indent=1))
+    print(f"features: {len(df)} rows in {time.time() - t0:.0f}s; parity/strike filter rejected {report['rows_rejected']}", flush=True)
     df = add_outcomes(df, bars)
     df.to_parquet(options_dir() / "features.parquet", index=False)
     print(f"outcomes added in {time.time() - t0:.0f}s", flush=True)

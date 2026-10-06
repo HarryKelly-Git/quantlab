@@ -2,6 +2,7 @@
     python scripts/research/alpha/run_batch.py build            # build + cache research data, quality report
     python scripts/research/alpha/run_batch.py dev H01 H04 ...   # development-only (no OOS) sanity run
     python scripts/research/alpha/run_batch.py oos H01 ...       # full run incl. the single OOS evaluation
+    ... --override="reason"   one-time documented OOS re-evaluation after a bug fix (registry.append_run)
 Results: research/alpha/results/<family>.json, ledger lines in research/alpha/ledger.jsonl.
 """
 import json
@@ -31,6 +32,8 @@ def families(d):
 
 
 def main():
+    override = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--override=")), None)
+    sys.argv = [a for a in sys.argv if not a.startswith("--override=")]
     mode = sys.argv[1]
     if mode == "build":
         d = research_data.get(refresh=True)
@@ -47,9 +50,9 @@ def main():
             args["family"] = args["family"] + "__dev"
         if mode == "oosonly":
             res = run_oos_only(family=args["family"], hypothesis_id=args["hypothesis_id"], variants=args["variants"],
-                               ctx=args["ctx"], dev_family=args["family"] + "__dev")
+                               ctx=args["ctx"], dev_family=args["family"] + "__dev", oos_override=override)
         else:
-            res = run_family(run_oos=(mode == "oos"), **args)
+            res = run_family(run_oos=(mode == "oos"), oos_override=override, **args)
         sel = res["family_stats"]["selected"]
         print(f"== {key} [{mode}] {time.time() - t0:.0f}s selected={sel} class={res['classification']} ({res['classification_reason']})")
         print("   selected:", json.dumps(res["variants"][sel], default=str)[:600])

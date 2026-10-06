@@ -156,17 +156,12 @@ def summarize_events(d, e: pd.DataFrame, ret: pd.Series, date_col: str = "entry"
 
 
 # --- H26 pre-earnings straddle (options store) -------------------------------------------------------
-def straddle_events(d, cal: pd.DataFrame, k_back: int, placebo: bool = False, chain: pd.DataFrame | None = None,
-                    real_events: dict | None = None) -> pd.DataFrame:
-    """For each clean event: exit snapshot = last chain snapshot whose session <= the last pre-announcement
-    close; entry snapshot = k_back snapshots earlier. Expiry = first listed expiry after the reaction
-    session. Strike = ATM at entry. Prices: entry ASK, exit BID of the SAME two contracts.
-    ``placebo``: audit fix C1 - the first version shifted events 63 sessions (one quarter) and landed on
-    the PREVIOUS earnings. Now every event is moved 31 sessions earlier (mid-quarter) and kept only if the
-    same company has no calendar event within 15 sessions of the placebo reaction session nor inside
-    (entry, expiry]."""
-    from quantlab.alpha.options_features import _session_map
-    sessions = d.p.dates
+CHAIN_COLS = ["date", "act_symbol", "expiration", "strike", "cp", "bid", "ask"]
+
+
+def _straddle_event_frame(d, cal: pd.DataFrame, placebo: bool) -> pd.DataFrame:
+    """Events with ``last_pre`` (last close before the announcement) and ``react``; placebo = both moved 31
+    sessions earlier (audit fix C1)."""
     ev = cal.copy()
     last_pre = pd.Series(np.where(ev["timing"] == "AMC", ev["ann_session"], _shift_session(d, ev["react_session"], -1)),
                          index=ev.index)
@@ -174,39 +169,98 @@ def straddle_events(d, cal: pd.DataFrame, k_back: int, placebo: bool = False, ch
     if placebo:
         last_pre = _shift_session(d, last_pre, -31)
         react = _shift_session(d, react, -31)
-    ev = ev.assign(last_pre=pd.to_datetime(last_pre), react=pd.to_datetime(react)).dropna(subset=["last_pre", "react"])
+    return ev.assign(last_pre=pd.to_datetime(last_pre), react=pd.to_datetime(react)).dropna(subset=["last_pre", "react"])
+
+
+def _schedule(ev: pd.DataFrame, snaps: pd.DatetimeIndex, snap_sess: pd.Series, k_back: int) -> pd.DataFrame:
+    """exit snapshot = last snapshot whose session <= last_pre (and at most 4 days before it); entry = k_back
+    snapshots earlier. Rows without a valid schedule are dropped."""
+    ss = snap_sess.to_numpy()
+    lp = ev["last_pre"].to_numpy()
+    pos = np.searchsorted(ss, lp, side="right") - 1
+    ok = (pos >= 0) & (pos - k_back >= 0)
+    pos_c = np.clip(pos, 0, None)
+    ok &= (lp - ss[pos_c]) <= np.timedelta64(4, "D")
+    x = ev[ok].copy()
+    x["exit_snap"] = snaps[pos_c[ok]]
+    x["entry_snap"] = snaps[pos_c[ok] - k_back]
+    x["sess_entry"] = ss[pos_c[ok] - k_back]
+    return x
+
+
+def chain_snapshots() -> tuple[pd.DatetimeIndex, list]:
+    files = sorted(options_dir().glob("chain_*-*.parquet"))
+    dates = set()
+    for f in files:
+        dates |= set(pd.read_parquet(f, columns=["date"])["date"].unique())
+    return pd.DatetimeIndex(sorted(dates)), files
+
+
+def load_chain_for(scheds: list[pd.DataFrame], files: list) -> pd.DataFrame:
+    """Only the chain rows the scheduled events can use: their (ticker, entry/exit snapshot) pairs, and
+    expiries in (earliest reaction, latest reaction + 60 days] of the events sharing that pair."""
+    parts = []
+    for x in scheds:
+        for col in ("entry_snap", "exit_snap"):
+            parts.append(pd.DataFrame({"act_symbol": x["act_symbol"].astype(str).to_numpy(), "date": x[col].to_numpy(),
+                                       "react": x["react"].to_numpy()}))
+    pairs = pd.concat(parts, ignore_index=True).groupby(["act_symbol", "date"], as_index=False)["react"].agg(["min", "max"])
+    pairs = pairs.rename(columns={"min": "lo", "max": "hi"})
+    pairs["hi"] = pairs["hi"] + pd.Timedelta(days=60)
+    out = []
+    for f in files:
+        ch = pd.read_parquet(f, columns=CHAIN_COLS)
+        ch["act_symbol"] = ch["act_symbol"].astype(str)
+        ch = ch.merge(pairs, on=["act_symbol", "date"], how="inner")
+        ex = pd.to_datetime(ch["expiration"])
+        out.append(ch.loc[(ex > ch["lo"]) & (ex <= ch["hi"]), CHAIN_COLS])
+    return pd.concat(out, ignore_index=True)
+
+
+def straddle_events(d, cal: pd.DataFrame, k_back: int, placebo: bool = False, chain: pd.DataFrame | None = None,
+                    real_events: dict | None = None, snaps: pd.DatetimeIndex | None = None) -> pd.DataFrame:
+    """For each clean event: exit snapshot = last chain snapshot whose session <= the last pre-announcement
+    close; entry snapshot = k_back snapshots earlier. Expiry = first listed expiry after the reaction
+    session. Strike = ATM at entry. Prices: entry ASK, exit BID of the SAME two contracts.
+    ``placebo``: audit fix C1 - the first version shifted events 63 sessions (one quarter) and landed on
+    the PREVIOUS earnings. Now every event is moved 31 sessions earlier (mid-quarter) and kept only if the
+    same company has no calendar event within 15 sessions of the placebo reaction session nor inside
+    (entry, expiry].
+    ``chain``: all rows, or only the rows ``load_chain_for`` selected (then pass the full snapshot list
+    ``snaps``); None loads what is needed from the store."""
+    from quantlab.alpha.options_features import _session_map
+    sessions = d.p.dates
+    ev = _straddle_event_frame(d, cal, placebo)
     real_react = real_events if real_events is not None else \
         {t: np.sort(pd.to_datetime(g["react_session"]).to_numpy()) for t, g in cal.groupby("entity")}
-    if chain is None:
-        files = sorted(options_dir().glob("chain_*-*.parquet"))
-        chain = pd.concat([pd.read_parquet(f, columns=["date", "act_symbol", "expiration", "strike", "cp", "bid", "ask"])
-                           for f in files], ignore_index=True)
-        chain["act_symbol"] = chain["act_symbol"].astype(str)
-    snaps = pd.DatetimeIndex(sorted(chain["date"].unique()))
+    files = None
+    if snaps is None:
+        if chain is not None:
+            snaps = pd.DatetimeIndex(sorted(chain["date"].unique()))
+        else:
+            snaps, files = chain_snapshots()
     snap_sess = pd.Series(_session_map(sessions, pd.Series(snaps)).to_numpy(), index=snaps)
-    chain = chain[chain["act_symbol"].isin(set(ev["act_symbol"]))]
-    by_sym_date = {k: g for k, g in chain.groupby(["act_symbol", "date"], sort=False)}
+    sched = _schedule(ev, snaps, snap_sess, k_back)
+    if chain is None:
+        chain = load_chain_for([sched], files if files is not None else chain_snapshots()[1])
+    chain = chain[chain["act_symbol"].astype(str).isin(set(sched["act_symbol"].astype(str)))]
+    chain = chain.assign(act_symbol=chain["act_symbol"].astype(str)).set_index(["act_symbol", "date"]).sort_index()
+    have = set(chain.index.unique())
     spot = d.p["close"]
     pos_of = {t: i for i, t in enumerate(sessions)}
     rows = []
-    for r in ev.itertuples():
-        ok_snaps = snap_sess[snap_sess <= r.last_pre]
-        if ok_snaps.empty or (r.last_pre - ok_snaps.iloc[-1]).days > 4:
+    for r in sched.itertuples():
+        ke, kx = (str(r.act_symbol), r.entry_snap), (str(r.act_symbol), r.exit_snap)
+        if ke not in have or kx not in have:
             continue
-        exit_snap = ok_snaps.index[-1]
-        pos = snaps.get_loc(exit_snap) - k_back
-        if pos < 0:
-            continue
-        entry_snap = snaps[pos]
-        ce = by_sym_date.get((r.act_symbol, entry_snap))
-        cx = by_sym_date.get((r.act_symbol, exit_snap))
-        if ce is None or cx is None:
-            continue
+        ce, cx = chain.loc[ke], chain.loc[kx]
+        ce = ce.to_frame().T if isinstance(ce, pd.Series) else ce        # a single matching row
+        cx = cx.to_frame().T if isinstance(cx, pd.Series) else cx
         exps = sorted(x for x in ce["expiration"].unique() if pd.Timestamp(x) > r.react)
         if not exps:
             continue
         expiry = pd.Timestamp(exps[0])
-        sess_entry = snap_sess[entry_snap]
+        sess_entry = pd.Timestamp(r.sess_entry)
         if placebo:
             rr = real_react.get(r.entity, np.array([], dtype="datetime64[ns]"))
             pr = pos_of.get(pd.Timestamp(r.react))
@@ -236,8 +290,8 @@ def straddle_events(d, cal: pd.DataFrame, k_back: int, placebo: bool = False, ch
         val_out = float(leg_x.loc["C", "bid"] + leg_x.loc["P", "bid"])
         mid_in = float((leg_e.loc["C", "ask"] + leg_e.loc["C", "bid"] + leg_e.loc["P", "ask"] + leg_e.loc["P", "bid"]) / 2)
         mid_out = float((leg_x.loc["C", "ask"] + leg_x.loc["C", "bid"] + leg_x.loc["P", "ask"] + leg_x.loc["P", "bid"]) / 2)
-        rows.append({"act_symbol": r.act_symbol, "entity": r.entity, "event": r.date, "entry_snap": entry_snap, "exit_snap": exit_snap,
-                     "entry": sess_entry, "expiry": expiry, "strike": k, "spot": s0,
+        rows.append({"act_symbol": r.act_symbol, "entity": r.entity, "event": r.date, "entry_snap": r.entry_snap,
+                     "exit_snap": r.exit_snap, "entry": sess_entry, "expiry": expiry, "strike": k, "spot": s0,
                      "ret_ask_bid": val_out / cost_in - 1, "ret_mid": mid_out / mid_in - 1,
                      "spread_frac_in": cost_in / mid_in - 1, "timing": r.timing})
     return pd.DataFrame(rows)
@@ -390,7 +444,7 @@ def revision_signal(d, window: int, est: pd.DataFrame | None = None) -> pd.DataF
     return rev.reindex(columns=d.p.symbols)
 
 
-def run_h23(d) -> dict:
+def run_h23(d, oos_override: str | None = None) -> dict:
     from quantlab.alpha.engine import quantile_weights
     from quantlab.alpha.experiment import Variant, run_family
     from quantlab.alpha.experiments.reversal import context
@@ -401,7 +455,7 @@ def run_h23(d) -> dict:
                 "costs": "CostModel tiers; borrow 50bps/yr", "benchmark": "cash",
                 "data": "DoltHub eps_estimate (archive import before 2021-04, commit-verified after)"}
         vs.append(Variant(f"REV_{w}", spec, (lambda w=w: quantile_weights(revision_signal(d, w), d.u_liquid, q=0.1)), holding=21))
-    return run_family(family="H23_revision_momentum", hypothesis_id="H23", variants=vs, ctx=context(d))
+    return run_family(family="H23_revision_momentum", hypothesis_id="H23", variants=vs, ctx=context(d), oos_override=oos_override)
 
 
 def run_h26(d, cal: pd.DataFrame | None = None) -> dict:
@@ -410,15 +464,17 @@ def run_h26(d, cal: pd.DataFrame | None = None) -> dict:
     from quantlab.alpha import registry, splits
     from quantlab.validation.stats import newey_west_tstat
     import json
+    from quantlab.alpha.options_features import _session_map
     cal = clean_calendar(d) if cal is None else cal
     out = {"family": "H26_pre_earnings_straddle", "variants": {}}
-    files = sorted(options_dir().glob("chain_*-*.parquet"))
-    chain = pd.concat([pd.read_parquet(f, columns=["date", "act_symbol", "expiration", "strike", "cp", "bid", "ask"])
-                       for f in files], ignore_index=True)
-    chain["act_symbol"] = chain["act_symbol"].astype(str)
+    snaps, files = chain_snapshots()
+    snap_sess = pd.Series(_session_map(d.p.dates, pd.Series(snaps)).to_numpy(), index=snaps)
+    scheds = [_schedule(_straddle_event_frame(d, cal, pl_), snaps, snap_sess, k) for k in (1, 2, 3) for pl_ in (False, True)]
+    chain = load_chain_for(scheds, files)              # only the rows these events can use (memory)
+    del scheds
     for k in (1, 2, 3):
-        ev = straddle_events(d, cal, k, chain=chain)
-        pl = straddle_events(d, cal, k, placebo=True, chain=chain)
+        ev = straddle_events(d, cal, k, chain=chain, snaps=snaps)
+        pl = straddle_events(d, cal, k, placebo=True, chain=chain, snaps=snaps)
         res = {}
         for name, x in (("event", ev), ("placebo", pl)):
             if x.empty:

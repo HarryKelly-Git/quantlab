@@ -15,7 +15,11 @@ d = research_data.get()
 m = ov.build_obs(d)
 print(f"obs {len(m)} built in {time.time() - t0:.0f}s", flush=True)
 m.to_parquet(research_data.store_dir() / "options" / "obs_monthly.parquet", index=False)
-out = {"n_obs": int(len(m)), "data": "DoltHub chains (archive import < 2021-05, commit-verified after); one 1-month ATM straddle per underlying per week"}
+out = {"n_obs": int(len(m)), "data": "DoltHub chains (archive import < 2021-05, commit-verified after); one 1-month ATM straddle per underlying per week",
+       "audit": "2026-10 re-run: entity-by-date joins (C2/M1), parity/strike filter, RV model on calendar-covered TRAIN rows "
+                "with embargo (M3), Driscoll-Kraay t (M4), median forecast for log accuracy, IV debiased with the TRAIN bias",
+       "n_obs_delisted_entities": int(m["entity"].astype(str).str.contains("@").sum()),
+       "n_entities": int(m["entity"].nunique())}
 
 def split_of(x):
     return splits.label_series(pd.DatetimeIndex(pd.to_datetime(x["session"])), "options").to_numpy()
@@ -29,8 +33,8 @@ for sp in ("TRAIN", "VALIDATION", "OOS"):
     base[sp] = {"n": int(len(x)), "mean_log_rv_over_iv": float(np.log(x["rv_to_exp"] / x["iv_atm"]).mean()),
                 "share_rv_below_iv": float((x["rv_to_exp"] < x["iv_atm"]).mean()),
                 "long_straddle_ask_mean": float(x["ret_hold_ask"].mean()), "long_straddle_mid_mean": float(x["ret_hold_mid"].mean()),
-                "long_straddle_ask_t_weekly": newey_west_tstat(wk["ret_hold_ask"].mean().to_numpy(), min_obs=20).t,
-                "iron_fly_mean": float(x["fly_ret"].mean()), "iron_fly_t_weekly": newey_west_tstat(wk["fly_ret"].mean().dropna().to_numpy(), min_obs=20).t,
+                "long_straddle_ask_t_weekly": ov.nw_t(wk["ret_hold_ask"].mean().to_numpy()).t,
+                "iron_fly_mean": float(x["fly_ret"].mean()), "iron_fly_t_weekly": ov.nw_t(wk["fly_ret"].mean().dropna().to_numpy()).t,
                 "median_spread_frac": float((x["straddle_ask"] / x["straddle_mid"] - 1).median()),
                 "earn_in_window_share": float(x["earn_in_window"].mean())}
 out["baseline"] = base
@@ -41,8 +45,8 @@ model_iv = ov.fit_rv_model(ok, with_iv=True)
 m["fc"] = ov.predict_rv(m, model)
 m["fc_iv"] = ov.predict_rv(m, model_iv)
 out["H33_model"] = {"no_iv": model, "with_iv": model_iv}
-out["H33_forecast_vs_iv"] = ov.forecast_vs_iv(m, m["fc"])
-out["H33_forecast_with_iv_vs_iv"] = ov.forecast_vs_iv(m, m["fc_iv"])
+out["H33_forecast_vs_iv"] = ov.forecast_vs_iv(m, m["fc"], train_bias=model["train_mean_log_rv_minus_log_iv"])
+out["H33_forecast_with_iv_vs_iv"] = ov.forecast_vs_iv(m, m["fc_iv"], train_bias=model["train_mean_log_rv_minus_log_iv"])
 m["fc_minus_iv"] = np.log(m["fc"] / m["iv_atm"])
 m["fc_iv_minus_iv"] = np.log(m["fc_iv"] / m["iv_atm"])
 print(json.dumps({k: out[k] for k in ("H33_forecast_vs_iv", "H33_forecast_with_iv_vs_iv")}, indent=1), flush=True)
@@ -59,11 +63,13 @@ SORTS = {
     "H27_option_momentum_12m": "opt_mom_12m",
 }
 m["neg_iv_pctile"] = -m["iv_pctile"]
+m["neg_iv_pctile_150w"] = -m["iv_pctile_150w"]          # the first run's (deviating) 150-observation window
 m["neg_iv_chg"] = -m["iv_chg_1w"]
 m["neg_skew"] = -m["skew"]
 SORTS["H30_iv_pctile_low"] = "neg_iv_pctile"
 SORTS["H30_iv_change_low"] = "neg_iv_chg"
 SORTS["H29_skew_low"] = "neg_skew"
+SORTS["H30_iv_pctile_low_150w_first_run_deviation"] = "neg_iv_pctile_150w"
 fam = {}
 for name, col in SORTS.items():
     res = {}

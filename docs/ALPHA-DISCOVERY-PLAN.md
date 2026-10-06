@@ -296,4 +296,13 @@ the re-run protocol before any corrected number is seen.
      - If (a) is not positive on the sample, the test is inconclusive and H07 stays D with the caveat.
      - Otherwise, if mean (b) <= 0.5 x mean (a), H07 becomes E: the gross signal is mostly bid-ask bounce at the opening print.
      - Otherwise D stands.
+7. **Part 49, the explicit two-way test (added before any re-run result was seen).**
+   - **Groups:** each week, take underlyings whose QuantLab forecast of realised volatility (no-IV model, TRAIN-fitted) is in the top third: these are the high-expected-move names. Split them into thirds of log(forecast / IV).
+   - **HIGH MOVE + LOW IV** (top third: the forecast is well above IV): buy the one-month ATM straddle at the ASK and hold it to expiry.
+   - **HIGH MOVE + HIGH IV** (bottom third: IV is above even a high forecast): sell the capped-risk iron fly (ATM straddle at the BID, wings at ±2 expected moves priced by Black-Scholes at the 25-delta IV plus 10%). Return is per $ of maximum loss.
+   - **Reporting:**
+     - mean per trade and weekly Newey-West t (≥ 5 lags), by split;
+     - all names, and the liquid subset (straddle spread ≤ 10% of mid);
+     - a long-straddle-at-mid line, to separate signal from spread.
+   - No parameter is tuned. Thirds are fixed here.
 
