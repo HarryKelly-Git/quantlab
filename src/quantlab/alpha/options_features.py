@@ -67,9 +67,20 @@ def month_features(chain: pd.DataFrame, closes: pd.DataFrame, sessions: pd.Datet
     return out
 
 
+def ticker_level(bars: pd.DataFrame) -> pd.DataFrame:
+    """Map store entities ('TICKER' or 'TICKER@asof' for delisted entities found via the directory) to the
+    plain ticker the option chain uses. Where several entities share a ticker (recycled tickers), each
+    date takes the entity trading under that ticker then; ``entity`` records which one."""
+    b = bars.copy()
+    b["ticker"] = b["symbol"].str.split("@").str[0]
+    b["prio"] = (b["symbol"] != b["ticker"]).astype(int)          # plain ticker first on overlapping dates
+    b = b.sort_values(["ticker", "date", "prio"]).drop_duplicates(["ticker", "date"], keep="first")
+    return b.rename(columns={"symbol": "entity"}).rename(columns={"ticker": "symbol"})
+
+
 def build_features() -> pd.DataFrame:
     t0 = time.time()
-    bars = load_bars(columns=["symbol", "date", "close", "adj_close"])
+    bars = ticker_level(load_bars(columns=["symbol", "date", "close", "adj_close"]))
     closes = bars.pivot(index="date", columns="symbol", values="close")
     sessions = closes.index
     files = sorted(options_dir().glob("chain_*-*.parquet"))
@@ -91,6 +102,7 @@ def build_features() -> pd.DataFrame:
 def add_outcomes(df: pd.DataFrame, bars: pd.DataFrame) -> pd.DataFrame:
     closes = bars.pivot(index="date", columns="symbol", values="close")
     adj = bars.pivot(index="date", columns="symbol", values="adj_close")
+    ent = bars.pivot(index="date", columns="symbol", values="entity") if "entity" in bars else None
     sessions = closes.index
     logr = np.log(adj / adj.shift(1))
     exp_sess = _session_map(sessions, df["expiration"])
@@ -120,6 +132,11 @@ def add_outcomes(df: pd.DataFrame, bars: pd.DataFrame) -> pd.DataFrame:
         rv[idx] = np.where(n >= 3, np.sqrt(var * 252), np.nan)
         ratio_change[idx] = (C[ei[idx], ci[idx]] / A[ei[idx], ci[idx]]) / (C[si[idx], ci[idx]] / A[si[idx], ci[idx]]) - 1
     split = np.abs(ratio_change) > 0.02
+    if ent is not None:                       # a recycled ticker changed company inside the window
+        E = ent.reindex(index=closes.index, columns=closes.columns).to_numpy()
+        same = np.ones(len(df), dtype=bool)
+        same[idx] = E[si[idx], ci[idx]] == E[ei[idx], ci[idx]]
+        split = split | ~same
     exp_close[split] = np.nan
     move[split] = np.nan
     df["exp_close"] = exp_close

@@ -59,7 +59,7 @@ def build_panel(min_price_ever: float = 3.0, min_dv_ever: float = 1e6, keep_type
     research universe, which needs >= $5 and >= $1M); this is a memory filter, not a selection on outcomes."""
     bars = load_bars()
     master = load_master()
-    types = master.set_index("symbol")["sec_type"]
+    types = master.drop_duplicates("symbol", keep="first").set_index("symbol")["sec_type"]
     bars = bars[bars["symbol"].map(types).isin(keep_types) | bars["symbol"].isin(extra_symbols)]
     bars = bars.assign(dollar_volume=bars["close"] * bars["volume"])
     ok = (bars["close"] >= min_price_ever) & (bars["dollar_volume"] >= min_dv_ever)
@@ -97,7 +97,7 @@ def build_panel(min_price_ever: float = 3.0, min_dv_ever: float = 1e6, keep_type
     # trading-day presence and history length (PIT)
     f["has_bar"] = f["close"].notna().astype("float64")
     f["n_hist"] = f["has_bar"].cumsum()
-    m = master.set_index("symbol").reindex(syms)
+    m = master.drop_duplicates("symbol", keep="first").set_index("symbol").reindex(syms).rename_axis("symbol")
     meta = {"n_symbols": len(syms), "n_dates": len(dates), "start": str(dates[0].date()), "end": str(end.date()),
             "delistings": pd.DataFrame(delisted, columns=["symbol", "last_bar", "distressed", "delist_return"]),
             "delist_distressed": delist_distressed, "delist_other": delist_other}

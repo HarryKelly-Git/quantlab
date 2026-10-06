@@ -388,3 +388,126 @@ def download_minutes(symbols: Iterable[str], *, start: str = RESEARCH_START, end
             out[f"{sym}_{y}"] = len(df)
             print(sym, y, len(df), flush=True)
     return out
+
+
+# --- supplementary coverage: delisted tickers from a historical symbol directory ----------------------
+def download_bars_asof(groups: dict[str, list[str]], adjustment: str, *, start: str = RESEARCH_START,
+                       end: str = RESEARCH_END, per_minute: int = 120, batch_size: int = 100) -> dict[str, Any]:
+    """Bars for tickers resolved AS OF a given date (the entity that used the ticker then). One parquet
+    per (asof, batch); resumable. Used for delisted tickers that Alpaca's asset list no longer carries."""
+    if pd.Timestamp(end) >= pd.Timestamp(HOLDOUT_START):
+        raise ValueError("refusing holdout dates")
+    limiter = RateLimiter(per_minute)
+    s = requests.Session()
+    s.headers.update(_auth())
+    d = store_dir() / "download" / f"{adjustment}_asof"
+    d.mkdir(parents=True, exist_ok=True)
+    n_req, bad = 0, []
+    t0 = time.time()
+    for gi, (asof, syms) in enumerate(sorted(groups.items())):
+        syms = sorted({x for x in syms if valid_ticker(x)})
+        for bi in range(0, len(syms), batch_size):
+            path = d / f"{asof}_{bi // batch_size:03d}.parquet"
+            if path.exists():
+                continue
+            chunk = syms[bi:bi + batch_size]
+
+            def fetch(ch: list[str]) -> list[tuple]:
+                nonlocal n_req
+                params = {"symbols": ",".join(ch), "timeframe": "1Day", "start": f"{start}T00:00:00Z",
+                          "end": f"{end}T23:59:59Z", "adjustment": adjustment, "feed": FEED, "limit": 10000,
+                          "sort": "asc", "asof": asof}
+                rows, token = [], None
+                while True:
+                    p = dict(params, page_token=token) if token else params
+                    try:
+                        j = _get(s, f"{DATA_URL}/v2/stocks/bars", p, limiter)
+                    except RuntimeError as exc:
+                        if ("HTTP 400" in str(exc) or "HTTP 422" in str(exc)) and token is None:
+                            if len(ch) == 1:
+                                bad.append(ch[0])
+                                return []
+                            mid = len(ch) // 2
+                            return fetch(ch[:mid]) + fetch(ch[mid:])
+                        raise
+                    n_req += 1
+                    for sym, lst in (j.get("bars") or {}).items():
+                        for b in lst or []:
+                            rows.append((sym, b["t"], b.get("o"), b.get("h"), b.get("l"), b.get("c"), b.get("v"),
+                                         b.get("n"), b.get("vw")))
+                    token = j.get("next_page_token")
+                    if not token:
+                        return rows
+            df = pd.DataFrame(fetch(chunk), columns=["symbol", "t", "open", "high", "low", "close", "volume",
+                                                     "trade_count", "vwap"])
+            df["asof"] = asof
+            df.to_parquet(path, index=False)
+        if gi % 100 == 0:
+            print(f"[{adjustment}_asof] group {gi + 1}/{len(groups)} requests={n_req} elapsed={time.time() - t0:.0f}s", flush=True)
+    return {"adjustment": adjustment, "groups": len(groups), "requests": n_req, "bad": len(bad), "seconds": time.time() - t0}
+
+
+def extend_store_with_asof(directory: pd.DataFrame) -> dict[str, Any]:
+    """Append entities found via the as-of download to the store. An entity identical (fingerprint) to one
+    already stored is skipped. New entities are keyed '<TICKER>@<asof>' and typed from the directory
+    (``is_etf`` flag + name rules)."""
+    root = store_dir()
+
+    def _load(kind: str) -> pd.DataFrame:
+        files = sorted((root / "download" / f"{kind}_asof").glob("*.parquet"))
+        df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+        t = pd.to_datetime(df["t"], utc=True).dt.tz_convert("America/New_York")
+        df["date"] = t.dt.tz_localize(None).dt.normalize()
+        return df.drop(columns="t")
+    raw, adj = _load("raw"), _load("all")
+    adj = adj.rename(columns={c: f"adj_{c}" for c in ("open", "high", "low", "close", "volume", "vwap")})
+    new = raw.merge(adj[["symbol", "asof", "date", "adj_open", "adj_high", "adj_low", "adj_close", "adj_volume"]],
+                    on=["symbol", "asof", "date"], how="left")
+    new["key"] = new["symbol"] + "@" + new["asof"]
+    old = pd.read_parquet(root / "bars_daily.parquet")
+
+    def fp(df: pd.DataFrame, col: str) -> pd.Series:
+        g = df.groupby(col).agg(first=("date", "min"), last=("date", "max"), n=("date", "size"),
+                                c0=("close", "first"), c1=("close", "last"), vol=("volume", "sum"))
+        return pd.Series(list(zip(g["first"], g["last"], g["n"], g["c0"].round(4), g["c1"].round(4), g["vol"].round(0))), index=g.index)
+    seen = set(fp(old, "symbol"))
+    new = new.sort_values(["key", "date"])
+    fnew = fp(new, "key")
+    keep, dup = [], 0
+    for k, v in fnew.items():
+        if v in seen:
+            dup += 1
+            continue
+        seen.add(v)
+        keep.append(k)
+    add = new[new["key"].isin(keep)].drop(columns=["symbol", "asof"]).rename(columns={"key": "symbol"})
+    for c in ("open", "high", "low", "close", "vwap", "adj_open", "adj_high", "adj_low", "adj_close", "volume"):
+        add[c] = add[c].astype("float64")
+    allb = pd.concat([old, add[old.columns]], ignore_index=True).sort_values(["symbol", "date"])
+    if allb["date"].max() >= pd.Timestamp(HOLDOUT_START):
+        raise RuntimeError("holdout dates in store")
+    allb.to_parquet(root / "bars_daily.parquet", index=False)
+    master = pd.read_parquet(root / "security_master.parquet")
+    dmap = directory.set_index("act_symbol")
+    rows = []
+    span = add.groupby("symbol")["date"].agg(["min", "max", "size"])
+    for k in keep:
+        tic, asof = k.split("@")
+        r = dmap.loc[tic] if tic in dmap.index else None
+        name = r["security_name"] if r is not None else ""
+        etf = "Y" if (r is not None and str(r.get("is_etf")) in ("1", "1.0", "True")) else None
+        rows.append({"symbol": k, "name": name, "exchange": r["listing_exchange"] if r is not None else None,
+                     "status": "inactive", "tradable": False, "asset_id": None, "retrieved_at": pd.Timestamp.now(tz="UTC"),
+                     "nasdaq_etf_flag": etf, "sec_type": classify_security(tic, name, etf), "has_bars": True,
+                     "first_bar": span.at[k, "min"] if k in span.index else pd.NaT,
+                     "last_bar": span.at[k, "max"] if k in span.index else pd.NaT,
+                     "n_bars": int(span.at[k, "size"]) if k in span.index else 0, "source": "dolthub_directory_asof"})
+    master = pd.concat([master, pd.DataFrame(rows)], ignore_index=True)
+    master.to_parquet(root / "security_master.parquet", index=False)
+    man = json.loads((root / "manifest.json").read_text())
+    man.update({"asof_entities_added": len(keep), "asof_duplicates_skipped": dup, "n_rows": int(len(allb)),
+                "n_symbols_with_bars": int(allb["symbol"].nunique()),
+                "notes": man.get("notes", []) + ["delisted tickers from DoltHub stocks.symbol (Nasdaq Trader directory "
+                                                  "history since 2017-10-26) re-queried with asof=last_seen"]})
+    (root / "manifest.json").write_text(json.dumps(man, indent=2, default=str))
+    return {"added": len(keep), "duplicates": dup, "rows": int(len(allb))}

@@ -203,3 +203,186 @@ def straddle_events(d, cal: pd.DataFrame, k_back: int, placebo_shift: int = 0) -
                      "ret_ask_bid": val_out / cost_in - 1, "ret_mid": mid_out / mid_in - 1,
                      "spread_frac_in": cost_in / mid_in - 1, "timing": r.timing})
     return pd.DataFrame(rows)
+
+
+# --- runners ---------------------------------------------------------------------------------------
+def _event_family(d, family: str, hid: str, variants: dict, date_col: str = "entry") -> dict:
+    """variants: name -> (spec, events DataFrame, returns Series, returns at 2x costs). Selection on TRAIN
+    mean; OOS reported once for the selected variant; every variant is a trial (ledger)."""
+    import math
+    from quantlab.alpha import registry
+    from quantlab.validation.stats import benjamini_hochberg
+    res, pv = {}, []
+    for name, (spec, ev, r, r2) in variants.items():
+        s = summarize_events(d, ev, r, date_col)
+        s2 = summarize_events(d, ev, r2, date_col)
+        dev_rows = []
+        for sp in ("TRAIN", "VALIDATION"):
+            if "weekly_t_nw" in s.get(sp, {}):
+                dev_rows.append(s[sp])
+        res[name] = {"summary": {k: v for k, v in s.items() if k != "OOS"},
+                     "train_2x_costs_mean_bps": s2.get("TRAIN", {}).get("mean_bps")}
+        registry.append_run(hypothesis_id=hid, family=family, spec={"variant": name, **spec}, split="DEV",
+                            metrics=res[name], data=d.manifest)
+        t = s.get("TRAIN", {}).get("weekly_t_nw")
+        from scipy import stats as ss
+        pv.append(float(ss.norm.sf(t)) if t is not None and np.isfinite(t) else 1.0)
+    best = max(res, key=lambda k: res[k]["summary"].get("TRAIN", {}).get("mean_bps") or -1e9)
+    spec, ev, r, r2 = variants[best]
+    full = summarize_events(d, ev, r, date_col)
+    full2 = summarize_events(d, ev, r2, date_col)
+    oos = {"selected": best, **full.get("OOS", {}), "oos_2x_costs_mean_bps": full2.get("OOS", {}).get("mean_bps")}
+    registry.append_run(hypothesis_id=hid, family=family, spec={"variant": best, **spec}, split="OOS", metrics=oos, data=d.manifest)
+    rej, adj = benjamini_hochberg(pv, 0.05)
+    tr = full.get("TRAIN", {}); va = full.get("VALIDATION", {}); oo = full.get("OOS", {})
+    ev_ = registry.Evidence(
+        data_ok=bool(tr.get("n_events", 0) >= 100),
+        dev_t_net=min(tr.get("weekly_t_nw") or -9, va.get("weekly_t_nw") or -9) if va else tr.get("weekly_t_nw"),
+        dev_t_gross=None, oos_t_net=oo.get("weekly_t_nw"), oos_mean_net=(oo.get("mean_bps") or 0) / 1e4,
+        oos_years_positive_frac=None, deflated_sharpe_prob=None, spa_p=None, pbo=None,
+        survives_2x_costs=(full2.get("OOS", {}).get("mean_bps") or -1) > 0,
+        survives_top5_removal=(oo.get("mean_bps_without_top5pct") or -1) > 0)
+    cls, why = registry.classify(ev_)
+    out = {"family": family, "variants": res, "selected": best, "oos": oos, "bh_train_rejections": int(np.sum(rej)),
+           "classification": cls, "classification_reason": why + " (event study: DSR/SPA not applicable; BH across variants on TRAIN)"}
+    from quantlab.alpha.experiment import RESULTS
+    import json
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    (RESULTS / f"{family}.json").write_text(json.dumps(registry._clean(out), indent=1, default=str))
+    return out
+
+
+def run_h20(d, cal: pd.DataFrame | None = None) -> dict:
+    cal = clean_calendar(d) if cal is None else cal
+    variants = {}
+    for n in (1, 3, 5):
+        for window in ("pre", "through"):
+            ev = h20_events(d, cal, n, window)
+            spec = {"signal": f"announcement within {n} sessions", "entry": "next open", "exit": f"{window}-announcement close",
+                    "hedge": "beta x SPY", "costs": "tier, both sides", "calendar": "DoltHub, PIT_ASSUMED 2020-24"}
+            variants[f"EAP_n{n}_{window}"] = (spec, ev, event_returns(d, ev, "entry", "exit"),
+                                              event_returns(d, ev, "entry", "exit", cost_mult=2.0))
+    return _event_family(d, "H20_earnings_announcement_premium", "H20", variants)
+
+
+def surprise_events(d, cal: pd.DataFrame) -> pd.DataFrame:
+    eh = pd.read_parquet(options_dir() / "eps_history.parquet")
+    eh["period_end_date"] = pd.to_datetime(eh["period_end_date"])
+    eh = eh.dropna(subset=["reported", "estimate"])
+    c = cal[["act_symbol", "date", "react_session", "timing"]].sort_values("date")
+    m = pd.merge_asof(eh.sort_values("period_end_date"), c.rename(columns={"date": "ann_date"}),
+                      left_on="period_end_date", right_on="ann_date", by="act_symbol", direction="forward",
+                      tolerance=pd.Timedelta(days=100))
+    m = m.dropna(subset=["react_session"])
+    close = d.p["close"]
+    ci = close.columns.get_indexer(m["act_symbol"])
+    pre = _shift_session(d, m["react_session"], -1)
+    si = d.p.dates.get_indexer(pd.to_datetime(pre))
+    ok = (ci >= 0) & (si >= 0)
+    px = np.where(ok, close.to_numpy()[np.clip(si, 0, None), np.clip(ci, 0, None)], np.nan)
+    m["surprise"] = (pd.to_numeric(m["reported"]) - pd.to_numeric(m["estimate"])) / px
+    m["entry"] = _shift_session(d, m["react_session"], 1)
+    return m.dropna(subset=["surprise", "entry"])
+
+
+def run_h21(d, cal: pd.DataFrame | None = None) -> dict:
+    cal = clean_calendar(d) if cal is None else cal
+    ev = surprise_events(d, cal).sort_values("entry").reset_index(drop=True)
+    # PIT decile breakpoints: percentile of each surprise within the previous 63 sessions' surprises
+    s = ev.set_index(pd.to_datetime(ev["entry"]))["surprise"]
+    pct = []
+    vals, times = s.to_numpy(), s.index.to_numpy()
+    for i in range(len(vals)):
+        lo = np.searchsorted(times, times[i] - np.timedelta64(91, "D"), side="left")
+        hist = vals[lo:i]
+        pct.append((hist < vals[i]).mean() if len(hist) >= 200 else np.nan)
+    ev["pct"] = pct
+    variants = {}
+    for hold in (21, 63):
+        ev_h = ev.copy()
+        ev_h["exit"] = _shift_session(d, ev_h["entry"], hold - 1)
+        ev_h = ev_h.dropna(subset=["exit", "pct"])
+        gross = event_returns(d, ev_h, "entry", "exit", cost_mult=0.0)          # beta-hedged, no costs
+        c1 = gross - event_returns(d, ev_h, "entry", "exit")                     # round-trip cost, 1x
+        c2 = gross - event_returns(d, ev_h, "entry", "exit", cost_mult=2.0)      # round-trip cost, 2x
+        sign = np.where(ev_h["pct"] >= 0.9, 1.0, np.where(ev_h["pct"] <= 0.1, -1.0, np.nan))
+        sel = ~np.isnan(sign)
+        rr = pd.Series(sign * gross - c1, index=ev_h.index)[sel]                 # both sides pay costs
+        rr2 = pd.Series(sign * gross - c2, index=ev_h.index)[sel]
+        spec = {"signal": "EPS surprise / price, decile vs trailing 91 days", "entry": "open after the reaction session",
+                "exit": f"close after {hold} sessions", "position": "long top decile, short bottom decile (beta-hedged)",
+                "costs": "tier both sides", "data": "eps_history reported vs estimate (PIT_ASSUMED)"}
+        variants[f"SUE_hold{hold}"] = (spec, ev_h[sel], rr, rr2)
+    return _event_family(d, "H21_eps_surprise_drift", "H21", variants)
+
+
+# --- H23 analyst revision momentum (cross-sectional, daily) --------------------------------------------
+def revision_signal(d, window: int) -> pd.DataFrame:
+    """Change in the 'Current Year' consensus EPS over ``window`` sessions, divided by price, only where
+    the fiscal period (period_end_date) is the same at both ends (a fiscal-year roll is not a revision).
+    Snapshots are mapped to the first session on/after their date (forward-filled up to 10 sessions)."""
+    est = pd.read_parquet(options_dir() / "eps_estimate.parquet", columns=["date", "act_symbol", "period", "period_end_date", "consensus"])
+    est = est[(est["period"] == "Current Year") & est["act_symbol"].isin(d.p.symbols)].copy()
+    est["date"] = pd.to_datetime(est["date"])
+    est["consensus"] = pd.to_numeric(est["consensus"], errors="coerce")
+    est["pend"] = pd.to_datetime(est["period_end_date"]).astype("int64")
+    sessions = d.p.dates
+    pos = sessions.searchsorted(est["date"].to_numpy(), side="left")
+    est = est[pos < len(sessions)]
+    est["session"] = sessions[pos[pos < len(sessions)]]
+    est = est.sort_values("date").drop_duplicates(["session", "act_symbol"], keep="last")
+    cons = est.pivot(index="session", columns="act_symbol", values="consensus").reindex(sessions).ffill(limit=10)
+    pend = est.pivot(index="session", columns="act_symbol", values="pend").reindex(sessions).ffill(limit=10)
+    same = pend == pend.shift(window)
+    rev = (cons - cons.shift(window)).where(same) / d.p["close"].reindex(columns=cons.columns)
+    return rev.reindex(columns=d.p.symbols)
+
+
+def run_h23(d) -> dict:
+    from quantlab.alpha.engine import quantile_weights
+    from quantlab.alpha.experiment import Variant, run_family
+    from quantlab.alpha.experiments.reversal import context
+    vs = []
+    for w in (21, 63):
+        spec = {"universe": "liquid survivorship-free", "signal": f"change in Current-Year consensus EPS over {w} sessions / price",
+                "entry": "next open", "position": "decile long-short", "sizing": "equal", "exit": "overlapping 21-session hold",
+                "costs": "CostModel tiers; borrow 50bps/yr", "benchmark": "cash",
+                "data": "DoltHub eps_estimate (archive import before 2021-04, commit-verified after)"}
+        vs.append(Variant(f"REV_{w}", spec, (lambda w=w: quantile_weights(revision_signal(d, w), d.u_liquid, q=0.1)), holding=21))
+    return run_family(family="H23_revision_momentum", hypothesis_id="H23", variants=vs, ctx=context(d))
+
+
+def run_h26(d, cal: pd.DataFrame | None = None) -> dict:
+    """Pre-earnings straddle replication: k_back = 1 | 2 | 3 snapshots; placebo 63 sessions earlier."""
+    from quantlab.alpha import registry, splits
+    from quantlab.validation.stats import newey_west_tstat
+    import json
+    cal = clean_calendar(d) if cal is None else cal
+    out = {"family": "H26_pre_earnings_straddle", "variants": {}}
+    for k in (1, 2, 3):
+        ev = straddle_events(d, cal, k)
+        pl = straddle_events(d, cal, k, placebo_shift=63)
+        res = {}
+        for name, x in (("event", ev), ("placebo", pl)):
+            if x.empty:
+                continue
+            x = x.assign(dt=pd.to_datetime(x["entry"]))
+            for sp in ("TRAIN", "VALIDATION", "OOS"):
+                a, b = splits.window("options", sp)
+                xs = x[(x["dt"] >= a) & (x["dt"] <= b)]
+                if len(xs) < 30:
+                    continue
+                wk = xs.groupby(xs["dt"].dt.to_period("W-FRI"))["ret_ask_bid"].mean()
+                res[f"{name}_{sp}"] = {"n": int(len(xs)), "mean_ask_bid": float(xs["ret_ask_bid"].mean()),
+                                       "median_ask_bid": float(xs["ret_ask_bid"].median()), "mean_mid": float(xs["ret_mid"].mean()),
+                                       "hit_rate": float((xs["ret_ask_bid"] > 0).mean()), "t_weekly_nw": newey_west_tstat(wk.to_numpy(), min_obs=15).t,
+                                       "median_spread_frac_in": float(xs["spread_frac_in"].median())}
+            x.to_parquet(registry.DIR.parent.parent / "var" / "alpha" / f"h26_{name}_k{k}.parquet") if False else None
+        out["variants"][f"k{k}"] = res
+        registry.append_run(hypothesis_id="H26", family="H26_pre_earnings_straddle",
+                            spec={"variant": f"k{k}", "entry": f"{k} snapshots before the last pre-announcement close, at the ask",
+                                  "exit": "last pre-announcement snapshot, at the bid", "structure": "ATM straddle, first expiry after the event"},
+                            split="ALL", metrics=res, data=d.manifest)
+    (registry.DIR / "results").mkdir(parents=True, exist_ok=True)
+    (registry.DIR / "results" / "H26_pre_earnings_straddle.json").write_text(json.dumps(registry._clean(out), indent=1, default=str))
+    return out
