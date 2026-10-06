@@ -61,6 +61,26 @@ def iron_fly_return(row_spot, k, straddle_bid, em, exp_close, wing_mult: float =
     return np.where(max_loss > 0, pnl / max_loss, np.nan)
 
 
+def iron_fly_with_model_wings(m: pd.DataFrame, wing_mult: float = 2.0, wing_spread: float = 0.10, r: float = 0.04) -> np.ndarray:
+    """Short ATM straddle at the BID + long wings at k -/+ wing_mult x expected move. The chain rarely
+    quotes strikes that far out, so the wings are priced by Black-Scholes at the 25-delta IV of their side
+    (MODEL; ATM IV if missing) plus ``wing_spread`` of their value as cost. Return per $ of max loss."""
+    from quantlab.options.pricing import bs_price
+    S, k, T = m["spot"].to_numpy(), m["k_atm"].to_numpy(), np.maximum(m["dte"].to_numpy(), 1) / 365.0
+    width = wing_mult * m["em_pct"].to_numpy() * S
+    ivp = m["iv_put25"].fillna(m["iv_atm"]).to_numpy()
+    ivc = m["iv_call25"].fillna(m["iv_atm"]).to_numpy()
+    put_w = np.array([float(bs_price(s_, kk - w, t, iv, r, "put")) if np.isfinite(iv) and kk - w > 0 else np.nan
+                      for s_, kk, w, t, iv in zip(S, k, width, T, ivp)])
+    call_w = np.array([float(bs_price(s_, kk + w, t, iv, r, "call")) if np.isfinite(iv) else np.nan
+                       for s_, kk, w, t, iv in zip(S, k, width, T, ivc)])
+    credit = m["straddle_bid"].to_numpy() - (put_w + call_w) * (1 + wing_spread)
+    loss = np.minimum(np.abs(m["exp_close"].to_numpy() - k), width)
+    max_loss = width - credit
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(max_loss > 0, (credit - loss) / max_loss, np.nan)
+
+
 def decile_table(df: pd.DataFrame, sort_col: str, ret_col: str, n: int = 10) -> pd.DataFrame:
     x = df.dropna(subset=[sort_col, ret_col]).copy()
     x["dec"] = x.groupby("week", observed=True)[sort_col].transform(lambda s: pd.qcut(s.rank(method="first"), n, labels=False) if len(s) >= n else np.nan)
@@ -161,8 +181,7 @@ def build_obs(d, feat: pd.DataFrame | None = None, cal: pd.DataFrame | None = No
     m["term_slope"] = m["iv_60"] - m["iv_atm"]
     m["hv_minus_iv"] = m["hv21"] - m["iv_atm"]
     m["log_rv_iv"] = np.log(m["rv_to_exp"] / m["iv_atm"])
-    m["fly_ret"] = iron_fly_return(m["spot"].to_numpy(), m["k_atm"].to_numpy(), m["straddle_bid"].to_numpy(),
-                                   m["em_pct"].to_numpy(), m["exp_close"].to_numpy())
+    m["fly_ret"] = iron_fly_with_model_wings(m)
     m["short_straddle_ret_per_credit"] = (m["straddle_bid"] - m["payoff"]) / m["straddle_bid"]
     return m.reset_index(drop=True)
 

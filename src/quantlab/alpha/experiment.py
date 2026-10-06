@@ -91,11 +91,9 @@ def run_family(*, family: str, hypothesis_id: str, variants: list[Variant], ctx:
     ds = ctx.dataset
     results: dict[str, dict[str, Any]] = {}
     nets: dict[str, pd.Series] = {}
-    weights_cache: dict[str, pd.DataFrame] = {}
     for v in variants:
-        w = v.build()
-        weights_cache[v.name] = w
-        r = _bt(v, ctx, w)
+        w = v.build()                          # weights are rebuilt for the selected variant later: keeping
+        r = _bt(v, ctx, w)                     # every variant's (dates x names) book would need ~100 MB each
         nets[v.name] = r.net
         st = _split_stats(r.net, r.gross, ds)
         st["turnover_daily"] = float(r.turnover.mean())
@@ -105,6 +103,7 @@ def run_family(*, family: str, hypothesis_id: str, variants: list[Variant], ctx:
         registry.append_run(hypothesis_id=hypothesis_id, family=family, spec={"variant": v.name, **v.spec,
                             "holding": v.holding, "execution": v.execution}, split="DEV", metrics=st,
                             data=ctx.data_manifest)
+        del w, r
     # --- statistician: family-level, development period only -----------------------------------------
     dev_mat = pd.DataFrame({k: pd.concat([splits.slice_split(s, ds, "TRAIN"), splits.slice_split(s, ds, "VALIDATION")])
                             for k, s in nets.items()}).dropna(how="all").fillna(0.0)
@@ -129,7 +128,7 @@ def run_family(*, family: str, hypothesis_id: str, variants: list[Variant], ctx:
     fam["selected"] = best
     fam["dsr_selected_dev"] = dsr.to_dict()
     # --- skeptic: robustness of the selected variant (development + OOS views computed, OOS reported once)
-    wbest = weights_cache[best]
+    wbest = bv.build()
     base = _bt(bv, ctx, wbest, keep_contrib=True)
     rob: dict[str, Any] = {}
     x2 = _bt(bv, ctx, wbest, cost_mult=2.0)
