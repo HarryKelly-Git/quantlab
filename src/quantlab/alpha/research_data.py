@@ -19,6 +19,7 @@ from quantlab.alpha.panel import (SECTOR_ETFS, AlphaPanel, build_panel, median_d
                                   residual_returns, rolling_betas, sector_return, statistical_sectors)
 from quantlab.alpha.store import store_dir
 
+PANEL_VERSION = "2026-10-audit: twins de-duplicated (M2), distress flag on adjusted prices, spy_vol fixed bins"
 CACHE_FIELDS = ("open", "close", "volume", "dollar_volume", "adj_open", "adj_high", "adj_low", "adj_close",
                 "ret_cc", "ret_on", "ret_id", "ret_oo", "n_hist")
 
@@ -41,6 +42,49 @@ class EquityData:
     buckets: dict[str, pd.DataFrame]
     alt_ret_oo: dict[str, pd.DataFrame]
     manifest: dict[str, Any]
+
+    def resolved(self) -> pd.DataFrame:
+        """(ticker, date) -> entity (alpha.entities.resolve), cached on the object. Resolved against EVERY
+        store entity (so a filtered-out company can never be replaced by another one using its ticker),
+        then twin keys removed from the panel are replaced by the key that was kept (panel aliases).
+        Synthetic / store-less panels resolve against the panel itself."""
+        r = getattr(self, "_resolved", None)
+        if r is None:
+            from quantlab.alpha.entities import apply_aliases, resolve
+            src = None
+            if not (self.manifest.get("synthetic") or self.p.meta.get("is_synthetic")):
+                try:
+                    from quantlab.alpha.store import load_bars
+                    src = load_bars(columns=["symbol", "date"])
+                    src = src[src["date"] <= self.p.dates[-1]]
+                except FileNotFoundError:
+                    src = None
+            if src is None:
+                # pandas 3 stack keeps NaN: drop them, an entity only "has a bar" where it has a close
+                long = self.p["close"].stack(future_stack=True).dropna().rename("close").reset_index()
+                long.columns = ["date", "symbol", "close"]
+                src = long[["symbol", "date"]]
+            r = resolve(src)
+            r["entity"] = apply_aliases(r["entity"], r["date"], self.p.meta.get("twin_aliases"))
+            object.__setattr__(self, "_resolved", r)
+        return r
+
+    @property
+    def ret_cc_pnl(self) -> pd.DataFrame:
+        """``ret_cc`` for P&L under next-CLOSE execution, with each delisting return booked on the session
+        after the last bar (audit minor fix: the robustness check 'next-close execution' used ret_cc, which
+        has no delisting return). ``ret_cc`` itself stays a pure price return for signals."""
+        r = getattr(self, "_ret_cc_pnl", None)
+        if r is None:
+            r = self.p["ret_cc"].copy()
+            dates = self.p.dates
+            for row in self.p.meta["delistings"].itertuples(index=False):
+                dr = float(row.delist_return)
+                i = dates.get_loc(row.last_bar)
+                if dr != 0.0 and i + 1 < len(dates) and row.symbol in r.columns:
+                    r.iat[i + 1, r.columns.get_loc(row.symbol)] = dr
+            object.__setattr__(self, "_ret_cc_pnl", r)
+        return r
 
     @property
     def bench_oo(self) -> pd.Series:
@@ -68,8 +112,9 @@ def _delist_variant(p: AlphaPanel, distressed: float, other: float) -> pd.DataFr
     roo = p["ret_oo"].copy()
     dl = p.meta["delistings"]
     ac, ao = p["adj_close"], p["adj_open"]
-    for s, lb, dis, _ in dl.itertuples(index=False):
-        dr = distressed if dis else other
+    for row in dl.itertuples(index=False):
+        s, lb = row.symbol, row.last_bar
+        dr = 0.0 if bool(getattr(row, "renamed", False)) else (distressed if row.distressed else other)
         intraday = ac.at[lb, s] / ao.at[lb, s] - 1.0 if np.isfinite(ao.at[lb, s]) else 0.0
         roo.at[lb, s] = (1 + intraday) * (1 + dr) - 1
     return roo
@@ -127,9 +172,10 @@ def from_panel(p: AlphaPanel, manifest: dict | None = None) -> EquityData:
     regimes: dict[str, pd.Series] = {
         "spy_trend": pd.Series(np.where(spy > spy.rolling(200, min_periods=200).mean(), "above_200d", "below_200d"),
                                index=p.dates).where(spy.rolling(200, min_periods=200).mean().notna()),
-        "spy_vol": pd.Series(pd.qcut(r["SPY"].rolling(20).std().rolling(504, min_periods=126).rank(pct=True),
-                                     [0, 1 / 3, 2 / 3, 1.0], labels=["calm", "normal", "stressed"]).astype(object),
-                             index=p.dates),
+        # audit minor fix: fixed bins on the TRAILING percentile (qcut took full-sample breakpoints)
+        "spy_vol": pd.Series(pd.cut(r["SPY"].rolling(20).std().rolling(504, min_periods=126).rank(pct=True),
+                                    [0, 1 / 3, 2 / 3, 1.0], labels=["calm", "normal", "stressed"],
+                                    include_lowest=True).astype(object), index=p.dates),
     }
     if {"HYG", "LQD"} <= set(ac.columns):
         regimes["credit"] = pd.Series(np.where((ac["HYG"] / ac["LQD"]).pct_change(63) > 0, "risk_on", "risk_off"), index=p.dates)
@@ -143,7 +189,13 @@ def from_panel(p: AlphaPanel, manifest: dict | None = None) -> EquityData:
     if manifest is None:
         mp = store_dir() / "manifest.json"
         manifest = json.loads(mp.read_text()) if mp.exists() else {}
-    manifest.update({"n_delisted_in_panel": int(len(dl)), "n_delisted_distressed": int(dl["distressed"].sum()),
+    ren = dl["renamed"].astype(bool) if "renamed" in dl else pd.Series(False, index=dl.index)
+    tw = p.meta.get("twin_report")
+    manifest.update({"panel_version": PANEL_VERSION,
+                     "n_twin_keys_deduplicated": int(len(tw)) if tw is not None else 0,
+                     "n_twin_rows_removed": int(len(p.meta.get("twin_aliases", []))),
+                     "n_renamed_not_delisted": int(ren.sum()),
+                     "n_delisted_in_panel": int((~ren).sum()), "n_delisted_distressed": int(dl["distressed"].astype(bool).sum()),
                      "n_survivor_symbols": len(survivors), "panel_symbols": int(p.meta["n_symbols"]),
                      "universe_liquid_avg_names": float(u_liquid.sum(axis=1).mean()),
                      "universe_large_avg_names": float(u_large.sum(axis=1).mean())})

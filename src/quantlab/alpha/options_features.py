@@ -64,18 +64,26 @@ def month_features(chain: pd.DataFrame, closes: pd.DataFrame, sessions: pd.Datet
     out = out.merge(c25, on=key, how="left").merge(p25, on=key, how="left")
     out["dte"] = (pd.to_datetime(out["expiration"]) - pd.to_datetime(out["session"])).dt.days
     out["em_pct"] = out["straddle_mid"] / out["spot"]
+    # audit fix C2: reject chains that do not belong to the matched stock series. Put-call parity at the
+    # ATM strike implies the spot (ignoring carry, fine for short-dated near-the-money options); if it is
+    # more than 5% from the matched close, or the ATM strike is > 10% from the spot, the chain and the
+    # price series are different companies (recycled/renamed ticker) or the quote is broken: drop.
+    atm_c_mid = (atm["bid_c"] + atm["ask_c"]).to_numpy() / 2
+    atm_p_mid = (atm["bid_p"] + atm["ask_p"]).to_numpy() / 2
+    implied = atm_c_mid - atm_p_mid + atm["strike"].to_numpy()
+    out["parity_err"] = np.abs(implied / out["spot"].to_numpy() - 1)
+    out["k_dist"] = np.abs(out["k_atm"] / out["spot"] - 1)
+    out = out[(out["parity_err"] <= 0.05) & (out["k_dist"] <= 0.10)]
     return out
 
 
 def ticker_level(bars: pd.DataFrame) -> pd.DataFrame:
-    """Map store entities ('TICKER' or 'TICKER@asof' for delisted entities found via the directory) to the
-    plain ticker the option chain uses. Where several entities share a ticker (recycled tickers), each
-    date takes the entity trading under that ticker then; ``entity`` records which one."""
-    b = bars.copy()
-    b["ticker"] = b["symbol"].str.split("@").str[0]
-    b["prio"] = (b["symbol"] != b["ticker"]).astype(int)          # plain ticker first on overlapping dates
-    b = b.sort_values(["ticker", "date", "prio"]).drop_duplicates(["ticker", "date"], keep="first")
-    return b.rename(columns={"symbol": "entity"}).rename(columns={"ticker": "symbol"})
+    """Map store entities to the plain ticker the option chain uses, choosing BY DATE the entity that used
+    the ticker then (alpha.entities.resolve: '@' entities first). Audit fix C2: the first version preferred
+    the plain (current) entity, so e.g. old-Caesars CZR options were priced against Eldorado's history."""
+    from quantlab.alpha.entities import resolve
+    r = resolve(bars)
+    return r.drop(columns=["symbol"]).rename(columns={"ticker": "symbol"})
 
 
 def build_features() -> pd.DataFrame:
@@ -92,6 +100,9 @@ def build_features() -> pd.DataFrame:
         syms = [s for s in ch["act_symbol"].astype(str).unique() if s in closes.columns]
         feats.append(month_features(ch, closes[syms], sessions))
     df = pd.concat(feats, ignore_index=True)
+    # the store entity behind each (ticker, session): what every equity lookup must use (audit fixes C2/M1)
+    ent = bars[["symbol", "date", "entity"]].rename(columns={"symbol": "act_symbol", "date": "session"})
+    df = df.merge(ent, on=["act_symbol", "session"], how="left")
     print(f"features: {len(df)} rows in {time.time() - t0:.0f}s", flush=True)
     df = add_outcomes(df, bars)
     df.to_parquet(options_dir() / "features.parquet", index=False)
@@ -139,6 +150,7 @@ def add_outcomes(df: pd.DataFrame, bars: pd.DataFrame) -> pd.DataFrame:
         split = split | ~same
     exp_close[split] = np.nan
     move[split] = np.nan
+    rv[split] = np.nan
     df["exp_close"] = exp_close
     df["move_to_exp"] = move
     df["rv_to_exp"] = rv

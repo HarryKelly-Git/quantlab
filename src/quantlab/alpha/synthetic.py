@@ -55,7 +55,7 @@ def make_panel(n_stocks: int = 80, n_days: int = 700, seed: int = 0, planted_rev
     master = pd.DataFrame({"symbol": syms, "sec_type": ["ETF"] * (1 + len(etfs)) + ["COMMON"] * n_stocks,
                            "status": ["active"] * (len(syms) - 5) + ["inactive"] * 5})
     meta = {"is_synthetic": True, "n_symbols": len(syms), "n_dates": T,
-            "delistings": pd.DataFrame(columns=["symbol", "last_bar", "distressed", "delist_return"])}
+            "delistings": pd.DataFrame(columns=["symbol", "last_bar", "distressed", "delist_return", "renamed"])}
     return AlphaPanel(dates, pd.Index(syms), f, master, meta)
 
 

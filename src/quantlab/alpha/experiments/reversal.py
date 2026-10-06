@@ -69,7 +69,7 @@ def variants(d) -> list[Variant]:
 
 
 def context(d) -> Context:
-    return Context(ret_oo=d.p["ret_oo"], ret_cc=d.p["ret_cc"], cost_bps=d.cost_bps, bench=d.bench_oo,
+    return Context(ret_oo=d.p["ret_oo"], ret_cc=d.ret_cc_pnl, cost_bps=d.cost_bps, bench=d.bench_oo,
                    regimes=d.regimes, buckets=d.buckets, alt_ret_oo=d.alt_ret_oo, data_manifest=d.manifest)
 
 

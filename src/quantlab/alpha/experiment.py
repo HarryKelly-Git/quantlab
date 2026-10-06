@@ -78,6 +78,17 @@ def _split_stats(net: pd.Series, gross: pd.Series, ds: str) -> dict[str, Any]:
     return out
 
 
+def _first_active(r: BacktestResult):
+    """First decision date with a non-zero book. Audit minor fix: TRAIN starts in 2016 but universes need
+    252 sessions of history, so the first ~252 days were zeros that diluted TRAIN mean/Sharpe (~25%)."""
+    nz = r.gross_exposure[r.gross_exposure > 0]
+    return nz.index[0] if len(nz) else None
+
+
+def _from(x: pd.Series, start) -> pd.Series:
+    return x if start is None else x.loc[start:]
+
+
 def _bt(v: Variant, ctx: Context, w: pd.DataFrame, **kw) -> BacktestResult:
     return run_weights(w, kw.pop("ret_oo", ctx.ret_oo), ctx.cost_bps, holding=v.holding,
                        execution=kw.pop("execution", v.execution), ret_cc=ctx.ret_cc,
@@ -86,7 +97,7 @@ def _bt(v: Variant, ctx: Context, w: pd.DataFrame, **kw) -> BacktestResult:
 
 def run_family(*, family: str, hypothesis_id: str, variants: list[Variant], ctx: Context,
                prior_trials: int = 0, run_oos: bool = True, select_on: str = "TRAIN",
-               notes: str = "") -> dict[str, Any]:
+               notes: str = "", oos_override: str | None = None) -> dict[str, Any]:
     t0 = time.time()
     ds = ctx.dataset
     results: dict[str, dict[str, Any]] = {}
@@ -94,8 +105,10 @@ def run_family(*, family: str, hypothesis_id: str, variants: list[Variant], ctx:
     for v in variants:
         w = v.build()                          # weights are rebuilt for the selected variant later: keeping
         r = _bt(v, ctx, w)                     # every variant's (dates x names) book would need ~100 MB each
-        nets[v.name] = r.net
-        st = _split_stats(r.net, r.gross, ds)
+        act = _first_active(r)
+        nets[v.name] = _from(r.net, act)
+        st = _split_stats(_from(r.net, act), _from(r.gross, act), ds)
+        st["first_active"] = str(act.date()) if act is not None else None
         st["turnover_daily"] = float(r.turnover.mean())
         st["gross_exposure"] = float(r.gross_exposure.mean())
         st["avg_names"] = float((r.n_long + r.n_short).mean())
@@ -130,16 +143,21 @@ def run_family(*, family: str, hypothesis_id: str, variants: list[Variant], ctx:
     # --- skeptic: robustness of the selected variant (development + OOS views computed, OOS reported once)
     wbest = bv.build()
     base = _bt(bv, ctx, wbest, keep_contrib=True)
+    act = _first_active(base)
+
+    def dev_of(x: pd.Series) -> pd.Series:
+        return _from(pd.concat([splits.slice_split(x, ds, s) for s in splits.DEVELOPMENT]), act).dropna()
+
     rob: dict[str, Any] = {}
     x2 = _bt(bv, ctx, wbest, cost_mult=2.0)
-    rob["dev_t_net_2x_costs"] = newey_west_tstat(pd.concat([splits.slice_split(x2.net, ds, s) for s in splits.DEVELOPMENT]).dropna().to_numpy()).t
+    rob["dev_t_net_2x_costs"] = newey_west_tstat(dev_of(x2.net).to_numpy()).t
     if bv.execution == "open" and not ctx.intraday_only:
         mc = _bt(bv, ctx, wbest, execution="close")
-        rob["dev_t_net_next_close_exec"] = newey_west_tstat(pd.concat([splits.slice_split(mc.net, ds, s) for s in splits.DEVELOPMENT]).dropna().to_numpy()).t
+        rob["dev_t_net_next_close_exec"] = newey_west_tstat(dev_of(mc.net).to_numpy()).t
     for nm, alt in ctx.alt_ret_oo.items():
         a = _bt(bv, ctx, wbest, ret_oo=alt)
-        rob[f"dev_t_net_delist_{nm}"] = newey_west_tstat(pd.concat([splits.slice_split(a.net, ds, s) for s in splits.DEVELOPMENT]).dropna().to_numpy()).t
-    dev_idx = pd.concat([splits.slice_split(base.net, ds, s) for s in splits.DEVELOPMENT]).index
+        rob[f"dev_t_net_delist_{nm}"] = newey_west_tstat(dev_of(a.net).to_numpy()).t
+    dev_idx = _from(pd.concat([splits.slice_split(base.net, ds, s) for s in splits.DEVELOPMENT]), act).index
     rob["dev_top_removal"] = remove_top_trades(base.net.loc[dev_idx], base.weights.loc[dev_idx], base.contrib.loc[dev_idx])
     rob["dev_by_year"] = by_period(base.net.loc[dev_idx], "Y").reset_index().astype(str).to_dict("records")
     for nm, lab in ctx.regimes.items():
@@ -169,7 +187,7 @@ def run_family(*, family: str, hypothesis_id: str, variants: list[Variant], ctx:
             oos[f"by_{nm}"] = by_label(on, lab).reset_index().astype(str).to_dict("records")
         registry.append_run(hypothesis_id=hypothesis_id, family=family, spec={"variant": best, **bv.spec,
                             "holding": bv.holding, "execution": bv.execution}, split="OOS", metrics=oos,
-                            data=ctx.data_manifest)
+                            data=ctx.data_manifest, oos_override=oos_override)
     # --- director ----------------------------------------------------------------------------------------
     dsel = results[best].get("DEV", {})
     top5 = rob["dev_top_removal"].get("without_top_5pct", {})
@@ -191,7 +209,8 @@ def run_family(*, family: str, hypothesis_id: str, variants: list[Variant], ctx:
     return summary
 
 
-def run_oos_only(*, family: str, hypothesis_id: str, variants: list[Variant], ctx: Context, dev_family: str) -> dict[str, Any]:
+def run_oos_only(*, family: str, hypothesis_id: str, variants: list[Variant], ctx: Context, dev_family: str,
+                 oos_override: str | None = None) -> dict[str, Any]:
     """Spend the family's single OOS evaluation on the variant ALREADY selected (on TRAIN) by a
     development run (``dev_family`` results file). Nothing is re-selected; the dev statistics are reused."""
     dev = json.loads((RESULTS / f"{dev_family}.json").read_text())
@@ -216,7 +235,8 @@ def run_oos_only(*, family: str, hypothesis_id: str, variants: list[Variant], ct
     for nm, lab in ctx.regimes.items():
         oos[f"by_{nm}"] = by_label(on, lab).reset_index().astype(str).to_dict("records")
     registry.append_run(hypothesis_id=hypothesis_id, family=family, spec={"variant": best, **bv.spec, "holding": bv.holding,
-                        "execution": bv.execution}, split="OOS", metrics=oos, data=ctx.data_manifest)
+                        "execution": bv.execution}, split="OOS", metrics=oos, data=ctx.data_manifest,
+                        oos_override=oos_override)
     ev = dict(dev["evidence"])
     ev.update(oos_t_net=oos.get("t_mean_nw"), oos_mean_net=oos.get("mean_daily"), oos_years_positive_frac=oos.get("years_positive_frac"),
               survives_2x_costs=(oos.get("t_net_2x_costs") or -9) >= 2,

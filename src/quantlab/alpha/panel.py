@@ -10,9 +10,13 @@ after that close, executed at the NEXT session's open or close):
       ret_oo[t] = adj_open[t+1]/ adj_open[t]   - 1     open-to-open, the P&L of a position held from
                                                         the open of t to the open of t+1 (forward-looking:
                                                         it is an OUTCOME, never a feature)
+  * Twins (audit fix M2): keys carrying the same security on the same day (identical raw close and
+    volume) are de-duplicated by ``entities.dedupe_twins``; a key whose history continued under its twin
+    is ``renamed``, not delisted (its last bar exits at the close, no delisting return).
   * Delistings: a symbol whose last bar is before the store's last session is delisted after that
     bar. A position still open then exits at that last close, followed by a delisting return:
-    ``distressed`` (last close < $3, or >= 50% below its 60-session high) -> ``delist_distressed``
+    ``distressed`` (last close < $3, or adjusted close >= 50% below its 60-session adjusted high; audit
+    minor fix: the first version used RAW prices, so a reverse split hid the fall) -> ``delist_distressed``
     (default -30%, Shumway 1997; sensitivity -100%); otherwise (typically an acquisition: the last price
     is near the deal price) -> ``delist_other`` (default 0%). This is an ASSUMPTION, reported with
     sensitivity, because Alpaca exposes no delisting reason.
@@ -53,7 +57,7 @@ def _wide(df: pd.DataFrame, col: str, dates, syms) -> pd.DataFrame:
 def build_panel(min_price_ever: float = 3.0, min_dv_ever: float = 1e6, keep_types: tuple[str, ...] = ("COMMON",),
                 extra_symbols: tuple[str, ...] = ("SPY", "QQQ", "IWM", "MDY", "DIA", *SECTOR_ETFS, "TLT", "IEF",
                                                   "SHY", "HYG", "LQD", "UUP", "GLD", "USO", "DBC", "VIXY", "EFA", "EEM"),
-                delist_distressed: float = -0.30, delist_other: float = 0.0) -> AlphaPanel:
+                delist_distressed: float = -0.30, delist_other: float = 0.0, dedupe: bool = True) -> AlphaPanel:
     """Load the store into wide matrices. Symbols that never reach ``min_price_ever`` raw close AND
     ``min_dv_ever`` daily dollar volume on the same day are dropped up front (they can never enter a
     research universe, which needs >= $5 and >= $1M); this is a memory filter, not a selection on outcomes."""
@@ -61,6 +65,11 @@ def build_panel(min_price_ever: float = 3.0, min_dv_ever: float = 1e6, keep_type
     master = load_master()
     types = master.drop_duplicates("symbol", keep="first").set_index("symbol")["sec_type"]
     bars = bars[bars["symbol"].map(types).isin(keep_types) | bars["symbol"].isin(extra_symbols)]
+    if dedupe:
+        from quantlab.alpha.entities import dedupe_twins
+        bars, twin_aliases, renamed, twin_report = dedupe_twins(bars)
+    else:
+        twin_aliases, renamed, twin_report = pd.DataFrame(columns=["symbol", "date", "keeper"]), set(), pd.DataFrame()
     bars = bars.assign(dollar_volume=bars["close"] * bars["volume"])
     ok = (bars["close"] >= min_price_ever) & (bars["dollar_volume"] >= min_dv_ever)
     syms_ok = set(bars.loc[ok, "symbol"]) | set(extra_symbols)
@@ -81,26 +90,27 @@ def build_panel(min_price_ever: float = 3.0, min_dv_ever: float = 1e6, keep_type
     last_bar = f["close"].apply(lambda s: s.last_valid_index())
     end = dates[-1]
     roo = ao.shift(-1) / ao - 1.0
-    hi60 = f["close"].rolling(60, min_periods=1).max()
+    hi60 = ac.rolling(60, min_periods=1).max()
     delisted = []
     for s in syms:
         lb = last_bar.get(s)
         if lb is None or lb >= end or s in extra_symbols:
             continue
-        lc = f["close"].at[lb, s]
-        distressed = bool((lc < 3.0) or (lc <= 0.5 * hi60.at[lb, s]))
-        dr = delist_distressed if distressed else delist_other
+        was_renamed = s in renamed
+        distressed = (not was_renamed) and bool((f["close"].at[lb, s] < 3.0) or (ac.at[lb, s] <= 0.5 * hi60.at[lb, s]))
+        dr = 0.0 if was_renamed else (delist_distressed if distressed else delist_other)
         intraday = ac.at[lb, s] / ao.at[lb, s] - 1.0 if np.isfinite(ao.at[lb, s]) else 0.0
         roo.at[lb, s] = (1.0 + intraday) * (1.0 + dr) - 1.0
-        delisted.append((s, lb, distressed, dr))
+        delisted.append((s, lb, distressed, dr, was_renamed))
     f["ret_oo"] = roo
     # trading-day presence and history length (PIT)
     f["has_bar"] = f["close"].notna().astype("float64")
     f["n_hist"] = f["has_bar"].cumsum()
     m = master.drop_duplicates("symbol", keep="first").set_index("symbol").reindex(syms).rename_axis("symbol")
     meta = {"n_symbols": len(syms), "n_dates": len(dates), "start": str(dates[0].date()), "end": str(end.date()),
-            "delistings": pd.DataFrame(delisted, columns=["symbol", "last_bar", "distressed", "delist_return"]),
-            "delist_distressed": delist_distressed, "delist_other": delist_other}
+            "delistings": pd.DataFrame(delisted, columns=["symbol", "last_bar", "distressed", "delist_return", "renamed"]),
+            "delist_distressed": delist_distressed, "delist_other": delist_other,
+            "twin_aliases": twin_aliases, "twin_report": twin_report, "renamed": sorted(renamed)}
     return AlphaPanel(dates, syms, f, m.reset_index(), meta)
 
 

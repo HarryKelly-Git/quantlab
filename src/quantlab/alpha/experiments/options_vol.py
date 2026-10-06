@@ -17,13 +17,18 @@ H33 Part 49: forecast(RV) vs IV
     c log forecast. Trade: deciles of log(forecast / IV); same straddle / iron-butterfly legs.
 H25 expected move vs realised move: em_pct vs move_to_exp by IV bucket and earnings / non-earnings.
 H30 IV rank: IV percentile within the underlying's trailing 252-day IV history (deciles) and 1-week
-    IV change (deciles) vs straddle returns.
+    IV change (deciles) vs straddle returns. Implementation: 52 weekly one-month IV observations (min 40).
+    AUDIT NOTE: the first run used 150 weekly observations (~3 years) by mistake; that version is kept as
+    ``iv_pctile_150w`` and reported next to the pre-registered one.
 H28 term structure: slope = IV(~60d) - IV(~30d) deciles vs straddle returns and vs log(RV/IV).
 H29 skew: put25 IV - call25 IV deciles vs (a) straddle returns and (b) the underlying's next-21-session
     return (directional, Xing-Zhang-Zhao), market-adjusted.
-H27 option momentum: past 4-week straddle return of the same underlying (previous one-month straddle
-    marked at the bid) deciles vs the next straddle return, with and without controlling for the
-    underlying's own 1-month return.
+H27 option momentum: past straddle returns of the same underlying vs the next straddle return.
+    AUDIT NOTE: the text first registered here ("previous one-month straddle marked at the bid") is NOT
+    what the code (written before any outcome was computed) does. The code, which is what was run and
+    reported: mean hold-to-expiry MID return of the underlying's one-month straddles that EXPIRED strictly
+    before the snapshot, over the trailing 91 days (>= 2 expiries, ``opt_mom_3m``) and 365 days (>= 6,
+    ``opt_mom_12m``; closer to Heston et al. 2023, who use 12-month histories).
 Every family reports deciles, the top-minus-bottom spread with a Newey-West t (weekly observations),
 the split (TRAIN / VALIDATION / OOS), and earnings vs non-earnings.
 """
@@ -37,7 +42,16 @@ import pandas as pd
 
 from quantlab.alpha import registry, splits
 from quantlab.alpha.options_store import options_dir
-from quantlab.validation.stats import newey_west_tstat
+from quantlab.validation.stats import newey_west_lags, newey_west_tstat
+
+MIN_NW_LAGS = 5          # weekly series of ~1-month holds overlap ~4.3 weeks: never fewer than 5 HAC lags
+
+
+def nw_t(x, min_obs: int = 20):
+    """Newey-West t of a WEEKLY series of one-month option returns, with at least MIN_NW_LAGS lags."""
+    a = np.asarray(x, dtype=float)
+    a = a[np.isfinite(a)]
+    return newey_west_tstat(a, lags=max(newey_west_lags(len(a)), MIN_NW_LAGS), min_obs=min_obs)
 
 
 def monthly_panel(feat: pd.DataFrame) -> pd.DataFrame:
@@ -103,7 +117,7 @@ def summarize(x: pd.DataFrame, ret_col: str, n: int = 10) -> dict[str, Any]:
             continue
         dec = xs.groupby("dec", observed=True)[ret_col].agg(["mean", "median", "count"])
         ls = long_short_series(xs, ret_col, n)
-        t = newey_west_tstat(ls.to_numpy(), min_obs=20) if len(ls) else None
+        t = nw_t(ls.to_numpy(), min_obs=20) if len(ls) else None
         out[sp] = {"decile_mean": {int(k): float(v) for k, v in dec["mean"].items()},
                    "decile_median": {int(k): float(v) for k, v in dec["median"].items()},
                    "n_obs": int(dec["count"].sum()), "top_minus_bottom_mean": float(ls.mean()) if len(ls) else None,
@@ -118,65 +132,88 @@ def load_features() -> pd.DataFrame:
 # ------------------------------------------------------------------------------------------------------
 # observation builder (features at the snapshot session; outcomes only from the features' outcome cols)
 # ------------------------------------------------------------------------------------------------------
+def iv_percentile(m: pd.DataFrame, n_prev: int = 52, min_prev: int = 40, key: str = "entity") -> pd.Series:
+    """Percentile of the current one-month ATM IV among the same underlying's previous ``n_prev`` weekly
+    observations (at least ``min_prev``). PIT: trailing rows only. The first run used n_prev=149, min_prev=59
+    (a 150-row window including the current one)."""
+    def _pct(x):
+        return x.rolling(n_prev + 1, min_periods=min_prev + 1).apply(lambda w: (w[:-1] < w[-1]).mean(), raw=True)
+    m = m.sort_values([key, "session"])
+    return m.groupby(key, observed=True)["iv_atm"].transform(_pct).reindex(m.index)
+
+
+def option_momentum(m: pd.DataFrame, key: str = "entity") -> pd.DataFrame:
+    """Mean hold-to-expiry MID return of the underlying's one-month straddles whose expiry session is
+    STRICTLY before the snapshot session (outcome known at the snapshot), over the trailing 91 days
+    (>= 2 expiries) and 365 days (>= 6 expiries)."""
+    out = pd.DataFrame(np.nan, index=m.index, columns=["opt_mom_3m", "opt_mom_12m"])
+    for _, g in m.groupby(key, observed=True):
+        done = g[["exp_session", "ret_hold_mid"]].dropna().sort_values("exp_session")
+        if done.empty:
+            continue
+        es = pd.to_datetime(done["exp_session"]).to_numpy()
+        cs = np.r_[0, np.cumsum(done["ret_hold_mid"].to_numpy())]
+        sess = pd.to_datetime(g["session"]).to_numpy()
+        hi = np.searchsorted(es, sess, side="left")             # expiries strictly before the snapshot session
+        for col, days, need in (("opt_mom_3m", 91, 2), ("opt_mom_12m", 365, 6)):
+            lo = np.searchsorted(es, sess - np.timedelta64(days, "D"), side="left")
+            n = hi - lo
+            out.loc[g.index, col] = np.where(n >= need, (cs[hi] - cs[lo]) / np.maximum(n, 1), np.nan)
+    return out
+
+
+def earnings_in_window(m: pd.DataFrame, cal: pd.DataFrame) -> pd.Series:
+    """True when the SAME company (entity) has a calendar reaction session in (snapshot, expiry]."""
+    c = cal[["entity", "react_session"]].copy()
+    c["react_session"] = pd.to_datetime(c["react_session"])
+    mm = m[["entity", "session", "expiration"]].reset_index().merge(c, on="entity", how="inner")
+    hit = mm[(mm["react_session"] > pd.to_datetime(mm["session"])) & (mm["react_session"] <= pd.to_datetime(mm["expiration"]))]
+    return pd.Series(m.index.isin(hit["index"].unique()), index=m.index)
+
+
 def build_obs(d, feat: pd.DataFrame | None = None, cal: pd.DataFrame | None = None) -> pd.DataFrame:
+    from quantlab.alpha.entities import map_events
     from quantlab.alpha.experiments.earnings import clean_calendar
     feat = load_features() if feat is None else feat
     m = monthly_panel(feat)
-    m = m[m["act_symbol"].isin(d.p.symbols)].copy()
+    # audit fix M1: the chain's ticker on the snapshot date -> the ENTITY that used it then. The first version
+    # kept only plain tickers present in the panel, which dropped every delisted 'TICKER@date' company
+    # (survivorship) and looked up recycled tickers' trailing vols on the wrong company.
+    from quantlab.alpha.entities import apply_aliases
+    if "entity" not in m.columns:                         # features built before the fix
+        m["entity"] = map_events(m, d.resolved(), "act_symbol", "session")
+    else:                                                 # store entity -> the twin key the panel kept (M2)
+        m["entity"] = apply_aliases(m["entity"], m["session"], d.p.meta.get("twin_aliases"))
+    m = m[m["entity"].isin(d.p.symbols)].copy()
     # term structure: same snapshot, expiry nearest 60 days (40..80)
     f60 = feat[(feat["dte"] >= 40) & (feat["dte"] <= 80)].copy()
     f60["dd"] = (f60["dte"] - 60).abs()
     f60 = f60.loc[f60.groupby(["date", "act_symbol"])["dd"].idxmin(), ["date", "act_symbol", "iv_atm"]].rename(columns={"iv_atm": "iv_60"})
     m = m.merge(f60, on=["date", "act_symbol"], how="left")
-    # trailing realised vol and range vol at the snapshot session (adjusted prices, PIT)
+    # trailing realised vol and range vol at the snapshot session (adjusted prices, PIT), by ENTITY
     lr = np.log(d.p["adj_close"] / d.p["adj_close"].shift(1))
     hv = {k: lr.rolling(k, min_periods=int(0.8 * k)).std() * np.sqrt(252) for k in (5, 21, 63)}
     pk = (np.log(d.p["adj_high"] / d.p["adj_low"]) ** 2 / (4 * np.log(2))).rolling(21, min_periods=17).mean().pow(0.5) * np.sqrt(252)
-    ci = d.p["close"].columns.get_indexer(m["act_symbol"])
+    r21 = d.p["adj_close"].pct_change(21, fill_method=None)
+    spy = d.p["adj_close"]["SPY"]
+    fwd21 = d.p["adj_close"].shift(-21) / d.p["adj_close"] - 1 - (spy.shift(-21) / spy - 1).to_numpy()[:, None]
+    ci = d.p["close"].columns.get_indexer(m["entity"])
     si = d.p.dates.get_indexer(pd.to_datetime(m["session"]))
     ok = (ci >= 0) & (si >= 0)
-    for name, mat in (("hv5", hv[5]), ("hv21", hv[21]), ("hv63", hv[63]), ("rangevol21", pk)):
+    for name, mat in (("hv5", hv[5]), ("hv21", hv[21]), ("hv63", hv[63]), ("rangevol21", pk),
+                      ("ret_1m_underlying", r21), ("fwd21_mkt_adj", fwd21)):
         a = mat.to_numpy()
         m[name] = np.where(ok, a[np.clip(si, 0, None), np.clip(ci, 0, None)], np.nan)
-    # earnings inside the straddle's life (realised dates, PIT_ASSUMED)
+    # earnings inside the straddle's life (realised dates, PIT_ASSUMED; calendar covers 2020-01-22 on)
     cal = clean_calendar(d) if cal is None else cal
-    cal = cal[["act_symbol", "react_session"]].copy()
-    cal["react_session"] = pd.to_datetime(cal["react_session"])
-    mm = m[["act_symbol", "session", "expiration"]].reset_index().merge(cal, on="act_symbol", how="inner")
-    hit = mm[(mm["react_session"] > pd.to_datetime(mm["session"])) & (mm["react_session"] <= pd.to_datetime(mm["expiration"]))]
-    m["earn_in_window"] = m.index.isin(hit["index"].unique())
+    m["earn_in_window"] = earnings_in_window(m, cal)
     m["cal_covered"] = pd.to_datetime(m["session"]) >= pd.Timestamp("2020-01-22")
-    # IV percentile within the underlying's trailing year of one-month IVs, and 1-week IV change
-    m = m.sort_values(["act_symbol", "session"])
-    def _pct(s):
-        return s.rolling(150, min_periods=60).apply(lambda w: (w[:-1] < w[-1]).mean(), raw=True)
-    m["iv_pctile"] = m.groupby("act_symbol", observed=True)["iv_atm"].transform(_pct)
-    m["iv_chg_1w"] = m.groupby("act_symbol", observed=True)["iv_atm"].pct_change()
-    # option momentum: mean hold-to-expiry return of this underlying's straddles that EXPIRED before now
-    m["opt_mom_3m"] = np.nan
-    m["opt_mom_12m"] = np.nan
-    for sym, g in m.groupby("act_symbol", observed=True):
-        done = g[["exp_session", "ret_hold_mid"]].dropna().sort_values("exp_session")
-        if done.empty:
-            continue
-        es = pd.to_datetime(done["exp_session"]).to_numpy()
-        rr = done["ret_hold_mid"].to_numpy()
-        cs = np.r_[0, np.cumsum(rr)]
-        sess = pd.to_datetime(g["session"]).to_numpy()
-        hi = np.searchsorted(es, sess, side="left")             # expiries strictly before the snapshot session
-        for col, days in (("opt_mom_3m", 91), ("opt_mom_12m", 365)):
-            lo = np.searchsorted(es, sess - np.timedelta64(days, "D"), side="left")
-            n = hi - lo
-            val = np.where(n >= (2 if days == 91 else 6), (cs[hi] - cs[lo]) / np.maximum(n, 1), np.nan)
-            m.loc[g.index, col] = val
-    # underlying 1-month return (for the option-momentum control) and next-21-session return (skew test)
-    r21 = d.p["adj_close"].pct_change(21)
-    fwd21 = d.p["adj_close"].shift(-21) / d.p["adj_close"] - 1 - (d.p["adj_close"]["SPY"].shift(-21) / d.p["adj_close"]["SPY"] - 1).to_numpy()[:, None]
-    ci = d.p["close"].columns.get_indexer(m["act_symbol"])
-    si = d.p.dates.get_indexer(pd.to_datetime(m["session"]))
-    ok = (ci >= 0) & (si >= 0)
-    m["ret_1m_underlying"] = np.where(ok, r21.to_numpy()[np.clip(si, 0, None), np.clip(ci, 0, None)], np.nan)
-    m["fwd21_mkt_adj"] = np.where(ok, fwd21.to_numpy()[np.clip(si, 0, None), np.clip(ci, 0, None)], np.nan)
+    # IV percentile (pre-registered: trailing year = 52 weekly obs; as first run: 150), 1-week IV change
+    m = m.sort_values(["entity", "session"])
+    m["iv_pctile"] = iv_percentile(m)
+    m["iv_pctile_150w"] = iv_percentile(m, n_prev=149, min_prev=59)
+    m["iv_chg_1w"] = m.groupby("entity", observed=True)["iv_atm"].pct_change(fill_method=None)
+    m[["opt_mom_3m", "opt_mom_12m"]] = option_momentum(m)
     m["skew"] = m["iv_put25"] - m["iv_call25"]
     m["term_slope"] = m["iv_60"] - m["iv_atm"]
     m["hv_minus_iv"] = m["hv21"] - m["iv_atm"]
@@ -187,27 +224,56 @@ def build_obs(d, feat: pd.DataFrame | None = None, cal: pd.DataFrame | None = No
 
 
 def fit_rv_model(m: pd.DataFrame, with_iv: bool = False) -> dict:
-    """Pooled OLS of log RV-to-expiry on log trailing vols (+ earnings flag) fitted on TRAIN only."""
+    """Pooled OLS of log RV-to-expiry on log trailing vols (+ earnings-in-window flag) fitted on TRAIN only.
+    Audit fix M3: only rows with earnings-calendar coverage (session >= 2020-01-22; in 2019 the flag was
+    forced to 0, mislabelling ~24% of TRAIN), and an EMBARGO: a row is used only if its outcome (the expiry
+    session) is inside TRAIN, so no label runs into VALIDATION."""
     cols = ["hv5", "hv21", "hv63", "rangevol21"] + (["iv_atm"] if with_iv else [])
     a, b = splits.window("options", "TRAIN")
-    x = m[(pd.to_datetime(m["session"]) >= a) & (pd.to_datetime(m["session"]) <= b)]
+    s = pd.to_datetime(m["session"])
+    x = m[(s >= a) & (s <= b) & m["cal_covered"].astype(bool) & (pd.to_datetime(m["exp_session"]) <= b)]
     x = x.dropna(subset=cols + ["rv_to_exp"])
     x = x[(x[cols] > 0).all(axis=1) & (x["rv_to_exp"] > 0)]
     X = np.column_stack([np.ones(len(x))] + [np.log(x[c].to_numpy()) for c in cols] + [x["earn_in_window"].astype(float).to_numpy()])
     y = np.log(x["rv_to_exp"].to_numpy())
     coef = np.linalg.lstsq(X, y, rcond=None)[0]
     resid = y - X @ coef
-    return {"cols": cols, "coef": coef.tolist(), "n_train": int(len(x)), "resid_var": float(resid.var())}
+    return {"cols": cols, "coef": coef.tolist(), "n_train": int(len(x)), "resid_var": float(resid.var()),
+            "train_rows": "session in TRAIN, >= 2020-01-22 (calendar), expiry session <= TRAIN end (embargo)",
+            "train_mean_log_rv_minus_log_iv": float(np.log(x["rv_to_exp"] / x["iv_atm"]).replace([np.inf, -np.inf], np.nan).mean())}
 
 
-def predict_rv(m: pd.DataFrame, model: dict) -> pd.Series:
+def predict_rv(m: pd.DataFrame, model: dict, kind: str = "median") -> pd.Series:
+    """kind 'median': exp(E[log RV]) - the right scale for log-RV accuracy and for log(forecast / IV) sorts
+    (a constant shift, so deciles are unchanged); 'mean': x exp(resid_var / 2), the lognormal mean
+    (what the first run used everywhere; it inflated the forecast's log-MSE by (resid_var/2)^2)."""
     cols = model["cols"]
     X = np.column_stack([np.ones(len(m))] + [np.log(m[c].where(m[c] > 0).to_numpy()) for c in cols] + [m["earn_in_window"].astype(float).to_numpy()])
-    return pd.Series(np.exp(X @ np.array(model["coef"]) + model["resid_var"] / 2), index=m.index)
+    z = X @ np.array(model["coef"]) + (model["resid_var"] / 2 if kind == "mean" else 0.0)
+    return pd.Series(np.exp(z), index=m.index)
 
 
-def forecast_vs_iv(m: pd.DataFrame, fc: pd.Series) -> dict:
-    """Out-of-sample accuracy of the forecast vs IV for log RV, and the encompassing regression."""
+def driscoll_kraay_se(X: np.ndarray, res: np.ndarray, period: np.ndarray, lags: int) -> np.ndarray:
+    """Driscoll-Kraay (1998) standard errors: per-period score sums, then a Bartlett-kernel HAC over the
+    period series. Robust to cross-sectional correlation within a week AND to serial correlation across
+    weeks (one-month outcomes sampled weekly overlap ~4-6 weeks; audit fix M4)."""
+    order = np.unique(period)
+    pos = {p: i for i, p in enumerate(order)}
+    H = np.zeros((len(order), X.shape[1]))
+    np.add.at(H, np.array([pos[p] for p in period]), X * res[:, None])
+    S = H.T @ H
+    for lag in range(1, lags + 1):
+        G = H[lag:].T @ H[:-lag]
+        S += (1 - lag / (lags + 1)) * (G + G.T)
+    XtX_inv = np.linalg.inv(X.T @ X)
+    return np.sqrt(np.diag(XtX_inv @ S @ XtX_inv))
+
+
+def forecast_vs_iv(m: pd.DataFrame, fc: pd.Series, train_bias: float | None = None) -> dict:
+    """Out-of-sample accuracy of the forecast vs IV for log RV, and the encompassing regression
+    log RV = a + b_iv log IV + b_fc log forecast. t-stats: Driscoll-Kraay with 6 weekly lags (primary),
+    12 lags (sensitivity) and the first run's week-clustered version (for comparison only).
+    ``train_bias``: mean log(RV/IV) on TRAIN, used to debias IV without peeking at the evaluation split."""
     out = {}
     for sp in ("VALIDATION", "OOS"):
         a, b = splits.window("options", sp)
@@ -217,24 +283,24 @@ def forecast_vs_iv(m: pd.DataFrame, fc: pd.Series) -> dict:
         x = x[(x["iv_atm"] > 0) & (x["rv_to_exp"] > 0) & (x["fc"] > 0)]
         if len(x) < 100:
             continue
-        ly, li, lf = np.log(x["rv_to_exp"]), np.log(x["iv_atm"]), np.log(x["fc"])
-        mse_iv = float(((ly - li) ** 2).mean())
-        mse_iv_debiased = float(((ly - li - (ly - li).mean()) ** 2).mean())
-        mse_fc = float(((ly - lf) ** 2).mean())
+        ly, li, lf = np.log(x["rv_to_exp"]).to_numpy(), np.log(x["iv_atm"]).to_numpy(), np.log(x["fc"]).to_numpy()
         X = np.column_stack([np.ones(len(x)), li, lf])
         coef, *_ = np.linalg.lstsq(X, ly, rcond=None)
         res = ly - X @ coef
-        # cluster-robust (by week) standard errors for the encompassing regression
         wk = pd.to_datetime(x["session"]).dt.to_period("W-FRI").astype(str).to_numpy()
-        XtX_inv = np.linalg.inv(X.T @ X)
-        meat = np.zeros((3, 3))
-        for w in np.unique(wk):
-            idx = wk == w
-            sc = X[idx].T @ res[idx]
-            meat += np.outer(sc, sc)
-        se = np.sqrt(np.diag(XtX_inv @ meat @ XtX_inv))
-        out[sp] = {"n": int(len(x)), "mse_log_iv": mse_iv, "mse_log_iv_debiased": mse_iv_debiased, "mse_log_forecast": mse_fc,
-                   "encompassing_coef_iv": float(coef[1]), "encompassing_coef_fc": float(coef[2]),
-                   "t_iv": float(coef[1] / se[1]), "t_fc": float(coef[2] / se[2]),
-                   "mean_log_rv_minus_log_iv": float((ly - li).mean())}
+        se6 = driscoll_kraay_se(X, res, wk, 6)
+        se12 = driscoll_kraay_se(X, res, wk, 12)
+        se_cl = driscoll_kraay_se(X, res, wk, 0)                       # lag 0 = clustered by week
+        r = {"n": int(len(x)), "n_weeks": int(len(np.unique(wk))),
+             "mse_log_iv": float(np.mean((ly - li) ** 2)),
+             "mse_log_iv_debiased_oracle": float(np.mean((ly - li - (ly - li).mean()) ** 2)),
+             "mse_log_forecast": float(np.mean((ly - lf) ** 2)),
+             "encompassing_coef_iv": float(coef[1]), "encompassing_coef_fc": float(coef[2]),
+             "t_iv": float(coef[1] / se6[1]), "t_fc": float(coef[2] / se6[2]),
+             "t_iv_dk12": float(coef[1] / se12[1]), "t_fc_dk12": float(coef[2] / se12[2]),
+             "t_iv_week_cluster": float(coef[1] / se_cl[1]), "t_fc_week_cluster": float(coef[2] / se_cl[2]),
+             "mean_log_rv_minus_log_iv": float((ly - li).mean())}
+        if train_bias is not None:
+            r["mse_log_iv_debiased_train"] = float(np.mean((ly - li - train_bias) ** 2))
+        out[sp] = r
     return out

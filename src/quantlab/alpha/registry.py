@@ -11,9 +11,15 @@ Why files, not the bot's SQLite: the bot's database lives on the operator's PC; 
 cloud. ``to_research_ledger`` maps entries onto the existing ``research.ledger`` statuses so they can
 be imported there (A -> SUPPORTED needs forward evidence first; B/C/F -> INCONCLUSIVE; D/E/G -> REJECTED).
 
-The OOS-once rule: a hypothesis's OOS split may be evaluated once per locked spec. A second OOS run
-with a different spec is refused unless explicitly recorded as a NEW variant (which raises the family's
-trial count, so every later statistic is deflated for it).
+The OOS-once rule: a hypothesis's OOS split may be evaluated once per locked spec AND data version.
+A second OOS run with a different spec or different data is refused unless it is either
+  * a NEW variant (``new_variant_ok``: raises the family's trial count, so every later statistic is
+    deflated for it), or
+  * a documented BUG-FIX re-evaluation (``oos_override``: a written reason of >= 30 characters). Each
+    reason can be used ONCE per hypothesis (audit fix M6: the first version hard-coded reason strings that
+    silently passed on every rerun). The earlier OOS rows stay in the ledger and every report states how
+    many OOS evaluations a hypothesis has had.
+Re-running the identical spec on identical data reproduces the same number and is allowed.
 """
 from __future__ import annotations
 
@@ -110,16 +116,27 @@ def trial_counts(family: str | None = None) -> dict[str, int]:
 
 def append_run(*, hypothesis_id: str, family: str, spec: dict[str, Any], split: str, metrics: dict[str, Any],
                conclusion: str = "", seed: int | None = None, data: dict[str, Any] | None = None,
-               new_variant_ok: bool = False) -> dict[str, Any]:
+               new_variant_ok: bool = False, oos_override: str | None = None) -> dict[str, Any]:
     h = spec_hash(spec)
+    dh = spec_hash(data or {})
     if split == "OOS":
         prior = [r for r in ledger() if r["hypothesis_id"] == hypothesis_id and r["split"] == "OOS"]
-        if prior and any(r["spec_hash"] != h for r in prior) and not new_variant_ok:
-            raise OOSReuseError(f"{hypothesis_id}: OOS already evaluated with spec(s) "
-                                f"{sorted({r['spec_hash'] for r in prior})}; a different spec is a NEW variant")
+        identical = all(r["spec_hash"] == h and r.get("data_hash") == dh for r in prior)
+        if prior and not identical and not new_variant_ok:
+            if not oos_override:
+                raise OOSReuseError(f"{hypothesis_id}: OOS already evaluated with spec(s) "
+                                    f"{sorted({r['spec_hash'] for r in prior})}; a different spec is a NEW variant and "
+                                    "different data needs a documented one-time override")
+            if len(oos_override.strip()) < 30:
+                raise OOSReuseError(f"{hypothesis_id}: an OOS override needs a documented reason (>= 30 characters)")
+            if any(r.get("oos_override") == oos_override for r in prior):
+                raise OOSReuseError(f"{hypothesis_id}: this override reason was already used once; a second override "
+                                    "with the same reason is refused")
     row = {"ts": pd.Timestamp.now(tz="UTC").isoformat(), "hypothesis_id": hypothesis_id, "family": family,
            "split": split, "spec": spec, "spec_hash": h, "metrics": metrics, "conclusion": conclusion,
-           "seed": seed, "data": data or {}, "git": git_commit()}
+           "seed": seed, "data": data or {}, "data_hash": dh, "git": git_commit()}
+    if oos_override and split == "OOS":
+        row["oos_override"] = oos_override
     DIR.mkdir(parents=True, exist_ok=True)
     with LEDGER.open("a") as fh:
         fh.write(json.dumps(_clean(row), sort_keys=True) + "\n")
@@ -160,10 +177,10 @@ def classify(e: Evidence) -> tuple[str, str]:
                 return "E", "development t between 1 and 2 but the result depends on the top 5% of trades" + oos_note
             return "B", "development t between 1 and 2" + oos_note
         return "E", "no significant net edge in development" + oos_note
+    if e.pbo is not None and e.pbo >= 0.5:          # audit minor fix: G whether or not OOS was run (the plan's rule)
+        return "G", f"PBO {e.pbo:.2f} >= 0.5"
     if e.oos_t_net is None:
         return "B", "passed development; OOS not yet evaluated"
-    if e.pbo is not None and e.pbo >= 0.5:
-        return "G", f"PBO {e.pbo:.2f} >= 0.5"
     if e.oos_t_net < 1.0:
         return "G", f"passed development but OOS t {e.oos_t_net:.2f} < 1"
     strong = (e.oos_t_net >= 2 and (e.oos_mean_net or 0) > 0 and (e.deflated_sharpe_prob or 0) >= 0.95

@@ -115,7 +115,7 @@ point-in-time data, before any change is tried.
 |---|---|---|
 | TRAIN | 2016-2019 | 2019-02 .. 2021 |
 | VALIDATION | 2020-2021 | 2022 |
-| OOS | 2022-2024, **one** evaluation per locked spec (the registry refuses a second, different spec unless it is recorded as a new variant) | 2023-2024 |
+| OOS | 2022-2024, **one** evaluation per locked spec and data version (the registry refuses a second, different spec unless it is recorded as a new variant; a re-evaluation after a documented bug fix needs a written one-time override, and every OOS look is counted and reported) | 2023-2024 |
 | HOLDOUT | 2025+ is **not downloaded** into the research store. It needs a separate download and a logged unlock. | 2025+ |
 
 Caveat: earlier QuantLab work used 2021-03..2024-11 for price/volume research, so OOS is not
@@ -124,8 +124,12 @@ virgin for those ideas. Forward paper trading remains the final test.
 **Pre-registration.** Each family's variant grid (lookbacks, rankings, weightings, neutralisations)
 is written into its experiment module *before* TRAIN is run. Every variant counts as a trial.
 
-**Gate to OOS.** One variant per family, chosen on TRAIN+VALIDATION. The family's OOS slot is
-spent exactly once, on that variant.
+**Gate to OOS.** One variant per family, chosen on TRAIN (net Sharpe; event studies: TRAIN mean).
+VALIDATION is reported to confirm; nothing is re-tuned on it. *(Corrected 2026-10-06 after the audit:
+an earlier version of this line said "chosen on TRAIN+VALIDATION", which is not what the code does.)*
+The family's OOS slot is spent once, on that variant. The OOS figures of a variant that FAILED
+development are still computed and shown, as information only: a failed development result is never
+upgraded by its OOS.
 
 **Statistics on every family:**
 - Newey-West t
@@ -251,3 +255,45 @@ universe of today's survivors. Never treat paper profit as alpha. Never assume a
 still works, or that a stock signal carries over to options, or that cheap options are good or
 expensive ones should be sold. Every short-volatility structure has a known maximum loss. If data
 is missing or stale, do nothing.
+
+## 10. Audit follow-ups (pre-registered 2026-10-06, committed before any re-run)
+
+An independent adversarial review of the code and results (section 6, last paragraph) found two
+critical and six major defects. They are listed with their fixes in the report. This section fixes
+the re-run protocol before any corrected number is seen.
+
+1. **Same grids, corrected data.** Every family is re-run with the pre-registered variant grid
+   unchanged. The data changes are:
+   - twin entities de-duplicated (M2);
+   - the distress flag computed on adjusted prices;
+   - spy_vol regime bins fixed;
+   - leading zero-exposure days trimmed from TRAIN statistics;
+   - options and calendar joins made through the entity that used the ticker on each date (C2, M1);
+   - option chains whose put-call-parity spot is > 5% from the stock's close, or whose ATM strike is > 10% away, are dropped.
+
+   OOS is re-spent once per family through the registry's one-time override with the reason
+   `audit-2026-10`. The first-run OOS rows stay in the ledger, and both are reported.
+2. **H26 placebo (C1).** Same timing, 31 sessions earlier (mid-quarter). It is kept only when the
+   company has no calendar event within 15 sessions, nor in (entry, expiry].
+3. **H33 (M3, M4).**
+   - Fit only on TRAIN rows with calendar coverage (session >= 2020-01-22), with an embargo: the expiry session must be inside TRAIN.
+   - t-statistics are Driscoll-Kraay with 6 weekly lags (primary); 12 lags and the old week-clustered version are reported alongside.
+   - Log-scale accuracy uses the model's median forecast. The first run used the lognormal mean, which penalised the forecast by (s²/2)².
+   - IV is debiased with the TRAIN mean of log(RV/IV). The evaluation sample's own mean is reported as an "oracle" figure.
+4. **H30.** The pre-registered "trailing 252-day" IV percentile is implemented as 52 weekly
+   observations. The first run's 150-observation version is reported next to it, labelled as a deviation.
+5. **H27.** The code, written before any outcome was computed, is what was run. The pre-registered
+   text described a different measure; the docstring is corrected and the mismatch disclosed.
+6. **H07 bounce test (M5).**
+   - **Sample:** 40 entities with plain keys, drawn with seed 20261006 from those in the large universe on at least 50% of 2020-2021 sessions. Plain keys only, because the minute endpoint has no as-of mapping; this does not bias a fill comparison.
+   - **Data:** Alpaca 1-minute SIP bars, raw, 2020-01-01 to 2021-12-31.
+   - **Events:** on every (stock, day) where the selected GAP_large_equal book holds the stock, the same-day gross return is computed with three entries:
+     - (a) the opening print, as run;
+     - (b) the last trade before 09:35 (close of the 09:34 bar);
+     - (c) the 09:30-09:34 VWAP.
+   - **Measures:** daily side-weighted mean (bps) and Newey-West t for each entry, and for the paired difference (a) - (b).
+   - **Decision rule:**
+     - If (a) is not positive on the sample, the test is inconclusive and H07 stays D with the caveat.
+     - Otherwise, if mean (b) <= 0.5 x mean (a), H07 becomes E: the gross signal is mostly bid-ask bounce at the opening print.
+     - Otherwise D stands.
+
