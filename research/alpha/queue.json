@@ -327,13 +327,13 @@
   "hypothesis": "Surviving signals depend on identifiable regimes",
   "data_required": "store ETFs",
   "priority": 21,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 21,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "regime splits (SPY trend, SPY vol, credit, rates, dollar) recorded for every selected variant in results/*.json; no family passed unconditionally, and no regime split was pre-registered as a stand-alone hypothesis",
+  "classification": "INFO",
+  "confidence": "medium",
+  "next_action": "pre-register regime-conditional variants only for families that show C-type evidence"
  },
  {
   "id": "H12",
@@ -343,13 +343,13 @@
   "hypothesis": "Simple models predict magnitude/vol OOS but not direction",
   "data_required": "store+chain",
   "priority": 22,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 22,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "OOS 2022-24: DIRECTION AUC 0.514-0.518, TIMING 0.50-0.52 (not predictable); MAGNITUDE rank IC 0.36 (vs 0.32 trailing vol), VOLATILITY IC 0.80 (vs 0.69), TAIL AUC 0.70 (vs 0.68). Trees overfit TRAIN (AUC 0.70-0.82) without beating linear OOS.",
+  "classification": "E (direction/timing); FINDING (magnitude/vol)",
+  "confidence": "high",
+  "next_action": "use magnitude/vol forecasts for risk sizing and as option-pricing context, not as a direction signal"
  },
  {
   "id": "H31",
@@ -359,13 +359,13 @@
   "hypothesis": "Delta-hedged option returns fall with idiosyncratic vol",
   "data_required": "chain+store",
   "priority": 23,
-  "status": "QUEUED",
+  "status": "NOT_RUN",
   "expected_information_value_rank": 23,
   "compute": "medium",
-  "result": null,
-  "classification": null,
+  "result": "delta-hedged returns need per-contract marks between snapshots; deprioritised because every hold-to-expiry straddle book already loses to the spread (literature: Cao-Han falls to 0.17%/month at half-spread)",
+  "classification": "F",
   "confidence": null,
-  "next_action": "run"
+  "next_action": "run only if execution at or near mid becomes available"
  },
  {
   "id": "H32",
@@ -375,13 +375,13 @@
   "hypothesis": "Index vs constituent IV implies a tradeable correlation premium",
   "data_required": "chain",
   "priority": 24,
-  "status": "QUEUED",
+  "status": "NOT_RUN",
   "expected_information_value_rank": 24,
   "compute": "medium",
-  "result": null,
-  "classification": null,
+  "result": "dispersion needs historical index weights (unavailable here) and SPY-vs-constituent IV; literature finds it wiped out by costs",
+  "classification": "F",
   "confidence": null,
-  "next_action": "run"
+  "next_action": "deprioritised"
  },
  {
   "id": "H08",
@@ -407,13 +407,13 @@
   "hypothesis": "Cointegrated pairs mean-revert net of costs",
   "data_required": "store",
   "priority": 26,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 26,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "GGR distance pairs (20 pairs, 2-sigma, next-open): Sharpe -0.75/+0.25/-0.18 (within sector), -0.36/+0.70/-0.41 (any), ~+/-1%/yr, all |t|<1.5",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "retire"
  },
  {
   "id": "H36",
@@ -423,13 +423,13 @@
   "hypothesis": "Combining independent validated signals improves Sharpe and drawdown",
   "data_required": "outputs",
   "priority": 27,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 27,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "5 equity streams (3.1 effective): every construction method negative in 2020-21; OOS Sharpe 0.13-0.62, t<=1.05; walk-forward OOS 0.20-0.51",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "nothing to combine until a component has an edge"
  },
  {
   "id": "H37",
@@ -439,13 +439,13 @@
   "hypothesis": "A filter predicts when a signal is not worth taking",
   "data_required": "outputs",
   "priority": 28,
-  "status": "QUEUED",
+  "status": "NOT_RUN",
   "expected_information_value_rank": 28,
   "compute": "medium",
-  "result": null,
-  "classification": null,
+  "result": "a when-not-to-trade meta-model needs a base signal with an edge; none exists, so a filter would be fitted to noise (~100 monthly observations)",
+  "classification": "F",
   "confidence": null,
-  "next_action": "run"
+  "next_action": "revisit when a component reaches class B or better"
  },
  {
   "id": "H38",
@@ -455,13 +455,13 @@
   "hypothesis": "Rolling metrics detect decay",
   "data_required": "outputs",
   "priority": 29,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 29,
   "compute": "medium",
-  "result": null,
-  "classification": null,
+  "result": "alpha/portfolio.py decay_alerts + rolling_health (tested)",
+  "classification": "INFRA",
   "confidence": null,
-  "next_action": "run"
+  "next_action": "wire to forward paper results"
  },
  {
   "id": "H13",
@@ -503,12 +503,12 @@
   "hypothesis": "Capped-risk index short-vol earns a premium",
   "data_required": "VIX/Cboe/SPY options",
   "priority": 32,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 32,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "1M ATM straddles on SPY/DIA: IV>RV 67-79% of weeks but short-straddle P&L at the bid ~0 (t~0) over 2019-24; XLK/XLF spreads 14-51% make shorts lose",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "untested: OTM put-writing / longer-dated index structures (Cboe PUT-style) - a different, lower-turnover expression"
  }
 ]
