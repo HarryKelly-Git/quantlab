@@ -149,49 +149,86 @@ def statistical_sectors(p: AlphaPanel, universe: pd.DataFrame, window: int = 252
     return out
 
 
-def rolling_betas(p: AlphaPanel, sectors: pd.DataFrame, window: int = 252, market: str = "SPY") -> dict[str, pd.DataFrame]:
-    """Market and sector betas from a two-factor OLS on trailing ``window`` days, refit each month end
-    and applied to the FOLLOWING month (PIT). The sector factor is the stock's statistical-sector ETF
-    return orthogonalised to the market (so beta_mkt keeps its usual meaning)."""
+def rolling_betas(p: AlphaPanel, sectors: pd.DataFrame, window: int = 252, market: str = "SPY",
+                  min_frac: float = 0.8) -> dict[str, pd.DataFrame]:
+    """Betas refit at each month end on the trailing ``window`` days and applied to the FOLLOWING month
+    (point-in-time). Returns:
+      beta_mkt    single-factor market beta (for beta-neutral hedging)
+      b1, b2      two-factor loadings on [market, own statistical-sector ETF] (for residual returns)
+    Columns with complete windows are solved jointly per sector (fast); incomplete ones one by one."""
     r = p["ret_cc"]
     m = r[market]
     month_ends = r.index.to_series().groupby(r.index.to_period("M")).last()
-    bm = pd.DataFrame(np.nan, index=r.index, columns=p.symbols)
-    bs = pd.DataFrame(np.nan, index=r.index, columns=p.symbols)
-    etfs = [e for e in SECTOR_ETFS if e in r.columns]
+    out = {k: np.full(r.shape, np.nan) for k in ("beta_mkt", "b1", "b2")}
+    col_pos = {c: i for i, c in enumerate(r.columns)}
+    R = r.to_numpy()
+    M = m.to_numpy()
     for i, me in enumerate(month_ends):
         loc = r.index.get_loc(me)
         if loc + 1 < window:
             continue
         sl = slice(loc + 1 - window, loc + 1)
-        mw = m.iloc[sl]
-        # sector factors orthogonal to the market over the window
-        fac = {}
-        for e in etfs:
-            ew = r[e].iloc[sl]
-            ok = ew.notna() & mw.notna()
-            if ok.sum() < int(0.9 * window):
+        nxt = month_ends.iloc[i + 1] if i + 1 < len(month_ends) else None
+        rows = np.nonzero((r.index > me) & ((r.index <= nxt) if nxt is not None else True))[0]
+        if len(rows) == 0:
+            continue
+        assign = sectors.iloc[rows[0]]
+        mw = M[sl]
+        Y = R[sl]
+        # single-factor beta for every column
+        X1 = np.column_stack([np.ones(window), mw])
+        okm = np.isfinite(mw)
+        complete = np.isfinite(Y).all(axis=0) & okm.all()
+        if complete.any():
+            coef = np.linalg.lstsq(X1, Y[:, complete], rcond=None)[0]
+            out["beta_mkt"][np.ix_(rows, np.nonzero(complete)[0])] = coef[1][None, :]
+        for j in np.nonzero(~complete)[0]:
+            g = np.isfinite(Y[:, j]) & okm
+            if g.sum() >= int(min_frac * window):
+                out["beta_mkt"][rows, j] = np.linalg.lstsq(X1[g], Y[g, j], rcond=None)[0][1]
+        # two-factor loadings per statistical sector
+        for e in pd.unique(assign.dropna()):
+            if e not in col_pos:
                 continue
-            b = np.polyfit(mw[ok], ew[ok], 1)[0]
-            fac[e] = ew - b * mw
-        assign = sectors.iloc[min(loc + 1, len(r) - 1)] if loc + 1 < len(r) else sectors.iloc[loc]
-        nxt = month_ends.iloc[i + 1] if i + 1 < len(month_ends) else r.index[-1]
-        rows = (r.index > me) & (r.index <= nxt)
-        x = r.iloc[sl]
-        mv = mw.to_numpy()
-        for e, fe in fac.items():
-            cols = assign.index[assign == e]
-            if len(cols) == 0:
+            ew = R[sl, col_pos[e]]
+            cols = np.array([col_pos[c] for c in assign.index[assign == e]])
+            if len(cols) == 0 or np.isfinite(ew).sum() < int(0.9 * window):
                 continue
-            Y = x[cols].to_numpy()
-            X = np.column_stack([np.ones(window), mv, fe.to_numpy()])
-            good = np.isfinite(X).all(axis=1)
-            for j, c in enumerate(cols):
-                y = Y[:, j]
-                g = good & np.isfinite(y)
-                if g.sum() < int(0.8 * window):
-                    continue
-                coef = np.linalg.lstsq(X[g], y[g], rcond=None)[0]
-                bm.loc[rows, c] = coef[1]
-                bs.loc[rows, c] = coef[2]
-    return {"beta_mkt": bm, "beta_sec": bs}
+            X2 = np.column_stack([np.ones(window), mw, ew])
+            gx = np.isfinite(X2).all(axis=1)
+            Ys = Y[:, cols]
+            comp = np.isfinite(Ys[gx]).all(axis=0)
+            if comp.any():
+                coef = np.linalg.lstsq(X2[gx], Ys[gx][:, comp], rcond=None)[0]
+                out["b1"][np.ix_(rows, cols[comp])] = coef[1][None, :]
+                out["b2"][np.ix_(rows, cols[comp])] = coef[2][None, :]
+            for k in np.nonzero(~comp)[0]:
+                y = Ys[:, k]
+                g = gx & np.isfinite(y)
+                if g.sum() >= int(min_frac * window):
+                    cf = np.linalg.lstsq(X2[g], y[g], rcond=None)[0]
+                    out["b1"][rows, cols[k]] = cf[1]
+                    out["b2"][rows, cols[k]] = cf[2]
+    return {k: pd.DataFrame(v, index=r.index, columns=r.columns) for k, v in out.items()}
+
+
+def sector_return(p: AlphaPanel, sectors: pd.DataFrame, field_: str = "ret_cc") -> pd.DataFrame:
+    """Each stock's own statistical-sector ETF return on each day (NaN when unassigned)."""
+    r = p[field_]
+    out = pd.DataFrame(np.nan, index=r.index, columns=r.columns)
+    for e in SECTOR_ETFS:
+        if e not in r.columns:
+            continue
+        mask = (sectors == e).to_numpy()
+        vals = np.broadcast_to(r[e].to_numpy()[:, None], r.shape)
+        out = out.mask(mask, pd.DataFrame(vals, index=r.index, columns=r.columns))
+    return out
+
+
+def residual_returns(p: AlphaPanel, sectors: pd.DataFrame, betas: dict[str, pd.DataFrame],
+                     market: str = "SPY", field_: str = "ret_cc") -> pd.DataFrame:
+    """r_i - b1_i * r_mkt - b2_i * r_sector(i), with loadings fitted on data BEFORE the current month."""
+    r = p[field_]
+    m = r[market]
+    s = sector_return(p, sectors, field_)
+    return r - betas["b1"].mul(m, axis=0) - betas["b2"] * s

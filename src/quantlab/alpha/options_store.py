@@ -43,40 +43,49 @@ def options_dir() -> Path:
 
 
 def export_option_chain(end: str = RESEARCH_END) -> dict:
-    """One parquet per year; resumable (a finished year is skipped)."""
+    """One parquet per MONTH; resumable (a finished month is skipped). Numbers are cast to DOUBLE in SQL
+    and converted to float32 per snapshot: the driver's Decimal objects would otherwise need tens of GB."""
     if pd.Timestamp(end) >= pd.Timestamp(HOLDOUT_START):
         raise ValueError("refusing to export holdout dates")
     c = _conn("options")
     cur = c.cursor()
-    cur.execute("SELECT DISTINCT date FROM option_chain WHERE date <= %s ORDER BY date", (end,))
-    dates = [r[0] for r in cur.fetchall()]
-    by_year: dict[int, list] = {}
+    # snapshot dates from the (already exported) per-underlying volatility table: a DISTINCT over the
+    # 100M-row chain is a full scan in Dolt, while per-date queries use the primary-key prefix
+    vh = pd.read_parquet(options_dir() / "volatility_history.parquet", columns=["date"])
+    dates = sorted(pd.to_datetime(vh["date"]).dt.date.unique())
+    dates = [d for d in dates if pd.Timestamp(d) <= pd.Timestamp(end)]
+    by_month: dict[str, list] = {}
     for d in dates:
-        by_year.setdefault(d.year, []).append(d)
+        by_month.setdefault(f"{d.year}-{d.month:02d}", []).append(d)
+    num = ["strike", "bid", "ask", "vol", "delta", "gamma", "theta", "vega", "rho"]
+    sel = ("SELECT `date`, `act_symbol`, `expiration`, LEFT(`call_put`, 1), "
+           + ", ".join(f"CAST(`{k}` AS DOUBLE)" for k in num) + " FROM option_chain WHERE `date` = %s")
     out = {}
-    cols = ["date", "act_symbol", "expiration", "strike", "call_put", "bid", "ask", "vol", "delta", "gamma",
-            "theta", "vega", "rho"]
-    for y, ds in sorted(by_year.items()):
-        path = options_dir() / f"chain_{y}.parquet"
+    for ym, ds in sorted(by_month.items()):
+        path = options_dir() / f"chain_{ym}.parquet"
         if path.exists():
-            out[y] = "exists"
             continue
         t0 = time.time()
         frames = []
         for d in ds:
-            cur.execute("SELECT " + ",".join(f"`{x}`" for x in cols) + " FROM option_chain WHERE date = %s", (d,))
-            frames.append(pd.DataFrame(cur.fetchall(), columns=cols))
+            cur.execute(sel, (d,))
+            rows = cur.fetchall()
+            if not rows:
+                continue
+            a = list(zip(*rows))
+            f = pd.DataFrame({"date": pd.to_datetime(pd.Series(a[0])), "act_symbol": pd.Series(a[1], dtype="string"),
+                              "expiration": pd.to_datetime(pd.Series(a[2])), "cp": pd.Series(a[3], dtype="string")})
+            for i, k in enumerate(num):
+                f[k] = pd.to_numeric(pd.Series(a[4 + i]), errors="coerce").astype("float32")
+            frames.append(f)
+        if not frames:
+            continue
         df = pd.concat(frames, ignore_index=True)
-        df["date"] = pd.to_datetime(df["date"])
-        df["expiration"] = pd.to_datetime(df["expiration"])
         df["act_symbol"] = df["act_symbol"].astype("category")
-        df["cp"] = np.where(df.pop("call_put").str.startswith("C"), "C", "P")
         df["cp"] = df["cp"].astype("category")
-        for k in ("strike", "bid", "ask", "vol", "delta", "gamma", "theta", "vega", "rho"):
-            df[k] = pd.to_numeric(df[k], errors="coerce").astype("float32")
         df.to_parquet(path, index=False)
-        out[y] = {"snapshots": len(ds), "rows": len(df), "seconds": round(time.time() - t0, 1)}
-        print(y, out[y], flush=True)
+        out[ym] = {"snapshots": len(ds), "rows": len(df), "seconds": round(time.time() - t0, 1)}
+        print(ym, out[ym], flush=True)
     return out
 
 
@@ -101,9 +110,9 @@ def export_small_tables(end: str = RESEARCH_END) -> dict:
 
 
 def load_chain(years: list[int] | None = None, columns: list[str] | None = None) -> pd.DataFrame:
-    files = sorted(options_dir().glob("chain_*.parquet"))
+    files = sorted(options_dir().glob("chain_*-*.parquet"))
     if years is not None:
-        files = [f for f in files if int(f.stem.split("_")[1]) in years]
+        files = [f for f in files if int(f.stem.split("_")[1][:4]) in years]
     df = pd.concat([pd.read_parquet(f, columns=columns) for f in files], ignore_index=True)
     if "date" in df and df["date"].max() >= pd.Timestamp(HOLDOUT_START):
         raise RuntimeError("options store contains holdout dates: refusing")
@@ -111,5 +120,6 @@ def load_chain(years: list[int] | None = None, columns: list[str] | None = None)
 
 
 if __name__ == "__main__":   # pragma: no cover
-    print(export_small_tables(), flush=True)
+    if not (options_dir() / "volatility_history.parquet").exists():
+        print(export_small_tables(), flush=True)
     print(export_option_chain(), flush=True)
