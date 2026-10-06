@@ -189,3 +189,40 @@ def run_family(*, family: str, hypothesis_id: str, variants: list[Variant], ctx:
     RESULTS.mkdir(parents=True, exist_ok=True)
     (RESULTS / f"{family}.json").write_text(json.dumps(registry._clean(summary), indent=1, default=str))
     return summary
+
+
+def run_oos_only(*, family: str, hypothesis_id: str, variants: list[Variant], ctx: Context, dev_family: str) -> dict[str, Any]:
+    """Spend the family's single OOS evaluation on the variant ALREADY selected (on TRAIN) by a
+    development run (``dev_family`` results file). Nothing is re-selected; the dev statistics are reused."""
+    dev = json.loads((RESULTS / f"{dev_family}.json").read_text())
+    best = dev["family_stats"]["selected"]
+    bv = next(v for v in variants if v.name == best)
+    ds = ctx.dataset
+    w = bv.build()
+    base = _bt(bv, ctx, w, keep_contrib=True)
+    x2 = _bt(bv, ctx, w, cost_mult=2.0)
+    on = splits.slice_split(base.net, ds, "OOS").dropna()
+    og = splits.slice_split(base.gross, ds, "OOS").dropna()
+    ob = splits.slice_split(ctx.bench, ds, "OOS").reindex(on.index)
+    oos = core_metrics(on, ob)
+    oos["t_gross"] = newey_west_tstat(og.to_numpy()).t
+    oos["mean_gross_bps"] = float(og.mean() * 1e4)
+    oos["by_year"] = by_period(on, "Y").reset_index().astype(str).to_dict("records")
+    yrs = by_period(on, "Y")["return"]
+    oos["years_positive_frac"] = float((yrs > 0).mean()) if len(yrs) else None
+    oos["t_net_2x_costs"] = newey_west_tstat(splits.slice_split(x2.net, ds, "OOS").dropna().to_numpy()).t
+    oidx = on.index
+    oos["top_removal"] = remove_top_trades(base.net.loc[oidx], base.weights.loc[oidx], base.contrib.loc[oidx])
+    for nm, lab in ctx.regimes.items():
+        oos[f"by_{nm}"] = by_label(on, lab).reset_index().astype(str).to_dict("records")
+    registry.append_run(hypothesis_id=hypothesis_id, family=family, spec={"variant": best, **bv.spec, "holding": bv.holding,
+                        "execution": bv.execution}, split="OOS", metrics=oos, data=ctx.data_manifest)
+    ev = dict(dev["evidence"])
+    ev.update(oos_t_net=oos.get("t_mean_nw"), oos_mean_net=oos.get("mean_daily"), oos_years_positive_frac=oos.get("years_positive_frac"),
+              survives_2x_costs=(oos.get("t_net_2x_costs") or -9) >= 2,
+              survives_top5_removal=(oos.get("top_removal", {}).get("without_top_5pct", {}).get("mean_daily") or -1) > 0)
+    cls, why = registry.classify(registry.Evidence(**ev))
+    dev.update({"family": family, "oos": oos, "classification": cls, "classification_reason": why, "evidence": ev,
+                "oos_note": f"OOS spent once on the TRAIN-selected variant of {dev_family}"})
+    (RESULTS / f"{family}.json").write_text(json.dumps(registry._clean(dev), indent=1, default=str))
+    return dev

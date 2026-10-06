@@ -147,22 +147,26 @@ class Evidence:
 def classify(e: Evidence) -> tuple[str, str]:
     if not e.data_ok:
         return "F", "data insufficient or failed quality checks"
-    if e.oos_t_net is None:
+    dev_pass = e.dev_t_net is not None and e.dev_t_net >= 2
+    if not dev_pass:
+        # OOS, when it was looked at, is information only: a failed development result is never upgraded
+        oos_note = f"; OOS t {e.oos_t_net:.2f}" if e.oos_t_net is not None else ""
         if e.dev_t_gross is not None and e.dev_t_gross >= 2 and (e.dev_t_net is None or e.dev_t_net < 2):
-            return "D", "gross signal significant in development, costs remove it"
+            return "D", "gross signal significant in development, costs remove it" + oos_note
         if e.regime_conditional_pass:
-            return "C", "unconditional fails; a pre-specified regime split passes in development"
+            return "C", "unconditional fails; a pre-specified regime split passes in development" + oos_note
         if e.dev_t_net is not None and 1.0 <= e.dev_t_net < 2.0:
-            return "B", "development t between 1 and 2; not taken to OOS"
-        return "E", "no significant net edge in development"
-    # OOS was run
+            return "B", "development t between 1 and 2" + oos_note
+        return "E", "no significant net edge in development" + oos_note
+    if e.oos_t_net is None:
+        return "B", "passed development; OOS not yet evaluated"
     if e.pbo is not None and e.pbo >= 0.5:
         return "G", f"PBO {e.pbo:.2f} >= 0.5"
-    if e.oos_t_net is not None and e.oos_t_net < 1.0:
-        return "G", "passed development but OOS t < 1"
+    if e.oos_t_net < 1.0:
+        return "G", f"passed development but OOS t {e.oos_t_net:.2f} < 1"
     strong = (e.oos_t_net >= 2 and (e.oos_mean_net or 0) > 0 and (e.deflated_sharpe_prob or 0) >= 0.95
               and (e.spa_p is None or e.spa_p < 0.05) and bool(e.survives_2x_costs) and bool(e.survives_top5_removal)
               and (e.oos_years_positive_frac or 0) >= 2 / 3)
     if strong:
         return "A", "OOS t >= 2, DSR >= 0.95, SPA p < 0.05, survives 2x costs and top-5% removal, 2/3 OOS years positive"
-    return "B", "OOS positive but at least one robustness bar not met"
+    return "B", "passed development; OOS positive but at least one robustness bar not met"

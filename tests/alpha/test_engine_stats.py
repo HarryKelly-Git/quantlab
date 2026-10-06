@@ -172,6 +172,10 @@ def test_registry_oos_once_and_classification(tmp_path, monkeypatch):
     assert registry.classify(E(True, 2.5, 3.0, 0.3, 0.0001, 0.33, 0.97, 0.01, 0.2, True, True))[0] == "G"
     assert registry.classify(E(True, 2.5, 3.0, 2.4, 0.0005, 1.0, 0.97, 0.01, 0.2, True, True))[0] == "A"
     assert registry.classify(E(True, 2.5, 3.0, 2.4, 0.0005, 1.0, 0.97, 0.01, 0.2, False, True))[0] == "B"
+    # failed development + OOS looked at for information: never G, never upgraded
+    assert registry.classify(E(True, -0.3, 0.9, -1.1, -0.001, 0.0, 0.1, 1.0, 0.15, False, False))[0] == "E"
+    assert registry.classify(E(True, -0.3, 0.9, 3.0, 0.001, 1.0, 0.1, 1.0, 0.15, True, True))[0] == "E"
+    assert registry.classify(E(True, 2.5, 3.0, None, None, None, 0.97, 0.01, 0.2, True, True))[0] == "B"
 
 
 def test_intraday_roundtrip_costs():

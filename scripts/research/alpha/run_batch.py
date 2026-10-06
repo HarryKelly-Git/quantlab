@@ -39,12 +39,17 @@ def main():
     d = research_data.get()
     from quantlab.alpha.experiment import run_family
     fams = families(d)
+    from quantlab.alpha.experiment import run_oos_only
     for key in sys.argv[2:]:
         t0 = time.time()
         args = dict(fams[key])
         if mode == "dev":
             args["family"] = args["family"] + "__dev"
-        res = run_family(run_oos=(mode == "oos"), **args)
+        if mode == "oosonly":
+            res = run_oos_only(family=args["family"], hypothesis_id=args["hypothesis_id"], variants=args["variants"],
+                               ctx=args["ctx"], dev_family=args["family"] + "__dev")
+        else:
+            res = run_family(run_oos=(mode == "oos"), **args)
         sel = res["family_stats"]["selected"]
         print(f"== {key} [{mode}] {time.time() - t0:.0f}s selected={sel} class={res['classification']} ({res['classification_reason']})")
         print("   selected:", json.dumps(res["variants"][sel], default=str)[:600])
