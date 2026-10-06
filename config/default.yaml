@@ -518,3 +518,16 @@ momentum_breakout:
     vol_fast: 5
     vol_slow: 50
     dryup_max_ratio: 0.80
+  # Options stage (prereg section 9): runs ONLY if the stock level passes section 7. Pre-registered.
+  options:
+    real_bars_from: "2024-02-01"         # earlier entries are always APPROXIMATION (Black-Scholes)
+    days_to_expiry: 45
+    close_before_expiry_days: 7
+    rv_window: 20
+    iv_over_rv: 1.15                     # sensitivity reported at 1.0 and 1.3
+    risk_free_rate: 0.04
+    half_spread_frac: 0.03
+    min_half_spread: 0.025
+    fee_per_contract: 0.0
+    spread_short_em: 1.0
+    stock_round_trip_bps: 10.0

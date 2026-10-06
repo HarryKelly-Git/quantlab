@@ -161,8 +161,25 @@ and beat SPY over the same window. Same bar as docs/REAL-MONEY-READINESS.md.
 
 ## 9. Options (later stage, only if the stock level passes)
 
-Not designed yet. Any options result for dates before 2024 is labelled **APPROXIMATION** (no real
-historical option quotes on this account; prices would be modelled).
+Designed 2026-10-06, still before any outcome (code: `momentum_breakout/options_overlay.py`, values in
+`config/default.yaml: momentum_breakout.options`). Runs **only if section 7 passes**.
+
+- **What it asks:** for the *same* trades the frozen stock rule took (same entry and exit sessions), does
+  a call expression earn more per dollar at risk than the stock (per dollar of stop risk, after costs)?
+  It never picks trades, so it adds no selection bias.
+- **Expressions (fixed):** long call delta 0.50, long call delta 0.70, call debit spread long ATM / short
+  at +1 expected move. Expiry ~45 calendar days; closed 7 days before expiry if the stock trade is
+  still open then.
+- **Prices, never pooled:**
+  - Entries before 2024-02-01, or any trade missing a real bar: **APPROXIMATION** (Black-Scholes,
+    IV = 20-day realised vol at entry x 1.15, also reported at x 1.0 and x 1.3).
+  - Later entries with real Alpaca option bars on both days: **REAL_BARS** (daily VWAP; still not an
+    executable quote).
+- **Costs:** 3% of the option price per leg per side (min $0.025), on entry and exit. The stock pays
+  10 bps round trip.
+- **Pass (for forward paper options testing):** REAL_BARS rows only, at least 50 trades; one
+  expression beats the stock per $ at risk with a bootstrap 95% CI above zero, and stays ahead at
+  2x option costs. APPROXIMATION rows are context and can never pass anything on their own.
 
 ## 10. How work is done
 
