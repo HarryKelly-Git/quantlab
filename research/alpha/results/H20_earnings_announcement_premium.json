@@ -1,0 +1,161 @@
+{
+ "family": "H20_earnings_announcement_premium",
+ "variants": {
+  "EAP_n1_pre": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 0
+    },
+    "VALIDATION": {
+     "n_events": 0
+    }
+   },
+   "train_2x_costs_mean_bps": null
+  },
+  "EAP_n1_through": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 13264,
+     "mean_bps": -45.16941184953981,
+     "median_bps": -44.32334596549931,
+     "hit_rate": 0.44021411338962607,
+     "weekly_t_nw": -4.434340274621058,
+     "n_weeks": 102,
+     "mean_bps_without_top5pct": -104.84474302235742
+    },
+    "VALIDATION": {
+     "n_events": 6817,
+     "mean_bps": 1.1610606469259084,
+     "median_bps": -12.99333607952781,
+     "hit_rate": 0.4834971395041807,
+     "weekly_t_nw": -0.7572212742311116,
+     "n_weeks": 51,
+     "mean_bps_without_top5pct": -75.3396024786393
+    }
+   },
+   "train_2x_costs_mean_bps": -66.66745165653619
+  },
+  "EAP_n3_pre": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 13240,
+     "mean_bps": -11.485192631055645,
+     "median_bps": -14.302647083976163,
+     "hit_rate": 0.4726586102719033,
+     "weekly_t_nw": -1.728372666620328,
+     "n_weeks": 103,
+     "mean_bps_without_top5pct": -60.194343524056514
+    },
+    "VALIDATION": {
+     "n_events": 6807,
+     "mean_bps": -23.070191716570147,
+     "median_bps": -13.278647366326894,
+     "hit_rate": 0.4783311297194065,
+     "weekly_t_nw": -2.9455494282895707,
+     "n_weeks": 52,
+     "mean_bps_without_top5pct": -68.13962063728962
+    }
+   },
+   "train_2x_costs_mean_bps": -33.01495093921274
+  },
+  "EAP_n3_through": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 13236,
+     "mean_bps": -9.259070996257572,
+     "median_bps": -28.42384388243967,
+     "hit_rate": 0.47589906316107583,
+     "weekly_t_nw": -1.7621132995766622,
+     "n_weeks": 103,
+     "mean_bps_without_top5pct": -114.14799017310037
+    },
+    "VALIDATION": {
+     "n_events": 6805,
+     "mean_bps": -10.597117389334036,
+     "median_bps": 11.876575161039556,
+     "hit_rate": 0.5106539309331374,
+     "weekly_t_nw": -1.6431463934170465,
+     "n_weeks": 52,
+     "mean_bps_without_top5pct": -125.66825589664384
+    }
+   },
+   "train_2x_costs_mean_bps": -30.78702506092968
+  },
+  "EAP_n5_pre": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 13268,
+     "mean_bps": 1.6064163863615508,
+     "median_bps": -14.985287827979304,
+     "hit_rate": 0.48281579740729574,
+     "weekly_t_nw": -0.3562700841214153,
+     "n_weeks": 103,
+     "mean_bps_without_top5pct": -70.44427201581021
+    },
+    "VALIDATION": {
+     "n_events": 6809,
+     "mean_bps": -10.661525186552803,
+     "median_bps": 11.724178186427121,
+     "hit_rate": 0.51299750330445,
+     "weekly_t_nw": -0.7555817317763656,
+     "n_weeks": 51,
+     "mean_bps_without_top5pct": -71.49682083044706
+    }
+   },
+   "train_2x_costs_mean_bps": -19.92825349606232
+  },
+  "EAP_n5_through": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 13264,
+     "mean_bps": 1.5897052657391335,
+     "median_bps": -17.348940423585578,
+     "hit_rate": 0.4853739445114596,
+     "weekly_t_nw": -0.7783930835867803,
+     "n_weeks": 103,
+     "mean_bps_without_top5pct": -114.62010859201087
+    },
+    "VALIDATION": {
+     "n_events": 6807,
+     "mean_bps": 1.5696270749185592,
+     "median_bps": 36.299787605750204,
+     "hit_rate": 0.5216688702805935,
+     "weekly_t_nw": 0.19108811928788413,
+     "n_weeks": 51,
+     "mean_bps_without_top5pct": -114.78985967932704
+    }
+   },
+   "train_2x_costs_mean_bps": -19.94316566309078
+  }
+ },
+ "selected": "EAP_n5_pre",
+ "oos": {
+  "selected": "EAP_n5_pre",
+  "n_events": 14775,
+  "mean_bps": -11.86929873594896,
+  "median_bps": -22.068082160065142,
+  "hit_rate": 0.46883248730964466,
+  "weekly_t_nw": -0.49927606198609314,
+  "n_weeks": 103,
+  "mean_bps_without_top5pct": -64.30590316511092,
+  "oos_2x_costs_mean_bps": -33.432344421228144,
+  "oos_rerun_reason": "first run used equity splits (TRAIN 2016-19, no calendar): the recorded OOS spec had 0 events, so no OOS returns were ever observed; rerun on calendar splits"
+ },
+ "bh_train_rejections": 0,
+ "classification": "E",
+ "classification_reason": "no significant net edge in development; OOS t -0.50",
+ "evidence": {
+  "data_ok": true,
+  "dev_t_net": -0.7555817317763656,
+  "dev_t_gross": null,
+  "oos_t_net": -0.49927606198609314,
+  "oos_mean_net": -0.0011869298735948958,
+  "oos_years_positive_frac": null,
+  "deflated_sharpe_prob": null,
+  "spa_p": null,
+  "pbo": null,
+  "survives_2x_costs": false,
+  "survives_top5_removal": false,
+  "regime_conditional_pass": null
+ }
+}

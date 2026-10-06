@@ -1,0 +1,170 @@
+{
+ "sig_no_iv|liquid=False|TRAIN": {
+  "long_top": [
+   0.123,
+   0.85
+  ],
+  "short_bottom": [
+   -0.188,
+   -3.84
+  ],
+  "ls": [
+   -0.033,
+   -0.58
+  ]
+ },
+ "sig_no_iv|liquid=False|VALIDATION": {
+  "long_top": [
+   -0.166,
+   -3.02
+  ],
+  "short_bottom": [
+   -0.175,
+   -7.76
+  ],
+  "ls": [
+   -0.17,
+   -7.79
+  ]
+ },
+ "sig_no_iv|liquid=False|OOS": {
+  "long_top": [
+   -0.144,
+   -4.49
+  ],
+  "short_bottom": [
+   -0.279,
+   -9.51
+  ],
+  "ls": [
+   -0.212,
+   -14.88
+  ]
+ },
+ "sig_no_iv|liquid=True|TRAIN": {
+  "long_top": [
+   0.015,
+   0.12
+  ],
+  "short_bottom": [
+   -0.079,
+   -1.3
+  ],
+  "ls": [
+   -0.032,
+   -0.82
+  ]
+ },
+ "sig_no_iv|liquid=True|VALIDATION": {
+  "long_top": [
+   0.02,
+   0.36
+  ],
+  "short_bottom": [
+   0.039,
+   1.29
+  ],
+  "ls": [
+   0.03,
+   1.1
+  ]
+ },
+ "sig_no_iv|liquid=True|OOS": {
+  "long_top": [
+   -0.032,
+   -0.93
+  ],
+  "short_bottom": [
+   -0.022,
+   -0.97
+  ],
+  "ls": [
+   -0.027,
+   -1.66
+  ]
+ },
+ "sig_with_iv|liquid=False|TRAIN": {
+  "long_top": [
+   0.081,
+   0.6
+  ],
+  "short_bottom": [
+   -0.159,
+   -2.91
+  ],
+  "ls": [
+   -0.039,
+   -0.83
+  ]
+ },
+ "sig_with_iv|liquid=False|VALIDATION": {
+  "long_top": [
+   -0.175,
+   -3.4
+  ],
+  "short_bottom": [
+   -0.146,
+   -6.36
+  ],
+  "ls": [
+   -0.16,
+   -7.81
+  ]
+ },
+ "sig_with_iv|liquid=False|OOS": {
+  "long_top": [
+   -0.151,
+   -4.91
+  ],
+  "short_bottom": [
+   -0.251,
+   -9.74
+  ],
+  "ls": [
+   -0.201,
+   -14.98
+  ]
+ },
+ "sig_with_iv|liquid=True|TRAIN": {
+  "long_top": [
+   0.015,
+   0.13
+  ],
+  "short_bottom": [
+   -0.049,
+   -0.69
+  ],
+  "ls": [
+   -0.017,
+   -0.64
+  ]
+ },
+ "sig_with_iv|liquid=True|VALIDATION": {
+  "long_top": [
+   0.012,
+   0.21
+  ],
+  "short_bottom": [
+   0.008,
+   0.19
+  ],
+  "ls": [
+   0.01,
+   0.37
+  ]
+ },
+ "sig_with_iv|liquid=True|OOS": {
+  "long_top": [
+   -0.033,
+   -1.13
+  ],
+  "short_bottom": [
+   -0.027,
+   -1.33
+  ],
+  "ls": [
+   -0.03,
+   -2.45
+  ]
+ }
+}

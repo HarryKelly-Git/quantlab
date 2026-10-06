@@ -111,13 +111,13 @@ def h20_events(d, cal: pd.DataFrame, n_before: int, window: str) -> pd.DataFrame
     return e[inu]
 
 
-def summarize_events(d, e: pd.DataFrame, ret: pd.Series, date_col: str = "entry") -> dict:
+def summarize_events(d, e: pd.DataFrame, ret: pd.Series, date_col: str = "entry", dataset: str = "calendar") -> dict:
     from quantlab.alpha import splits
     from quantlab.validation.stats import newey_west_tstat
     out = {}
     x = pd.DataFrame({"r": ret, "dt": pd.to_datetime(e[date_col])}).dropna()
     for sp in ("TRAIN", "VALIDATION", "OOS"):
-        a, b = splits.window("equity", sp)
+        a, b = splits.window(dataset, sp)
         xs = x[(x["dt"] >= a) & (x["dt"] <= b)]
         if len(xs) < 30:
             out[sp] = {"n_events": int(len(xs))}
@@ -206,7 +206,7 @@ def straddle_events(d, cal: pd.DataFrame, k_back: int, placebo_shift: int = 0) -
 
 
 # --- runners ---------------------------------------------------------------------------------------
-def _event_family(d, family: str, hid: str, variants: dict, date_col: str = "entry") -> dict:
+def _event_family(d, family: str, hid: str, variants: dict, date_col: str = "entry", oos_rerun_reason: str | None = None) -> dict:
     """variants: name -> (spec, events DataFrame, returns Series, returns at 2x costs). Selection on TRAIN
     mean; OOS reported once for the selected variant; every variant is a trial (ledger)."""
     import math
@@ -232,7 +232,10 @@ def _event_family(d, family: str, hid: str, variants: dict, date_col: str = "ent
     full = summarize_events(d, ev, r, date_col)
     full2 = summarize_events(d, ev, r2, date_col)
     oos = {"selected": best, **full.get("OOS", {}), "oos_2x_costs_mean_bps": full2.get("OOS", {}).get("mean_bps")}
-    registry.append_run(hypothesis_id=hid, family=family, spec={"variant": best, **spec}, split="OOS", metrics=oos, data=d.manifest)
+    if oos_rerun_reason:
+        oos["oos_rerun_reason"] = oos_rerun_reason
+    registry.append_run(hypothesis_id=hid, family=family, spec={"variant": best, **spec}, split="OOS", metrics=oos, data=d.manifest,
+                        new_variant_ok=bool(oos_rerun_reason))
     rej, adj = benjamini_hochberg(pv, 0.05)
     tr = full.get("TRAIN", {}); va = full.get("VALIDATION", {}); oo = full.get("OOS", {})
     ev_ = registry.Evidence(
@@ -244,6 +247,7 @@ def _event_family(d, family: str, hid: str, variants: dict, date_col: str = "ent
         survives_top5_removal=(oo.get("mean_bps_without_top5pct") or -1) > 0)
     cls, why = registry.classify(ev_)
     out = {"family": family, "variants": res, "selected": best, "oos": oos, "bh_train_rejections": int(np.sum(rej)),
+           "evidence": ev_.__dict__,
            "classification": cls, "classification_reason": why + " (event study: DSR/SPA not applicable; BH across variants on TRAIN)"}
     from quantlab.alpha.experiment import RESULTS
     import json
@@ -253,6 +257,7 @@ def _event_family(d, family: str, hid: str, variants: dict, date_col: str = "ent
 
 
 def run_h20(d, cal: pd.DataFrame | None = None) -> dict:
+    """EAP n=1 'pre' is empty by construction (entry would be at/after the last pre-announcement close)."""
     cal = clean_calendar(d) if cal is None else cal
     variants = {}
     for n in (1, 3, 5):
@@ -262,7 +267,9 @@ def run_h20(d, cal: pd.DataFrame | None = None) -> dict:
                     "hedge": "beta x SPY", "costs": "tier, both sides", "calendar": "DoltHub, PIT_ASSUMED 2020-24"}
             variants[f"EAP_n{n}_{window}"] = (spec, ev, event_returns(d, ev, "entry", "exit"),
                                               event_returns(d, ev, "entry", "exit", cost_mult=2.0))
-    return _event_family(d, "H20_earnings_announcement_premium", "H20", variants)
+    return _event_family(d, "H20_earnings_announcement_premium", "H20", variants,
+                         oos_rerun_reason="first run used equity splits (TRAIN 2016-19, no calendar): the recorded OOS spec "
+                                          "had 0 events, so no OOS returns were ever observed; rerun on calendar splits")
 
 
 def surprise_events(d, cal: pd.DataFrame) -> pd.DataFrame:
@@ -313,7 +320,9 @@ def run_h21(d, cal: pd.DataFrame | None = None) -> dict:
                 "exit": f"close after {hold} sessions", "position": "long top decile, short bottom decile (beta-hedged)",
                 "costs": "tier both sides", "data": "eps_history reported vs estimate (PIT_ASSUMED)"}
         variants[f"SUE_hold{hold}"] = (spec, ev_h[sel], rr, rr2)
-    return _event_family(d, "H21_eps_surprise_drift", "H21", variants)
+    return _event_family(d, "H21_eps_surprise_drift", "H21", variants,
+                         oos_rerun_reason="first run used equity splits; it DID show OOS 2022-24 for SUE_hold21 once "
+                                          "(mean +89.6 bps, weekly t -0.01, -228 bps without the top 5%): CONTAMINATED, reported as such")
 
 
 # --- H23 analyst revision momentum (cross-sectional, daily) --------------------------------------------

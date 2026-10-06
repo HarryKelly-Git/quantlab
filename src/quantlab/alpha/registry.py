@@ -156,6 +156,8 @@ def classify(e: Evidence) -> tuple[str, str]:
         if e.regime_conditional_pass:
             return "C", "unconditional fails; a pre-specified regime split passes in development" + oos_note
         if e.dev_t_net is not None and 1.0 <= e.dev_t_net < 2.0:
+            if e.survives_top5_removal is False:
+                return "E", "development t between 1 and 2 but the result depends on the top 5% of trades" + oos_note
             return "B", "development t between 1 and 2" + oos_note
         return "E", "no significant net edge in development" + oos_note
     if e.oos_t_net is None:

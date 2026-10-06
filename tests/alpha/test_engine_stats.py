@@ -151,6 +151,8 @@ def test_permutation_shuffle_keeps_rows():
 def test_splits_are_pinned_and_holdout_is_unreachable():
     assert splits.SPLITS["equity"]["OOS"] == ("2022-01-01", "2024-12-31")
     assert splits.SPLITS["equity"]["HOLDOUT"][0] == "2025-01-01"
+    assert splits.SPLITS["calendar"]["TRAIN"] == ("2020-01-01", "2021-12-31")
+    assert splits.SPLITS["calendar"]["OOS"] == ("2023-01-01", "2024-12-31")
     s = pd.Series(1.0, index=pd.bdate_range("2015-06-01", "2024-12-31"))
     assert splits.slice_split(s, "equity", "TRAIN").index.min() >= pd.Timestamp("2016-01-01")
     with pytest.raises(splits.HoldoutAccessError):
@@ -176,6 +178,8 @@ def test_registry_oos_once_and_classification(tmp_path, monkeypatch):
     assert registry.classify(E(True, -0.3, 0.9, -1.1, -0.001, 0.0, 0.1, 1.0, 0.15, False, False))[0] == "E"
     assert registry.classify(E(True, -0.3, 0.9, 3.0, 0.001, 1.0, 0.1, 1.0, 0.15, True, True))[0] == "E"
     assert registry.classify(E(True, 2.5, 3.0, None, None, None, 0.97, 0.01, 0.2, True, True))[0] == "B"
+    # dev t in [1, 2) but carried by the top 5% of trades -> not "promising"
+    assert registry.classify(E(True, 1.3, 1.5, -0.4, 0.0004, None, None, None, None, False, False))[0] == "E"
 
 
 def test_intraday_roundtrip_costs():

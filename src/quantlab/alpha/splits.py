@@ -7,6 +7,8 @@ EQUITY (Alpaca SIP daily, survivorship-free, 2016-01 .. 2024-12 in the store):
   OOS         2022-01-01 .. 2024-12-31   ONE evaluation per locked spec (registry enforces)
   HOLDOUT     2025-01-01 ..              NOT in the store at all; needs a separate download + unlock
 
+CALENDAR (DoltHub earnings calendar, 2020-2024): TRAIN 2020-2021, VALIDATION 2022, OOS 2023-2024.
+
 OPTIONS (DoltHub chains: weekly 2019, Mon/Wed/Fri 2020-2024):
   TRAIN       2019-02-01 .. 2021-12-31
   VALIDATION  2022-01-01 .. 2022-12-31
@@ -26,6 +28,10 @@ SPLITS: dict[str, dict[str, tuple[str, str | None]]] = {
                "OOS": ("2022-01-01", "2024-12-31"), "HOLDOUT": ("2025-01-01", None)},
     "options": {"TRAIN": ("2019-02-01", "2021-12-31"), "VALIDATION": ("2022-01-01", "2022-12-31"),
                 "OOS": ("2023-01-01", "2024-12-31"), "HOLDOUT": ("2025-01-01", None)},
+    # earnings-calendar studies: the DoltHub calendar starts 2020-01-22 (added after the first H20/H21 run
+    # applied the equity splits, whose TRAIN 2016-2019 has no calendar at all - see the alpha report)
+    "calendar": {"TRAIN": ("2020-01-01", "2021-12-31"), "VALIDATION": ("2022-01-01", "2022-12-31"),
+                 "OOS": ("2023-01-01", "2024-12-31"), "HOLDOUT": ("2025-01-01", None)},
 }
 DEVELOPMENT = ("TRAIN", "VALIDATION")
 

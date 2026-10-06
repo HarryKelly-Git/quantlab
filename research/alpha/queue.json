@@ -7,13 +7,13 @@
   "hypothesis": "Current-listings-only data flattered past long-only results",
   "data_required": "store",
   "priority": 1,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 1,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "Survivors-only universe overstates long-only CAGR by +1.2pp (EW), +1.3pp (12-1 mom), +2.4pp (5d losers), +5.3pp (high vol), 2016-24; delisting-return assumption moves <0.15pp; pre-2017-10 delistings still partly missing (true bias larger)",
+  "classification": "FINDING",
+  "confidence": "high",
+  "next_action": "use the survivorship-free store for every future long-only test"
  },
  {
   "id": "H33",
@@ -23,13 +23,13 @@
   "hypothesis": "QuantLab's forecast of realised movement is more accurate than ATM IV, and the error predicts straddle returns",
   "data_required": "store+chain",
   "priority": 2,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 2,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "QuantLab's RV forecast beats raw IV overall (OOS MSE 0.123 vs 0.197) and adds information beyond IV even in liquid options (encompassing t 12.7), but IV alone wins among liquid options in 2023-24 (0.091 debiased vs 0.123); every realistic straddle book (ask in, bid out / intrinsic) loses after spreads",
+  "classification": "D",
+  "confidence": "high",
+  "next_action": "the ONE answer to Part 49: QuantLab has incremental volatility information but not enough to pay option spreads; revisit only with cheaper execution (mid fills) or a longer-dated / less spread-intensive structure"
  },
  {
   "id": "H24",
@@ -39,13 +39,13 @@
   "hypothesis": "Straddles on stocks with HV>>IV beat straddles with HV<<IV",
   "data_required": "chain",
   "priority": 3,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 3,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "HV-IV decile ranking monotonic in the full universe, but largely an illiquidity artefact; in liquid options (spread<=10%) long-top/short-bottom loses -4%/trade OOS (t -2.2)",
+  "classification": "D",
+  "confidence": "high",
+  "next_action": "retire as tradeable; keep as a description of option richness"
  },
  {
   "id": "H01",
@@ -55,13 +55,13 @@
   "hypothesis": "Recent relative losers outperform recent winners over the next days, net of costs, market-neutral",
   "data_required": "store",
   "priority": 4,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 4,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "160 variants: no variant positive net in TRAIN; best TRAIN Sharpe -0.10; OOS 2022-24 -31% (Sharpe -0.55); costs (turnover 0.2-1.5/day) exceed the 0-4 bps/day gross",
+  "classification": "E",
+  "confidence": "high",
+  "next_action": "retire; only a low-turnover large-cap version could change this and the literature says it decayed after 2011"
  },
  {
   "id": "H26",
@@ -71,13 +71,13 @@
   "hypothesis": "ATM straddles bought 1-5 days before earnings and sold before the announcement earn positive returns",
   "data_required": "chain+calendar",
   "priority": 5,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 5,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "pre-earnings straddle: mid-to-mid +1.7-2.4% but the non-earnings placebo earns the same; paying spreads (11-15% each side) -30% per trade, hit rate 4-6%",
+  "classification": "E",
+  "confidence": "high",
+  "next_action": "retire; published effect not reproduced as event-specific"
  },
  {
   "id": "H25",
@@ -87,13 +87,13 @@
   "hypothesis": "Implied expected moves systematically mis-state realised moves in identifiable buckets",
   "data_required": "chain+store",
   "priority": 6,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 6,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "realised/expected move averages 0.82-1.05 (median 0.64-0.85); earnings windows ~fair (0.93-1.00); high-IV non-earnings most overpriced (0.82) but short vol at the bid loses after spreads",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "the only premium is in high-IV non-earnings names; needs sub-spread execution"
  },
  {
   "id": "H27",
@@ -103,13 +103,13 @@
   "hypothesis": "Past straddle returns predict future straddle returns beyond underlying momentum",
   "data_required": "chain",
   "priority": 7,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 7,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "option momentum: monotonic deciles in the full universe, flat among liquid options; L/S liquid OOS -4.1% (t -3.0)",
+  "classification": "D",
+  "confidence": "medium",
+  "next_action": "retire as tradeable"
  },
  {
   "id": "H28",
@@ -119,13 +119,13 @@
   "hypothesis": "Term-structure slope predicts straddle returns / realised vol",
   "data_required": "chain",
   "priority": 8,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 8,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "term slope: TRAIN t 1.2 (weak); OOS pattern driven by illiquid names; not tradeable after spreads",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "retire"
  },
  {
   "id": "H29",
@@ -135,13 +135,13 @@
   "hypothesis": "Steep put skew predicts low stock returns and relative option returns",
   "data_required": "chain+store",
   "priority": 9,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 9,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "skew: no straddle-return or next-21d stock-return predictability (OOS t 0.8)",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "retire"
  },
  {
   "id": "H04",
@@ -151,13 +151,13 @@
   "hypothesis": "Residual (market/sector-neutral) momentum predicts relative returns more robustly than raw momentum",
   "data_required": "store+FF",
   "priority": 10,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 10,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "16 variants; best TRAIN t 0.93, VAL -0.08, OOS t 0.62; PBO 0.55",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "retire as stand-alone"
  },
  {
   "id": "H03",
@@ -167,13 +167,13 @@
   "hypothesis": "Some momentum definition/condition predicts relative returns net of costs",
   "data_required": "store",
   "priority": 11,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 11,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "40 variants; best (12-1 in strong breadth) TRAIN t 1.89, VAL -0.09, OOS Sharpe 0.58 t 0.99; SPA p 0.32, DSR ~0",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "forward-track 12-1 momentum as a portfolio component only; no stand-alone edge"
  },
  {
   "id": "H06",
@@ -199,13 +199,13 @@
   "hypothesis": "Close->open or open->close conditional books earn net returns",
   "data_required": "store+calendar",
   "priority": 13,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 13,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "intraday gap reversal: gross +8-10 bps/day (t 2.9) in development; trades ~4x book/day so costs make it -44 bps/day; OOS -99%",
+  "classification": "D",
+  "confidence": "high",
+  "next_action": "only viable with sub-2bp execution, which this account does not have"
  },
  {
   "id": "H16",
@@ -215,13 +215,13 @@
   "hypothesis": "Stocks with extreme max daily returns underperform",
   "data_required": "store",
   "priority": 14,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 14,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "TRAIN t 0.05, VAL -0.62; OOS raw t 0.26 (beta -1.19), beta-adjusted alpha t 1.29",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "retire; any beta-neutral redesign needs forward data (OOS already seen)"
  },
  {
   "id": "H17",
@@ -231,13 +231,13 @@
   "hypothesis": "High idiosyncratic-vol stocks underperform",
   "data_required": "store",
   "priority": 15,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 15,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "TRAIN t 0.20, VAL -0.72; OOS raw t 0.54 (beta -1.11), beta-adjusted alpha t 1.52",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "retire; beta-neutral low-vol book is a forward-test candidate only"
  },
  {
   "id": "H30",
@@ -247,13 +247,13 @@
   "hypothesis": "IV percentile and IV changes predict option returns",
   "data_required": "chain",
   "priority": 16,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 16,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "IV percentile / IV change: full-universe spreads are illiquidity artefacts; liquid L/S OOS -1.6% (t -1.3)",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "retire"
  },
  {
   "id": "H20",
@@ -263,13 +263,13 @@
   "hypothesis": "Stocks earn abnormal returns in the days before scheduled announcements",
   "data_required": "store+calendar",
   "priority": 17,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 17,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "earnings announcement premium (calendar era): best TRAIN +1.6 bps t -0.36, VAL -10.7, OOS -11.9 bps t -0.5",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "retire"
  },
  {
   "id": "H21",
@@ -279,13 +279,13 @@
   "hypothesis": "Post-announcement drift in the direction of the EPS surprise",
   "data_required": "eps_history+calendar",
   "priority": 18,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 18,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "SUE drift: TRAIN +100-200 bps/event but t 1.4-2.2 and negative without the top 5% of trades; OOS t -0.45 (OOS for hold21 seen once by a split bug - disclosed)",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "retire"
  },
  {
   "id": "H23",
@@ -295,13 +295,13 @@
   "hypothesis": "Consensus EPS revisions predict returns",
   "data_required": "eps_estimate",
   "priority": 19,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 19,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "revision momentum: TRAIN t -0.89, VAL -0.05, OOS t 0.45, PBO 0.60",
+  "classification": "E",
+  "confidence": "medium",
+  "next_action": "retire with this data; vendor estimate history before 2021-04 is archive-imported"
  },
  {
   "id": "H09",
@@ -311,13 +311,13 @@
   "hypothesis": "Calendar effects survive OOS",
   "data_required": "store+calendars",
   "priority": 20,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 20,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "13 SPY calendar effects: none survives BH (min q 0.82); pre-FOMC +14 bps and NFP-Friday +13 bps consistently positive but t<0.7; costs ~14 bps round trip",
+  "classification": "E",
+  "confidence": "high",
+  "next_action": "retire"
  },
  {
   "id": "H10",
@@ -391,13 +391,13 @@
   "hypothesis": "First 30 minutes predicts the last 30 minutes",
   "data_required": "SPY minute bars",
   "priority": 25,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 25,
   "compute": "medium",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "SPY/QQQ first half-hour vs last half-hour: |t|<1.3 in every split, slope ~0 except 2020-21",
+  "classification": "E",
+  "confidence": "high",
+  "next_action": "retire"
  },
  {
   "id": "H15",
