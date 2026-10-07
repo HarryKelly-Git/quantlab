@@ -109,3 +109,20 @@ point-in-time for a bot that enters at the t+1 open.
 
 Thresholds are not tuned. Changing one creates a new labelled variant whose result is reported next to
 the original.
+
+## Amendment 1 (2026-10-07, before any outcome was computed)
+
+**Why.** The build step showed that the registered SECTOR-WIDE rule (>= 3 other same-sector stocks up
+>= +5% on t) tags 15,466 of 18,266 UP events (85%), with 953,857 laggard rows. Each statistical sector has
+about 170 names, so 3 or more +5% stocks on a day is ordinary. The rule does not isolate theme days like
+2026-10-06, when XLU rose 3.0% against SPY's 0.5%. Only the classification balance had been seen; no
+return was.
+
+**What stays.** E2a and E2b are kept exactly as registered.
+
+**What is added.** A labelled variant, reported next to the original:
+
+| Variant | Definition |
+|---|---|
+| E2a-v2 THEME | The event stock's statistical-sector ETF (the sector label is the ETF) returned >= +2% on t |
+| E2b-v2 | Laggard peers on THEME days: same-sector liquid stocks <= +1% on t |
