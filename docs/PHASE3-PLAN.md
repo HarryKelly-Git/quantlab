@@ -1,5 +1,9 @@
 # Phase 3: convert the information QuantLab has into a tradeable advantage
 
+> **Status (2026-10-07):** items 3-7 were run as the one-week alpha sprint
+> ([pre-registration](ALPHA-SPRINT-PREREG.md), [final report](ALPHA-SPRINT-FINAL.md)). No edge survived. Item 2
+> (bot-database analysis) is still waiting for Harry's export.
+
 Baseline truth: [ALPHA-DISCOVERY-REPORT-2026-10.md](ALPHA-DISCOVERY-REPORT-2026-10.md), corrected after two audits.
 Old hypotheses are not reopened. Rules change only with a documented reason. The 2025+ holdout stays
 sealed. PAPER ONLY.
