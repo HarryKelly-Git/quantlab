@@ -1,0 +1,3040 @@
+{
+ "rule": "disable (strategy, label value) when TRAIN+VAL mean net trade return < 0 with date-clustered t <= -2 and >= 100 trades; applied once to OOS",
+ "cells": [
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "trend",
+   "value": "down",
+   "n": 73,
+   "mean_net": -0.023496526620522765,
+   "t": -1.533436559254328
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "trend",
+   "value": "up",
+   "n": 604,
+   "mean_net": 0.002943302021448207,
+   "t": 0.44579627266848126
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "calm",
+   "n": 248,
+   "mean_net": -0.004405951505029818,
+   "t": -0.5217418171893545
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "normal",
+   "n": 221,
+   "mean_net": 0.0016327912715127788,
+   "t": 0.20324231480391258
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 208,
+   "mean_net": 0.0038189282687482004,
+   "t": 0.25617841944918934
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "high",
+   "n": 199,
+   "mean_net": -0.005366356279216213,
+   "t": -0.4598856972122364
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "low",
+   "n": 249,
+   "mean_net": 0.008518104261456367,
+   "t": 0.7295366434333825
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "mid",
+   "n": 147,
+   "mean_net": -0.00830004619308446,
+   "t": -0.7521877038152008
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "high",
+   "n": 213,
+   "mean_net": -0.007353053715381285,
+   "t": -0.8778610944569715
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "low",
+   "n": 220,
+   "mean_net": -0.006180069505505672,
+   "t": -0.4787905161881006
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "mid",
+   "n": 127,
+   "mean_net": 0.03007472981367985,
+   "t": 1.7343926280101982
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "neg",
+   "n": 101,
+   "mean_net": -0.009394671448313343,
+   "t": -0.7359371037353686
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "pos",
+   "n": 576,
+   "mean_net": 0.0017558503366947953,
+   "t": 0.25695645651788407
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 320,
+   "mean_net": -0.006890158145086628,
+   "t": -0.9831577828878406
+  },
+  {
+   "strategy": "breakout",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 357,
+   "mean_net": 0.006351144493233268,
+   "t": 0.6533309858280356
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 89,
+   "mean_net": -0.012478259634890703,
+   "t": -0.9728412769633451
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 149,
+   "mean_net": -0.0016295678419427923,
+   "t": -0.1302258147500954
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 85,
+   "mean_net": -0.008420808252370595,
+   "t": -0.477056499980861
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 64,
+   "mean_net": -0.0009776197455498448,
+   "t": -0.05853945273303679
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 89,
+   "mean_net": -0.006461060121214137,
+   "t": -0.48154428249320913
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 66,
+   "mean_net": -0.0063847261072670514,
+   "t": -0.4006306081388596
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 108,
+   "mean_net": -0.012663087357551117,
+   "t": -0.979464336054865
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 64,
+   "mean_net": 0.00680679127719371,
+   "t": 0.332048768460896
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 106,
+   "mean_net": -0.01205107713161697,
+   "t": -0.929496516992437
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 67,
+   "mean_net": -0.02038981959680302,
+   "t": -1.1074274216413917
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 65,
+   "mean_net": 0.019848636507422336,
+   "t": 1.1458617520983563
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 87,
+   "mean_net": -0.020986991611852874,
+   "t": -1.6635851473367647
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 151,
+   "mean_net": 0.00312912287600299,
+   "t": 0.2525176841959594
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 68,
+   "mean_net": 0.022424185329877284,
+   "t": 1.2924667964722485
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 170,
+   "mean_net": -0.016930678343449437,
+   "t": -1.5852195547328634
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "trend",
+   "value": "down",
+   "n": 157,
+   "mean_net": -0.0020519325605533323,
+   "t": -0.1659024076927073
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "trend",
+   "value": "up",
+   "n": 1949,
+   "mean_net": -0.002089220869708416,
+   "t": -1.1046155037336383
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "calm",
+   "n": 754,
+   "mean_net": -0.00473620800860002,
+   "t": -1.5183609431362826
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "normal",
+   "n": 749,
+   "mean_net": -0.0017752417842343126,
+   "t": -0.5967430016935185
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 603,
+   "mean_net": 0.0008403184872426897,
+   "t": 0.19384347726265144
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "high",
+   "n": 659,
+   "mean_net": -0.004025549172094936,
+   "t": -1.2110203775168846
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "low",
+   "n": 693,
+   "mean_net": 0.0010681987621800847,
+   "t": 0.26228088160977536
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "mid",
+   "n": 511,
+   "mean_net": -0.0014730942292581913,
+   "t": -0.41033597984545017
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "high",
+   "n": 634,
+   "mean_net": 0.0006010124852493323,
+   "t": 0.14907946756141177
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "low",
+   "n": 724,
+   "mean_net": -0.0024566478088289753,
+   "t": -0.7440078980188551
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "mid",
+   "n": 408,
+   "mean_net": -0.0022969902429249784,
+   "t": -0.4944919786369362
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "neg",
+   "n": 240,
+   "mean_net": -0.003976610234718789,
+   "t": -0.5116222403156059
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "pos",
+   "n": 1866,
+   "mean_net": -0.001843332492355876,
+   "t": -0.9231213890682031
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 962,
+   "mean_net": -0.006202944037171643,
+   "t": -2.0369347348318008
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 1144,
+   "mean_net": 0.0013751637034008276,
+   "t": 0.5341254043565826
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 345,
+   "mean_net": 0.008015117511389933,
+   "t": 1.1035385949728191
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 757,
+   "mean_net": -0.003975057563692176,
+   "t": -1.1282165537221407
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 454,
+   "mean_net": -0.005561795234291703,
+   "t": -1.2628792656890717
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 309,
+   "mean_net": -0.0039913667021664705,
+   "t": -0.6162749177025473
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 339,
+   "mean_net": 0.010367210362986497,
+   "t": 1.5221929856228604
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 349,
+   "mean_net": -0.0018237986175901704,
+   "t": -0.39460806827386413
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 405,
+   "mean_net": 0.005654026422600113,
+   "t": 0.8239282840356018
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 348,
+   "mean_net": -0.005451948327297489,
+   "t": -1.0574333304041932
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 407,
+   "mean_net": 0.006824028035981489,
+   "t": 1.1194191979161052
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 371,
+   "mean_net": -0.0035107751447768236,
+   "t": -0.7490345040928607
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 324,
+   "mean_net": -0.005304891562400353,
+   "t": -0.8361337064766285
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 335,
+   "mean_net": 0.0033262553535710494,
+   "t": 0.4397188075509917
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 767,
+   "mean_net": -0.0017707934520622575,
+   "t": -0.5086634000903247
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 336,
+   "mean_net": -0.0016379217004879915,
+   "t": -0.36252390896020303
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 766,
+   "mean_net": 0.0004000504661599427,
+   "t": 0.09117192580092288
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "trend",
+   "value": "down",
+   "n": 199,
+   "mean_net": -0.004582316766985114,
+   "t": -0.6740638696946505
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "trend",
+   "value": "up",
+   "n": 2283,
+   "mean_net": -0.0002853510085657495,
+   "t": -0.21488701330582805
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "calm",
+   "n": 874,
+   "mean_net": -0.003026684251449919,
+   "t": -1.7798630324107394
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "normal",
+   "n": 865,
+   "mean_net": -0.0018681838657925995,
+   "t": -0.7862745837959703
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 743,
+   "mean_net": 0.0036311758956826174,
+   "t": 1.2584244233938549
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "high",
+   "n": 837,
+   "mean_net": -0.0018233813561871334,
+   "t": -0.8903532762789886
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "low",
+   "n": 755,
+   "mean_net": -5.7041483197605386e-05,
+   "t": -0.020693790830052117
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "mid",
+   "n": 621,
+   "mean_net": 0.0019639197421623196,
+   "t": 0.6781886968797683
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "high",
+   "n": 761,
+   "mean_net": 0.0008084520101330016,
+   "t": 0.2822774423017731
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "low",
+   "n": 848,
+   "mean_net": -0.001646401658339078,
+   "t": -0.7291243863352339
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "mid",
+   "n": 497,
+   "mean_net": 0.00036744331468746506,
+   "t": 0.13558700411749705
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "neg",
+   "n": 314,
+   "mean_net": 0.002825307794947671,
+   "t": 0.568757019422944
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "pos",
+   "n": 2168,
+   "mean_net": -0.001130297064944286,
+   "t": -0.8345987064177776
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 1148,
+   "mean_net": -0.0021498614405362527,
+   "t": -1.0526801107307142
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 1334,
+   "mean_net": 0.000678188564130416,
+   "t": 0.384071246279047
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 368,
+   "mean_net": -0.0011131930017827683,
+   "t": -0.3601021708014837
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 879,
+   "mean_net": -0.0006748058262924355,
+   "t": -0.30759796699534864
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 539,
+   "mean_net": -0.0014260347983857358,
+   "t": -0.6211243803511936
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 343,
+   "mean_net": -0.0012902874870485814,
+   "t": -0.3037701285692588
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 365,
+   "mean_net": 0.000570937036768398,
+   "t": 0.17928842693486274
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 405,
+   "mean_net": -0.002510693535515675,
+   "t": -0.929553187194138
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 436,
+   "mean_net": 0.0018274140716275807,
+   "t": 0.49037824713762845
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 406,
+   "mean_net": -0.0019279088653026768,
+   "t": -0.7231050782279996
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 427,
+   "mean_net": -0.003945074095569347,
+   "t": -1.2363581576936709
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 448,
+   "mean_net": 0.0005050324168152534,
+   "t": 0.18583863603626552
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 372,
+   "mean_net": 0.0012244160486767945,
+   "t": 0.3532360122552768
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 351,
+   "mean_net": -0.0008928690588138299,
+   "t": -0.2783530772588255
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 896,
+   "mean_net": -0.0007694333775931424,
+   "t": -0.3562754219049841
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 372,
+   "mean_net": 0.0057835381109913805,
+   "t": 2.043218754432124
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 875,
+   "mean_net": -0.0036048977408638895,
+   "t": -1.6175803438265286
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "trend",
+   "value": "down",
+   "n": 38,
+   "mean_net": 0.09699944927422095,
+   "t": 1.3345771213682678
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "trend",
+   "value": "up",
+   "n": 330,
+   "mean_net": -0.0064445740131805745,
+   "t": -0.29462279083755727
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "calm",
+   "n": 140,
+   "mean_net": -0.012659293830451968,
+   "t": -0.3873067740861824
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "normal",
+   "n": 110,
+   "mean_net": -0.03274124082515088,
+   "t": -0.9313985805801099
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 118,
+   "mean_net": 0.05875514639915827,
+   "t": 1.4110686422043668
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "high",
+   "n": 107,
+   "mean_net": 0.09033450003093207,
+   "t": 1.641692331389087
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "low",
+   "n": 135,
+   "mean_net": -0.030081186892659477,
+   "t": -1.057766929278254
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "mid",
+   "n": 82,
+   "mean_net": -0.05232856648522929,
+   "t": -1.5864632119139135
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "high",
+   "n": 111,
+   "mean_net": 0.07098748013716426,
+   "t": 1.7203321811024903
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "low",
+   "n": 121,
+   "mean_net": -0.06478189597772258,
+   "t": -1.7716925285972256
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "mid",
+   "n": 79,
+   "mean_net": 0.010252025363312864,
+   "t": 0.20160997315342843
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "neg",
+   "n": 53,
+   "mean_net": 0.10352248711270398,
+   "t": 1.8323215537979745
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "pos",
+   "n": 315,
+   "mean_net": -0.012468006885404776,
+   "t": -0.551757774620436
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 161,
+   "mean_net": -0.0004283405414817264,
+   "t": -0.013723242679662791
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 207,
+   "mean_net": 0.007865857368354406,
+   "t": 0.2756598299254644
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 66,
+   "mean_net": 0.0037801261880577265,
+   "t": 0.11488650962325483
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 143,
+   "mean_net": -0.02037556738945148,
+   "t": -0.6960783713614729
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 92,
+   "mean_net": -0.0025932723260717124,
+   "t": -0.06793418663325827
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 56,
+   "mean_net": -0.045284932248165544,
+   "t": -1.1096783253917686
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 61,
+   "mean_net": 0.0018085156002642022,
+   "t": 0.05222677486208453
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 64,
+   "mean_net": -0.016438586883883596,
+   "t": -0.3819039636329273
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 84,
+   "mean_net": 0.005530975275691375,
+   "t": 0.16673904659856248
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 61,
+   "mean_net": -0.03404508476834881,
+   "t": -0.7938787958215175
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 73,
+   "mean_net": -0.019790690055564445,
+   "t": -0.6388869376063548
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 80,
+   "mean_net": -0.015547542726473986,
+   "t": -0.36536963987821736
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 56,
+   "mean_net": 0.0004340354266851904,
+   "t": 0.010328838874240095
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 62,
+   "mean_net": 0.029768396436132077,
+   "t": 0.7899604716888313
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 147,
+   "mean_net": -0.030679308757278503,
+   "t": -1.1013354635397414
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 64,
+   "mean_net": 0.014944505212280891,
+   "t": 0.3190916360438788
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 145,
+   "mean_net": -0.024970111323211922,
+   "t": -1.0010882128346623
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "trend",
+   "value": "down",
+   "n": 48,
+   "mean_net": 0.07531045186485666,
+   "t": 1.3550660800212888
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "trend",
+   "value": "up",
+   "n": 444,
+   "mean_net": -0.00400138757349831,
+   "t": -0.25247728720700063
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "calm",
+   "n": 168,
+   "mean_net": -0.024496752008911056,
+   "t": -1.0606802778451185
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "normal",
+   "n": 171,
+   "mean_net": 0.00670542366315339,
+   "t": 0.284272447768052
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 153,
+   "mean_net": 0.03141903593449477,
+   "t": 0.9474564494975775
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "high",
+   "n": 157,
+   "mean_net": 0.03449724031377887,
+   "t": 1.287707888377198
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "low",
+   "n": 179,
+   "mean_net": 0.011295796367845704,
+   "t": 0.3746537082628445
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "mid",
+   "n": 103,
+   "mean_net": -0.04807346982963297,
+   "t": -1.6934144868577297
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "high",
+   "n": 156,
+   "mean_net": 0.058608866231246635,
+   "t": 1.757002740819462
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "low",
+   "n": 174,
+   "mean_net": -0.0373467008552093,
+   "t": -1.4686504397283984
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "mid",
+   "n": 93,
+   "mean_net": -0.004862444865403727,
+   "t": -0.16206985855225198
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "neg",
+   "n": 69,
+   "mean_net": 0.09252742067108785,
+   "t": 2.1294828015801626
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "pos",
+   "n": 423,
+   "mean_net": -0.010747296499823148,
+   "t": -0.6607708758792901
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 227,
+   "mean_net": 0.013867782796948369,
+   "t": 0.6699967101510319
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 265,
+   "mean_net": -0.0049422682567072,
+   "t": -0.22185221068318364
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 92,
+   "mean_net": -0.038273816559958034,
+   "t": -1.522528989216669
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 209,
+   "mean_net": 0.007253992264501122,
+   "t": 0.2694296979701258
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 125,
+   "mean_net": 0.04817369073013474,
+   "t": 1.2516951168618664
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 91,
+   "mean_net": -0.06078762303457193,
+   "t": -1.9825444415106577
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 85,
+   "mean_net": -0.029354639827720012,
+   "t": -1.0593133688527132
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 88,
+   "mean_net": -0.025115803853813,
+   "t": -0.5981090865516261
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 118,
+   "mean_net": -0.01814739121147372,
+   "t": -0.8209542602105406
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 95,
+   "mean_net": 0.024699749072147774,
+   "t": 0.5748254615840775
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 105,
+   "mean_net": -0.04510770446534133,
+   "t": -1.8810406709617282
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 113,
+   "mean_net": 0.021923730486433816,
+   "t": 0.5650752021236755
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 83,
+   "mean_net": 0.003058080526004995,
+   "t": 0.07553506184168028
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 88,
+   "mean_net": -0.06405065949677959,
+   "t": -2.5073968091431933
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 213,
+   "mean_net": 0.017048597631367148,
+   "t": 0.646397103326145
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 91,
+   "mean_net": -0.004698680630301018,
+   "t": -0.1339750633510304
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 210,
+   "mean_net": -0.007512032394657195,
+   "t": -0.30295707716966735
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "trend",
+   "value": "down",
+   "n": 43,
+   "mean_net": 0.11613234054645795,
+   "t": 1.4770803824634233
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "trend",
+   "value": "up",
+   "n": 353,
+   "mean_net": 0.001325254209268304,
+   "t": 0.058009003820519794
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "calm",
+   "n": 162,
+   "mean_net": -0.01935862284473151,
+   "t": -0.6237193085726175
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "normal",
+   "n": 113,
+   "mean_net": -0.03518021024326787,
+   "t": -1.3364942918446778
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 121,
+   "mean_net": 0.10390881022896836,
+   "t": 1.9534312715240816
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "high",
+   "n": 111,
+   "mean_net": 0.09577522210766126,
+   "t": 1.6199172283021874
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "low",
+   "n": 151,
+   "mean_net": -0.026534669583190153,
+   "t": -0.9565988353568018
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "breadth",
+   "value": "mid",
+   "n": 91,
+   "mean_net": -0.02596618857775925,
+   "t": -0.7047901861694241
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "high",
+   "n": 122,
+   "mean_net": 0.12519324522429864,
+   "t": 2.378139955441652
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "low",
+   "n": 138,
+   "mean_net": -0.05961206610472563,
+   "t": -1.6280674296078137
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "correlation",
+   "value": "mid",
+   "n": 79,
+   "mean_net": -0.04173585208755089,
+   "t": -1.6877702058085504
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "neg",
+   "n": 63,
+   "mean_net": 0.18690599044752157,
+   "t": 2.50657163686127
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "momentum",
+   "value": "pos",
+   "n": 333,
+   "mean_net": -0.018959675732205576,
+   "t": -0.882083025039741
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 183,
+   "mean_net": 0.033776114409386104,
+   "t": 0.9294591654525569
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "DEV",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 213,
+   "mean_net": -0.003378044871118574,
+   "t": -0.12720246166518714
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 69,
+   "mean_net": -0.04186450819329572,
+   "t": -1.2125573578928224
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 167,
+   "mean_net": -0.022445386692561936,
+   "t": -0.7189645761114829
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 93,
+   "mean_net": -0.0033212640492308347,
+   "t": -0.07399368506106875
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 71,
+   "mean_net": -0.02977027394562911,
+   "t": -0.6737177708617034
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 72,
+   "mean_net": -0.05853421717051546,
+   "t": -1.807724152763183
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 76,
+   "mean_net": -0.026664451939356713,
+   "t": -0.5082374799699155
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 102,
+   "mean_net": -0.03718820976157545,
+   "t": -1.2885921975970809
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 58,
+   "mean_net": -0.014091981033162851,
+   "t": -0.2859804491216737
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 87,
+   "mean_net": -0.05411653578931445,
+   "t": -1.56641841806217
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 89,
+   "mean_net": -0.0073485723263101545,
+   "t": -0.1550598356611707
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 60,
+   "mean_net": -0.021247818204721488,
+   "t": -0.5221548953899553
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 72,
+   "mean_net": -0.08482475578702824,
+   "t": -2.4859495048982074
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 164,
+   "mean_net": -0.003229562355665963,
+   "t": -0.1036895487122216
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 76,
+   "mean_net": -0.018442871006688604,
+   "t": -0.43886461725463555
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 160,
+   "mean_net": -0.03272107779054322,
+   "t": -1.1011516979477873
+  }
+ ],
+ "disabled": [
+  {
+   "strategy": "extreme_reversal",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 962,
+   "mean_net": -0.006202944037171643,
+   "t": -2.0369347348318008,
+   "p": 0.04165658273809425,
+   "holm_p": 1.0
+  }
+ ],
+ "n_cells_tested_dev": 90,
+ "OOS_test": {
+  "convention": "corrected delisting (0% for acquisitions)",
+  "with_disable": {
+   "n_days": 753,
+   "total_return": -0.02871504748153153,
+   "cagr": -0.009703107453644888,
+   "vol": 0.08607238779775019,
+   "sharpe": -0.07024563911038424,
+   "sortino": -0.09979957628985421,
+   "max_drawdown": -0.1097396505634276,
+   "calmar": -0.08841933980860146,
+   "worst_month": -0.041236498978571956,
+   "skew_daily": -0.333209234914543,
+   "avg_gross_exposure": 0.3484182472727709,
+   "return_per_unit_exposure": -0.02784902205781572,
+   "n_trades": 437,
+   "mean_net_ret_per_trade": -0.005390261236902721,
+   "hit_rate": 0.4576659038901602,
+   "turnover_trades_per_year": 146.24701195219123
+  },
+  "without": {
+   "n_days": 753,
+   "total_return": -0.009228169957877896,
+   "cagr": -0.003097841624951636,
+   "vol": 0.09096278057823946,
+   "sharpe": 0.011327642556753968,
+   "sortino": 0.017080432550705817,
+   "max_drawdown": -0.11343274421537275,
+   "calmar": -0.027309941643215638,
+   "worst_month": -0.045086228471982626,
+   "skew_daily": -0.07090135103447286,
+   "avg_gross_exposure": 0.3501762288348921,
+   "return_per_unit_exposure": -0.008846521750659057,
+   "n_trades": 468,
+   "mean_net_ret_per_trade": -0.0022088062296675066,
+   "hit_rate": 0.4444444444444444,
+   "turnover_trades_per_year": 156.6215139442231
+  },
+  "sharpe_diff": {
+   "diff": -0.07440861601328258,
+   "ci90": [
+    -0.6655778737405598,
+    0.4827119802598614
+   ],
+   "n_months": 36
+  }
+ },
+ "OOS_verdict": "DOES NOT IMPROVE",
+ "OOS_cells": [
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 89,
+   "mean_net": -0.012478259634890703,
+   "t": -0.9728412769633451
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 149,
+   "mean_net": -0.0016295678419427923,
+   "t": -0.1302258147500954
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 85,
+   "mean_net": -0.008420808252370595,
+   "t": -0.477056499980861
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 64,
+   "mean_net": -0.0009776197455498448,
+   "t": -0.05853945273303679
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 89,
+   "mean_net": -0.006461060121214137,
+   "t": -0.48154428249320913
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 66,
+   "mean_net": -0.0063847261072670514,
+   "t": -0.4006306081388596
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 108,
+   "mean_net": -0.012663087357551117,
+   "t": -0.979464336054865
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 64,
+   "mean_net": 0.00680679127719371,
+   "t": 0.332048768460896
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 106,
+   "mean_net": -0.01205107713161697,
+   "t": -0.929496516992437
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 67,
+   "mean_net": -0.02038981959680302,
+   "t": -1.1074274216413917
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 65,
+   "mean_net": 0.019848636507422336,
+   "t": 1.1458617520983563
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 87,
+   "mean_net": -0.020986991611852874,
+   "t": -1.6635851473367647
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 151,
+   "mean_net": 0.00312912287600299,
+   "t": 0.2525176841959594
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 68,
+   "mean_net": 0.022424185329877284,
+   "t": 1.2924667964722485
+  },
+  {
+   "strategy": "breakout",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 170,
+   "mean_net": -0.016930678343449437,
+   "t": -1.5852195547328634
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 345,
+   "mean_net": 0.008015117511389933,
+   "t": 1.1035385949728191
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 757,
+   "mean_net": -0.003975057563692176,
+   "t": -1.1282165537221407
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 454,
+   "mean_net": -0.005561795234291703,
+   "t": -1.2628792656890717
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 309,
+   "mean_net": -0.0039913667021664705,
+   "t": -0.6162749177025473
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 339,
+   "mean_net": 0.010367210362986497,
+   "t": 1.5221929856228604
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 349,
+   "mean_net": -0.0018237986175901704,
+   "t": -0.39460806827386413
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 405,
+   "mean_net": 0.005654026422600113,
+   "t": 0.8239282840356018
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 348,
+   "mean_net": -0.005451948327297489,
+   "t": -1.0574333304041932
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 407,
+   "mean_net": 0.006824028035981489,
+   "t": 1.1194191979161052
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 371,
+   "mean_net": -0.0035107751447768236,
+   "t": -0.7490345040928607
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 324,
+   "mean_net": -0.005304891562400353,
+   "t": -0.8361337064766285
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 335,
+   "mean_net": 0.0033262553535710494,
+   "t": 0.4397188075509917
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 767,
+   "mean_net": -0.0017707934520622575,
+   "t": -0.5086634000903247
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 336,
+   "mean_net": -0.0016379217004879915,
+   "t": -0.36252390896020303
+  },
+  {
+   "strategy": "extreme_reversal",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 766,
+   "mean_net": 0.0004000504661599427,
+   "t": 0.09117192580092288
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 368,
+   "mean_net": -0.0011131930017827683,
+   "t": -0.3601021708014837
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 879,
+   "mean_net": -0.0006748058262924355,
+   "t": -0.30759796699534864
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 539,
+   "mean_net": -0.0014260347983857358,
+   "t": -0.6211243803511936
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 343,
+   "mean_net": -0.0012902874870485814,
+   "t": -0.3037701285692588
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 365,
+   "mean_net": 0.000570937036768398,
+   "t": 0.17928842693486274
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 405,
+   "mean_net": -0.002510693535515675,
+   "t": -0.929553187194138
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 436,
+   "mean_net": 0.0018274140716275807,
+   "t": 0.49037824713762845
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 406,
+   "mean_net": -0.0019279088653026768,
+   "t": -0.7231050782279996
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 427,
+   "mean_net": -0.003945074095569347,
+   "t": -1.2363581576936709
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 448,
+   "mean_net": 0.0005050324168152534,
+   "t": 0.18583863603626552
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 372,
+   "mean_net": 0.0012244160486767945,
+   "t": 0.3532360122552768
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 351,
+   "mean_net": -0.0008928690588138299,
+   "t": -0.2783530772588255
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 896,
+   "mean_net": -0.0007694333775931424,
+   "t": -0.3562754219049841
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 372,
+   "mean_net": 0.0057835381109913805,
+   "t": 2.043218754432124
+  },
+  {
+   "strategy": "mean_reversion",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 875,
+   "mean_net": -0.0036048977408638895,
+   "t": -1.6175803438265286
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 66,
+   "mean_net": 0.0037801261880577265,
+   "t": 0.11488650962325483
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 143,
+   "mean_net": -0.02037556738945148,
+   "t": -0.6960783713614729
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 92,
+   "mean_net": -0.0025932723260717124,
+   "t": -0.06793418663325827
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 56,
+   "mean_net": -0.045284932248165544,
+   "t": -1.1096783253917686
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 61,
+   "mean_net": 0.0018085156002642022,
+   "t": 0.05222677486208453
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 64,
+   "mean_net": -0.016438586883883596,
+   "t": -0.3819039636329273
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 84,
+   "mean_net": 0.005530975275691375,
+   "t": 0.16673904659856248
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 61,
+   "mean_net": -0.03404508476834881,
+   "t": -0.7938787958215175
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 73,
+   "mean_net": -0.019790690055564445,
+   "t": -0.6388869376063548
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 80,
+   "mean_net": -0.015547542726473986,
+   "t": -0.36536963987821736
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 56,
+   "mean_net": 0.0004340354266851904,
+   "t": 0.010328838874240095
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 62,
+   "mean_net": 0.029768396436132077,
+   "t": 0.7899604716888313
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 147,
+   "mean_net": -0.030679308757278503,
+   "t": -1.1013354635397414
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 64,
+   "mean_net": 0.014944505212280891,
+   "t": 0.3190916360438788
+  },
+  {
+   "strategy": "momentum_trend",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 145,
+   "mean_net": -0.024970111323211922,
+   "t": -1.0010882128346623
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 92,
+   "mean_net": -0.038273816559958034,
+   "t": -1.522528989216669
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 209,
+   "mean_net": 0.007253992264501122,
+   "t": 0.2694296979701258
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 125,
+   "mean_net": 0.04817369073013474,
+   "t": 1.2516951168618664
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 91,
+   "mean_net": -0.06078762303457193,
+   "t": -1.9825444415106577
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 85,
+   "mean_net": -0.029354639827720012,
+   "t": -1.0593133688527132
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 88,
+   "mean_net": -0.025115803853813,
+   "t": -0.5981090865516261
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 118,
+   "mean_net": -0.01814739121147372,
+   "t": -0.8209542602105406
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 95,
+   "mean_net": 0.024699749072147774,
+   "t": 0.5748254615840775
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 105,
+   "mean_net": -0.04510770446534133,
+   "t": -1.8810406709617282
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 113,
+   "mean_net": 0.021923730486433816,
+   "t": 0.5650752021236755
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 83,
+   "mean_net": 0.003058080526004995,
+   "t": 0.07553506184168028
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 88,
+   "mean_net": -0.06405065949677959,
+   "t": -2.5073968091431933
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 213,
+   "mean_net": 0.017048597631367148,
+   "t": 0.646397103326145
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 91,
+   "mean_net": -0.004698680630301018,
+   "t": -0.1339750633510304
+  },
+  {
+   "strategy": "relative_strength",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 210,
+   "mean_net": -0.007512032394657195,
+   "t": -0.30295707716966735
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "trend",
+   "value": "down",
+   "n": 69,
+   "mean_net": -0.04186450819329572,
+   "t": -1.2125573578928224
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "trend",
+   "value": "up",
+   "n": 167,
+   "mean_net": -0.022445386692561936,
+   "t": -0.7189645761114829
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "calm",
+   "n": 93,
+   "mean_net": -0.0033212640492308347,
+   "t": -0.07399368506106875
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "normal",
+   "n": 71,
+   "mean_net": -0.02977027394562911,
+   "t": -0.6737177708617034
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "volatility",
+   "value": "stressed",
+   "n": 72,
+   "mean_net": -0.05853421717051546,
+   "t": -1.807724152763183
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "high",
+   "n": 76,
+   "mean_net": -0.026664451939356713,
+   "t": -0.5082374799699155
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "low",
+   "n": 102,
+   "mean_net": -0.03718820976157545,
+   "t": -1.2885921975970809
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "breadth",
+   "value": "mid",
+   "n": 58,
+   "mean_net": -0.014091981033162851,
+   "t": -0.2859804491216737
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "high",
+   "n": 87,
+   "mean_net": -0.05411653578931445,
+   "t": -1.56641841806217
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "low",
+   "n": 89,
+   "mean_net": -0.0073485723263101545,
+   "t": -0.1550598356611707
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "correlation",
+   "value": "mid",
+   "n": 60,
+   "mean_net": -0.021247818204721488,
+   "t": -0.5221548953899553
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "neg",
+   "n": 72,
+   "mean_net": -0.08482475578702824,
+   "t": -2.4859495048982074
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "momentum",
+   "value": "pos",
+   "n": 164,
+   "mean_net": -0.003229562355665963,
+   "t": -0.1036895487122216
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_off",
+   "n": 76,
+   "mean_net": -0.018442871006688604,
+   "t": -0.43886461725463555
+  },
+  {
+   "strategy": "sector_rotation",
+   "era": "OOS",
+   "label": "risk",
+   "value": "risk_on",
+   "n": 160,
+   "mean_net": -0.03272107779054322,
+   "t": -1.1011516979477873
+  }
+ ],
+ "options_OOS_by_regime": [
+  {
+   "hypothesis": "O1",
+   "label": "trend",
+   "value": "down",
+   "level": "CONSERVATIVE",
+   "n": 3,
+   "mean": 0.045413869004757336,
+   "t": null
+  },
+  {
+   "hypothesis": "O1",
+   "label": "trend",
+   "value": "down",
+   "level": "PESSIMISTIC",
+   "n": 3,
+   "mean": 0.030768358823620463,
+   "t": null
+  },
+  {
+   "hypothesis": "O1",
+   "label": "trend",
+   "value": "up",
+   "level": "CONSERVATIVE",
+   "n": 767,
+   "mean": 0.09965557493227904,
+   "t": 1.4993940306799696
+  },
+  {
+   "hypothesis": "O1",
+   "label": "trend",
+   "value": "up",
+   "level": "PESSIMISTIC",
+   "n": 767,
+   "mean": 0.08192425175158229,
+   "t": 1.2525002981750124
+  },
+  {
+   "hypothesis": "O2",
+   "label": "trend",
+   "value": "down",
+   "level": "CONSERVATIVE",
+   "n": 49,
+   "mean": 0.583905165041176,
+   "t": 2.729401789377695
+  },
+  {
+   "hypothesis": "O2",
+   "label": "trend",
+   "value": "down",
+   "level": "PESSIMISTIC",
+   "n": 49,
+   "mean": 0.5340211239082666,
+   "t": 2.497446100736819
+  },
+  {
+   "hypothesis": "O2",
+   "label": "trend",
+   "value": "up",
+   "level": "CONSERVATIVE",
+   "n": 7102,
+   "mean": 0.10022083373999988,
+   "t": 1.0423281766048678
+  },
+  {
+   "hypothesis": "O2",
+   "label": "trend",
+   "value": "up",
+   "level": "PESSIMISTIC",
+   "n": 7102,
+   "mean": 0.060730405158082874,
+   "t": 0.653709001441831
+  },
+  {
+   "hypothesis": "O1",
+   "label": "volatility",
+   "value": "calm",
+   "level": "CONSERVATIVE",
+   "n": 527,
+   "mean": 0.055935960923821845,
+   "t": 0.805355881324359
+  },
+  {
+   "hypothesis": "O1",
+   "label": "volatility",
+   "value": "calm",
+   "level": "PESSIMISTIC",
+   "n": 527,
+   "mean": 0.03914115067381754,
+   "t": 0.5728037823880547
+  },
+  {
+   "hypothesis": "O1",
+   "label": "volatility",
+   "value": "normal",
+   "level": "CONSERVATIVE",
+   "n": 183,
+   "mean": 0.2579915618730039,
+   "t": 1.5187700449161041
+  },
+  {
+   "hypothesis": "O1",
+   "label": "volatility",
+   "value": "normal",
+   "level": "PESSIMISTIC",
+   "n": 183,
+   "mean": 0.2372319070848967,
+   "t": 1.4173672037258627
+  },
+  {
+   "hypothesis": "O1",
+   "label": "volatility",
+   "value": "stressed",
+   "level": "CONSERVATIVE",
+   "n": 60,
+   "mean": -0.00197732749235889,
+   "t": -0.018494144425664275
+  },
+  {
+   "hypothesis": "O1",
+   "label": "volatility",
+   "value": "stressed",
+   "level": "PESSIMISTIC",
+   "n": 60,
+   "mean": -0.01854365386172442,
+   "t": -0.17785990476800645
+  },
+  {
+   "hypothesis": "O2",
+   "label": "volatility",
+   "value": "calm",
+   "level": "CONSERVATIVE",
+   "n": 4898,
+   "mean": -0.01865458165654435,
+   "t": -0.23903653389120288
+  },
+  {
+   "hypothesis": "O2",
+   "label": "volatility",
+   "value": "calm",
+   "level": "PESSIMISTIC",
+   "n": 4898,
+   "mean": -0.05338297531572347,
+   "t": -0.7069627747909517
+  },
+  {
+   "hypothesis": "O2",
+   "label": "volatility",
+   "value": "normal",
+   "level": "CONSERVATIVE",
+   "n": 1670,
+   "mean": 0.5482766579231775,
+   "t": 2.0912225539324503
+  },
+  {
+   "hypothesis": "O2",
+   "label": "volatility",
+   "value": "normal",
+   "level": "PESSIMISTIC",
+   "n": 1670,
+   "mean": 0.4918692582949438,
+   "t": 1.9415102554899268
+  },
+  {
+   "hypothesis": "O2",
+   "label": "volatility",
+   "value": "stressed",
+   "level": "CONSERVATIVE",
+   "n": 583,
+   "mean": -0.14386305912427994,
+   "t": -0.9938917529697984
+  },
+  {
+   "hypothesis": "O2",
+   "label": "volatility",
+   "value": "stressed",
+   "level": "PESSIMISTIC",
+   "n": 583,
+   "mean": -0.17577611621257871,
+   "t": -1.257725287928131
+  },
+  {
+   "hypothesis": "O1",
+   "label": "breadth",
+   "value": "high",
+   "level": "CONSERVATIVE",
+   "n": 312,
+   "mean": -0.014477655913807449,
+   "t": -0.25227837466413927
+  },
+  {
+   "hypothesis": "O1",
+   "label": "breadth",
+   "value": "high",
+   "level": "PESSIMISTIC",
+   "n": 312,
+   "mean": -0.0306798592219004,
+   "t": -0.545834556817013
+  },
+  {
+   "hypothesis": "O1",
+   "label": "breadth",
+   "value": "low",
+   "level": "CONSERVATIVE",
+   "n": 161,
+   "mean": 0.33930715607859946,
+   "t": 3.13693310194448
+  },
+  {
+   "hypothesis": "O1",
+   "label": "breadth",
+   "value": "low",
+   "level": "PESSIMISTIC",
+   "n": 161,
+   "mean": 0.31827186493646403,
+   "t": 2.9870581469164343
+  },
+  {
+   "hypothesis": "O1",
+   "label": "breadth",
+   "value": "mid",
+   "level": "CONSERVATIVE",
+   "n": 297,
+   "mean": 0.08909307776607976,
+   "t": 0.6946702644138287
+  },
+  {
+   "hypothesis": "O1",
+   "label": "breadth",
+   "value": "mid",
+   "level": "PESSIMISTIC",
+   "n": 297,
+   "mean": 0.07157761613601576,
+   "t": 0.5667897859714185
+  },
+  {
+   "hypothesis": "O2",
+   "label": "breadth",
+   "value": "high",
+   "level": "CONSERVATIVE",
+   "n": 2724,
+   "mean": -0.14436833564432405,
+   "t": -2.0758713609354817
+  },
+  {
+   "hypothesis": "O2",
+   "label": "breadth",
+   "value": "high",
+   "level": "PESSIMISTIC",
+   "n": 2724,
+   "mean": -0.17541264429376802,
+   "t": -2.618039766689266
+  },
+  {
+   "hypothesis": "O2",
+   "label": "breadth",
+   "value": "low",
+   "level": "CONSERVATIVE",
+   "n": 1581,
+   "mean": 0.32599022333173433,
+   "t": 2.205629474027977
+  },
+  {
+   "hypothesis": "O2",
+   "label": "breadth",
+   "value": "low",
+   "level": "PESSIMISTIC",
+   "n": 1581,
+   "mean": 0.2806960758175177,
+   "t": 1.966375887917312
+  },
+  {
+   "hypothesis": "O2",
+   "label": "breadth",
+   "value": "mid",
+   "level": "CONSERVATIVE",
+   "n": 2846,
+   "mean": 0.21723419448916503,
+   "t": 1.1482072038656557
+  },
+  {
+   "hypothesis": "O2",
+   "label": "breadth",
+   "value": "mid",
+   "level": "PESSIMISTIC",
+   "n": 2846,
+   "mean": 0.17270482069323195,
+   "t": 0.9443804677294299
+  },
+  {
+   "hypothesis": "O1",
+   "label": "correlation",
+   "value": "high",
+   "level": "CONSERVATIVE",
+   "n": 24,
+   "mean": -0.28189480834756286,
+   "t": -2.5991201412776164
+  },
+  {
+   "hypothesis": "O1",
+   "label": "correlation",
+   "value": "high",
+   "level": "PESSIMISTIC",
+   "n": 24,
+   "mean": -0.29307683536709767,
+   "t": -2.7487267931293253
+  },
+  {
+   "hypothesis": "O1",
+   "label": "correlation",
+   "value": "low",
+   "level": "CONSERVATIVE",
+   "n": 550,
+   "mean": 0.157939879539634,
+   "t": 1.821630950261482
+  },
+  {
+   "hypothesis": "O1",
+   "label": "correlation",
+   "value": "low",
+   "level": "PESSIMISTIC",
+   "n": 550,
+   "mean": 0.1396409699534015,
+   "t": 1.6364567650594162
+  },
+  {
+   "hypothesis": "O1",
+   "label": "correlation",
+   "value": "mid",
+   "level": "CONSERVATIVE",
+   "n": 196,
+   "mean": -0.01800709574686175,
+   "t": -0.2766075425086739
+  },
+  {
+   "hypothesis": "O1",
+   "label": "correlation",
+   "value": "mid",
+   "level": "PESSIMISTIC",
+   "n": 196,
+   "mean": -0.03490042477360211,
+   "t": -0.5475585795229697
+  },
+  {
+   "hypothesis": "O2",
+   "label": "correlation",
+   "value": "high",
+   "level": "CONSERVATIVE",
+   "n": 190,
+   "mean": -0.39523208753787276,
+   "t": -5.8915936839597105
+  },
+  {
+   "hypothesis": "O2",
+   "label": "correlation",
+   "value": "high",
+   "level": "PESSIMISTIC",
+   "n": 190,
+   "mean": -0.4212557515168483,
+   "t": -6.66868210906599
+  },
+  {
+   "hypothesis": "O2",
+   "label": "correlation",
+   "value": "low",
+   "level": "CONSERVATIVE",
+   "n": 4838,
+   "mean": 0.24379189352021138,
+   "t": 1.9555673009362802
+  },
+  {
+   "hypothesis": "O2",
+   "label": "correlation",
+   "value": "low",
+   "level": "PESSIMISTIC",
+   "n": 4838,
+   "mean": 0.1996274458430821,
+   "t": 1.6566412379910267
+  },
+  {
+   "hypothesis": "O2",
+   "label": "correlation",
+   "value": "mid",
+   "level": "CONSERVATIVE",
+   "n": 2123,
+   "mean": -0.1714514224729581,
+   "t": -2.3012492173650565
+  },
+  {
+   "hypothesis": "O2",
+   "label": "correlation",
+   "value": "mid",
+   "level": "PESSIMISTIC",
+   "n": 2123,
+   "mean": -0.20173557121828573,
+   "t": -2.8247927126472323
+  },
+  {
+   "hypothesis": "O1",
+   "label": "momentum",
+   "value": "neg",
+   "level": "CONSERVATIVE",
+   "n": 52,
+   "mean": 0.07560278706746756,
+   "t": 0.6665580270118279
+  },
+  {
+   "hypothesis": "O1",
+   "label": "momentum",
+   "value": "neg",
+   "level": "PESSIMISTIC",
+   "n": 52,
+   "mean": 0.056098724227378646,
+   "t": 0.5044679508081281
+  },
+  {
+   "hypothesis": "O1",
+   "label": "momentum",
+   "value": "pos",
+   "level": "CONSERVATIVE",
+   "n": 718,
+   "mean": 0.10117092291443451,
+   "t": 1.434401695189843
+  },
+  {
+   "hypothesis": "O1",
+   "label": "momentum",
+   "value": "pos",
+   "level": "PESSIMISTIC",
+   "n": 718,
+   "mean": 0.08358088093330195,
+   "t": 1.2040763188670853
+  },
+  {
+   "hypothesis": "O2",
+   "label": "momentum",
+   "value": "neg",
+   "level": "CONSERVATIVE",
+   "n": 235,
+   "mean": 0.6087273229615161,
+   "t": 3.5716185717687257
+  },
+  {
+   "hypothesis": "O2",
+   "label": "momentum",
+   "value": "neg",
+   "level": "PESSIMISTIC",
+   "n": 235,
+   "mean": 0.5469687008109387,
+   "t": 3.3577176585487476
+  },
+  {
+   "hypothesis": "O2",
+   "label": "momentum",
+   "value": "pos",
+   "level": "CONSERVATIVE",
+   "n": 6916,
+   "mean": 0.0863691141429353,
+   "t": 0.876125256966934
+  },
+  {
+   "hypothesis": "O2",
+   "label": "momentum",
+   "value": "pos",
+   "level": "PESSIMISTIC",
+   "n": 6916,
+   "mean": 0.04756170153464989,
+   "t": 0.49930280342817274
+  },
+  {
+   "hypothesis": "O1",
+   "label": "risk",
+   "value": "risk_off",
+   "level": "CONSERVATIVE",
+   "n": 198,
+   "mean": -0.07340452207167339,
+   "t": -1.0332770130391378
+  },
+  {
+   "hypothesis": "O1",
+   "label": "risk",
+   "value": "risk_off",
+   "level": "PESSIMISTIC",
+   "n": 198,
+   "mean": -0.08895745622693989,
+   "t": -1.2786444423242813
+  },
+  {
+   "hypothesis": "O1",
+   "label": "risk",
+   "value": "risk_on",
+   "level": "CONSERVATIVE",
+   "n": 572,
+   "mean": 0.15927650865430706,
+   "t": 1.9091561260390895
+  },
+  {
+   "hypothesis": "O1",
+   "label": "risk",
+   "value": "risk_on",
+   "level": "PESSIMISTIC",
+   "n": 572,
+   "mean": 0.14080731206795205,
+   "t": 1.7149006225480927
+  },
+  {
+   "hypothesis": "O2",
+   "label": "risk",
+   "value": "risk_off",
+   "level": "CONSERVATIVE",
+   "n": 1998,
+   "mean": -0.22117727673084392,
+   "t": -2.9989479539602986
+  },
+  {
+   "hypothesis": "O2",
+   "label": "risk",
+   "value": "risk_off",
+   "level": "PESSIMISTIC",
+   "n": 1998,
+   "mean": -0.24990634058058056,
+   "t": -3.5317117768339044
+  },
+  {
+   "hypothesis": "O2",
+   "label": "risk",
+   "value": "risk_on",
+   "level": "CONSERVATIVE",
+   "n": 5153,
+   "mean": 0.22943759231840152,
+   "t": 1.9352816121925842
+  },
+  {
+   "hypothesis": "O2",
+   "label": "risk",
+   "value": "risk_on",
+   "level": "PESSIMISTIC",
+   "n": 5153,
+   "mean": 0.18567576964568394,
+   "t": 1.6204218012697367
+  }
+ ]
+}

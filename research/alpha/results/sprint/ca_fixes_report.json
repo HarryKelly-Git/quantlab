@@ -1,0 +1,680 @@
+{
+ "patch": {
+  "version": "sprint-c: corporate-action fake moves set UNKNOWN + adjusted prices re-chained; merger ticker reuse truncated",
+  "flagged_days": 94,
+  "entities_flagged": 82,
+  "truncated_entities": 2
+ },
+ "flagged": [
+  {
+   "entity": "AMPE",
+   "date": "2016-01-05",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.8084592145015106,
+   "ret_raw": -0.04229607250755296
+  },
+  {
+   "entity": "GILT",
+   "date": "2016-02-29",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.9891818796484111,
+   "ret_raw": -0.005154639175257714
+  },
+  {
+   "entity": "ITGR",
+   "date": "2016-03-14",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.6974513808720362,
+   "ret_raw": -0.0914666666666667
+  },
+  {
+   "entity": "AWI",
+   "date": "2016-04-04",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.5662582893110036,
+   "ret_raw": -0.13243243243243252
+  },
+  {
+   "entity": "CYH",
+   "date": "2016-05-02",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7937631027253669,
+   "ret_raw": -0.1750524109014674
+  },
+  {
+   "entity": "SW",
+   "date": "2016-05-16",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.8448505514412062,
+   "ret_raw": -0.06884398496240596
+  },
+  {
+   "entity": "IDT",
+   "date": "2016-06-02",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7221789883268481,
+   "ret_raw": -0.16552667578659375
+  },
+  {
+   "entity": "HRI",
+   "date": "2016-07-01",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.8009779304876437,
+   "ret_raw": 1.9855465221318878
+  },
+  {
+   "entity": "CMD@2021-05-30",
+   "date": "2016-07-25",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 1.9624370132844713,
+   "ret_raw": -0.012437433641741324
+  },
+  {
+   "entity": "EBS",
+   "date": "2016-08-01",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.5362383947289608,
+   "ret_raw": -0.07247678945792158
+  },
+  {
+   "entity": "EBIX@2023-12-24",
+   "date": "2016-08-02",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 1.8657599053814313,
+   "ret_raw": -0.04449429799962612
+  },
+  {
+   "entity": "HK@2019-07-21",
+   "date": "2016-09-09",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.9707053140096619,
+   "ret_raw": -0.005575598556903816
+  },
+  {
+   "entity": "RELV",
+   "date": "2016-10-03",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.8053830227743272,
+   "ret_raw": 0.3623188405797102
+  },
+  {
+   "entity": "RRD",
+   "date": "2016-10-03",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.8106945872674581,
+   "ret_raw": 0.5146310432569974
+  },
+  {
+   "entity": "AA",
+   "date": "2016-11-01",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7330227997058103,
+   "ret_raw": -0.1991643454038997
+  },
+  {
+   "entity": "OSG",
+   "date": "2016-12-01",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.6570793386133111,
+   "ret_raw": 0.028775510204081645
+  },
+  {
+   "entity": "VATE",
+   "date": "2017-01-05",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.62627950699812,
+   "ret_raw": -0.0014903129657227732
+  },
+  {
+   "entity": "CBIO",
+   "date": "2017-02-13",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.9325011886968985,
+   "ret_raw": 0.012480499219968744
+  },
+  {
+   "entity": "DB",
+   "date": "2017-03-21",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.5354185832566697,
+   "ret_raw": -0.07072905331882484
+  },
+  {
+   "entity": "CIVI",
+   "date": "2017-05-01",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.9910665273004821,
+   "ret_raw": -0.002808988764045006
+  },
+  {
+   "entity": "TGNA@2026-03-21",
+   "date": "2017-06-01",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7844797787763567,
+   "ret_raw": -0.3534119629317607
+  },
+  {
+   "entity": "SRL",
+   "date": "2017-07-14",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 100.35646687697161,
+   "ret_raw": 4.071428571428571
+  },
+  {
+   "entity": "SMTS@2022-11-13",
+   "date": "2017-07-24",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 46.11198428290766,
+   "ret_raw": -0.05769230769230771
+  },
+  {
+   "entity": "FNF",
+   "date": "2017-10-02",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7777569216330361,
+   "ret_raw": -0.27517909818794783
+  },
+  {
+   "entity": "TERP",
+   "date": "2017-10-17",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.34758587557050213,
+   "ret_raw": 0.12110726643598624
+  },
+  {
+   "entity": "CNX",
+   "date": "2017-11-29",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.895575495049505,
+   "ret_raw": -0.16460396039603964
+  },
+  {
+   "entity": "APTV",
+   "date": "2017-12-05",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7163205435034355,
+   "ret_raw": -0.14889741131351875
+  },
+  {
+   "entity": "IDT",
+   "date": "2018-03-27",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.6621748178980229,
+   "ret_raw": -0.3242147922998987
+  },
+  {
+   "entity": "SRC@2024-01-21",
+   "date": "2018-06-01",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.9127725856697819,
+   "ret_raw": -0.1278538812785388
+  },
+  {
+   "entity": "SITC",
+   "date": "2018-07-02",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.9211169580716347,
+   "ret_raw": -0.21117318435754184
+  },
+  {
+   "entity": "XTIA",
+   "date": "2018-09-04",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.6627070691651029,
+   "ret_raw": 0.01187980433263447
+  },
+  {
+   "entity": "TMX@2022-10-09",
+   "date": "2018-10-01",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.6715299048847332,
+   "ret_raw": -0.3430598097694664
+  },
+  {
+   "entity": "EDGW@2018-11-01",
+   "date": "2018-10-30",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.3231197771587744,
+   "ret_raw": 0.002109704641350074
+  },
+  {
+   "entity": "TRN",
+   "date": "2018-11-01",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7346716464363523,
+   "ret_raw": -0.20420315236427322
+  },
+  {
+   "entity": "EQT",
+   "date": "2018-11-13",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.571536523929471,
+   "ret_raw": -0.46420323325635104
+  },
+  {
+   "entity": "SNR",
+   "date": "2018-11-15",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7561393489434609,
+   "ret_raw": -0.024299065420560706
+  },
+  {
+   "entity": "LCTX",
+   "date": "2018-11-29",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.9088050314465409,
+   "ret_raw": -0.0880503144654089
+  },
+  {
+   "entity": "SIR@2019-01-01",
+   "date": "2018-12-28",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7829836159816039,
+   "ret_raw": -0.5680778032036613
+  },
+  {
+   "entity": "NVS",
+   "date": "2019-04-09",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.824263716549559,
+   "ret_raw": -0.12135257558200785
+  },
+  {
+   "entity": "ADYX",
+   "date": "2019-05-06",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 4.442883323152108,
+   "ret_raw": 2.316336025607623
+  },
+  {
+   "entity": "CMCT",
+   "date": "2019-09-03",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 1.7366666896504,
+   "ret_raw": -0.17899999999999994
+  },
+  {
+   "entity": "PPSI",
+   "date": "2019-10-08",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.2905331882480957,
+   "ret_raw": -0.08760683760683763
+  },
+  {
+   "entity": "MYSZ",
+   "date": "2019-11-20",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.9302169457988835,
+   "ret_raw": 0.04674581301674796
+  },
+  {
+   "entity": "TRNX",
+   "date": "2019-12-06",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 2.903225806451613,
+   "ret_raw": -0.21935483870967742
+  },
+  {
+   "entity": "BCRH@2020-03-29",
+   "date": "2020-03-18",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 5.8478260869565215,
+   "ret_raw": -0.08959537572254339
+  },
+  {
+   "entity": "ARNC@2023-08-13",
+   "date": "2020-04-01",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.8922789539227896,
+   "ret_raw": -0.5691158156911581
+  },
+  {
+   "entity": "RTX",
+   "date": "2020-04-03",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7097361851427029,
+   "ret_raw": -0.41948610626671323
+  },
+  {
+   "entity": "MAC",
+   "date": "2020-04-21",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.3459119496855345,
+   "ret_raw": -0.03833865814696491
+  },
+  {
+   "entity": "RAND",
+   "date": "2020-05-12",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 2.1224286662242866,
+   "ret_raw": -0.34448160535117067
+  },
+  {
+   "entity": "IVR",
+   "date": "2020-05-20",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.9808612440191389,
+   "ret_raw": -0.09463722397476337
+  },
+  {
+   "entity": "VJET",
+   "date": "2020-08-14",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.8055468993455905,
+   "ret_raw": -0.027734496727952695
+  },
+  {
+   "entity": "AIV",
+   "date": "2020-11-03",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.5129508593560881,
+   "ret_raw": -0.16064757160647558
+  },
+  {
+   "entity": "SAN",
+   "date": "2020-11-12",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.5849324804548686,
+   "ret_raw": -0.05904059040590415
+  },
+  {
+   "entity": "AAN@2024-09-29",
+   "date": "2020-12-01",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.9268792710706151,
+   "ret_raw": -0.707452725250278
+  },
+  {
+   "entity": "CIG",
+   "date": "2021-05-03",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.6476303787428119,
+   "ret_raw": -0.12449799196787148
+  },
+  {
+   "entity": "CIG.C",
+   "date": "2021-05-03",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.43896625266591394,
+   "ret_raw": -0.1188118811881188
+  },
+  {
+   "entity": "SWI@2025-04-13",
+   "date": "2021-07-30",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.5083034341363404,
+   "ret_raw": -0.016622922134733153
+  },
+  {
+   "entity": "VATE",
+   "date": "2021-08-13",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 1.2436400313795808,
+   "ret_raw": -0.03385416666666663
+  },
+  {
+   "entity": "SNT",
+   "date": "2021-09-23",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.8999541073887105,
+   "ret_raw": -0.2417582417582418
+  },
+  {
+   "entity": "AVAL",
+   "date": "2022-03-25",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.4070152217074785,
+   "ret_raw": 0.007633587786259444
+  },
+  {
+   "entity": "CANG",
+   "date": "2022-06-16",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.38984263233190264,
+   "ret_raw": -0.030864197530864224
+  },
+  {
+   "entity": "CBIO",
+   "date": "2022-09-21",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 2.760542073747242,
+   "ret_raw": -0.01138636713340524
+  },
+  {
+   "entity": "BTX",
+   "date": "2022-10-17",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.9489904761904762,
+   "ret_raw": 0.020172910662824117
+  },
+  {
+   "entity": "DRS",
+   "date": "2022-11-23",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.42269544924154023,
+   "ret_raw": -0.01978239366963397
+  },
+  {
+   "entity": "CBIO",
+   "date": "2023-01-13",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.6939075418148368,
+   "ret_raw": 0.04861111111111116
+  },
+  {
+   "entity": "XTIA",
+   "date": "2023-03-15",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 1.5612785902722641,
+   "ret_raw": -0.3766822496104264
+  },
+  {
+   "entity": "AEHL",
+   "date": "2023-03-24",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7497269500318557,
+   "ret_raw": 0.0010921998725768045
+  },
+  {
+   "entity": "DOUG",
+   "date": "2023-06-21",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.7380952380952381,
+   "ret_raw": -0.051948051948051965
+  },
+  {
+   "entity": "GPUS",
+   "date": "2023-06-22",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.320302503746815,
+   "ret_raw": 0.0011415525114155667
+  },
+  {
+   "entity": "MNTX@2024-12-29",
+   "date": "2023-06-22",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.49207324566793664,
+   "ret_raw": 0.015968063872255467
+  },
+  {
+   "entity": "CBIO",
+   "date": "2023-10-31",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.9358974358974359,
+   "ret_raw": -0.03846153846153855
+  },
+  {
+   "entity": "LDTC@2025-06-14",
+   "date": "2023-12-22",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": Infinity,
+   "ret_raw": -0.11603375527426152
+  },
+  {
+   "entity": "FF",
+   "date": "2024-03-25",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.5055127938423132,
+   "ret_raw": 0.029113924050633067
+  },
+  {
+   "entity": "STRR",
+   "date": "2024-06-17",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": -0.7959235668789809,
+   "ret_raw": 0.020382165605095537
+  },
+  {
+   "entity": "FBYD",
+   "date": "2024-12-10",
+   "kind": "price_rule_adjustment_amplified",
+   "ret_adj": 0.4554881133029842,
+   "ret_raw": 0.2128556375131716
+  },
+  {
+   "entity": "BBX@2020-09-27",
+   "date": "2020-10-01",
+   "kind": "spin_offs",
+   "ret_adj": -0.2158385093167703,
+   "ret_raw": -0.2158327109783421
+  },
+  {
+   "entity": "ZD",
+   "date": "2021-10-08",
+   "kind": "spin_offs",
+   "ret_adj": -0.2012041444973397,
+   "ret_raw": -0.2012041444973397
+  },
+  {
+   "entity": "ZWS",
+   "date": "2021-10-05",
+   "kind": "spin_offs",
+   "ret_adj": -0.49114046391752575,
+   "ret_raw": -0.4911470361816783
+  },
+  {
+   "entity": "GYRE",
+   "date": "2023-01-13",
+   "kind": "spin_offs",
+   "ret_adj": -0.32683760683760676,
+   "ret_raw": -0.5833333333333333
+  },
+  {
+   "entity": "AMC",
+   "date": "2023-08-23",
+   "kind": "stock_dividends",
+   "ret_adj": 0.38320395201129154,
+   "ret_raw": -0.2313725490196078
+  },
+  {
+   "entity": "AMC",
+   "date": "2023-08-24",
+   "kind": "stock_dividends",
+   "ret_adj": -0.2668367346938777,
+   "ret_raw": 6.331632653061225
+  },
+  {
+   "entity": "RNAC",
+   "date": "2023-12-01",
+   "kind": "spin_offs",
+   "ret_adj": -0.2666666666666667,
+   "ret_raw": -0.2666666666666667
+  },
+  {
+   "entity": "VYX",
+   "date": "2023-10-17",
+   "kind": "spin_offs",
+   "ret_adj": -0.4025110782865583,
+   "ret_raw": -0.4025110782865583
+  },
+  {
+   "entity": "BNED",
+   "date": "2024-05-13",
+   "kind": "rights_distributions",
+   "ret_adj": -0.3629757785467128,
+   "ret_raw": -0.3627922971114168
+  },
+  {
+   "entity": "BNED",
+   "date": "2024-05-17",
+   "kind": "rights_distributions",
+   "ret_adj": 1.5265536723163842,
+   "ret_raw": 1.5266704098820885
+  },
+  {
+   "entity": "BNED",
+   "date": "2024-05-20",
+   "kind": "rights_distributions",
+   "ret_adj": -0.3112701252236135,
+   "ret_raw": -0.3111111111111111
+  },
+  {
+   "entity": "BLUE@2025-05-31",
+   "date": "2021-11-05",
+   "kind": "spin_offs",
+   "ret_adj": -0.20266990291262132,
+   "ret_raw": -0.4783644303294958
+  },
+  {
+   "entity": "OLOX",
+   "date": "2023-09-28",
+   "kind": "spin_offs",
+   "ret_adj": 0.31200863739019624,
+   "ret_raw": -0.375
+  },
+  {
+   "entity": "DFDV",
+   "date": "2024-12-11",
+   "kind": "spin_offs",
+   "ret_adj": 0.26096938775510203,
+   "ret_raw": 0.2609329446064139
+  },
+  {
+   "entity": "DFDV",
+   "date": "2024-12-12",
+   "kind": "spin_offs",
+   "ret_adj": -0.2832288084159418,
+   "ret_raw": -0.2832369942196532
+  },
+  {
+   "entity": "LBTYB",
+   "date": "2024-11-13",
+   "kind": "spin_offs",
+   "ret_adj": -0.425552353506244,
+   "ret_raw": -0.425552353506244
+  },
+  {
+   "entity": "CMCT",
+   "date": "2024-09-24",
+   "kind": "stock_dividends",
+   "ret_adj": -0.20558415130476415,
+   "ret_raw": -0.20558375634517767
+  },
+  {
+   "entity": "CMCT",
+   "date": "2024-09-25",
+   "kind": "stock_dividends",
+   "ret_adj": 0.3039531081661404,
+   "ret_raw": -0.5576357827476037
+  },
+  {
+   "entity": "UHAL",
+   "date": "2022-11-10",
+   "kind": "manual: U-Haul Holding distributed 9 Series N non-voting shares per share; raw = adjusted = -90%, holders were whole (UHAL + 9 UHAL.B); not in Alpaca's corporate-action list",
+   "ret_adj": NaN,
+   "ret_raw": NaN
+  }
+ ],
+ "truncated": [
+  {
+   "entity": "BHVN",
+   "last_date": "2022-09-30",
+   "kind": "cash_mergers"
+  },
+  {
+   "entity": "VIVO",
+   "last_date": "2023-01-30",
+   "kind": "cash_mergers"
+  }
+ ]
+}

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import gc
 import json
-import math
 import pickle
 import resource
 import sys

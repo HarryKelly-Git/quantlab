@@ -9,7 +9,6 @@ import gc
 import json
 import math
 import os
-import pickle
 import resource
 import sys
 import time
@@ -55,40 +54,37 @@ def cluster_t(x: pd.Series, dates: pd.Series) -> tuple[float, float]:
     return float(m), float(m / se) if se > 0 else float("nan")
 
 
+def prereg_winner(p7: dict, p46: dict) -> dict:
+    """The winner exactly as docs/ALPHA-SPRINT-PREREG.md section 7 words it.
+    - A row wins only with POSITIVE OOS economic value after costs: the book's OOS Sharpe and CAGR above 0, or
+      an option rule ROBUST at PESSIMISTIC fills.
+    - It must hold under BOTH delisting conventions: master's -30% rule and the corrected one (0% for
+      acquisitions).
+    The first version picked the best 'improvement over S1' even when every book still lost money."""
+    out: dict = {"candidates": []}
+    corr = p7.get("corrected_delisting", {}).get("sizing_runs", {})
+    for m, v in p7.get("sizing_runs", {}).items():
+        a, c = v["OOS"], corr.get(m, {}).get("OOS", {})
+        pos = all((x.get("sharpe") or -9) > 0 and (x.get("cagr") or -9) > 0 for x in (a, c))
+        out["candidates"].append({"model": m, "use": "sizing", "OOS_sharpe_master_conv": a.get("sharpe"),
+                                  "OOS_sharpe_corrected": c.get("sharpe"), "positive_value_both": bool(pos)})
+    for m, v in (p46.get("O1_by_model") or {}).items():
+        cls = v.get("OOS_class")
+        out["candidates"].append({"model": m, "use": "options O1", "OOS_class": cls,
+                                  "OOS_mean_PESSIMISTIC": (v.get("OOS") or {}).get("PESSIMISTIC", {}).get("mean"),
+                                  "positive_value_both": cls == "ROBUST"})
+    ok = [c for c in out["candidates"] if c["positive_value_both"]]
+    out["winner"] = ok[0]["model"] if len(ok) == 1 else (sorted(ok, key=lambda c: -(c.get("OOS_sharpe_corrected") or 0))[0]["model"] if ok else None)
+    out["verdict"] = ("no forecast creates positive OOS economic value after costs: every sized book loses money OOS under "
+                      "at least one delisting convention, and no option rule is ROBUST at pessimistic fills"
+                      if not ok else f"winner: {out['winner']}")
+    return out
+
+
 def main() -> None:
     t0 = time.time()
     lab = pd.read_parquet(CACHE / "sprint_regime_labels.parquet")
-    trades = pd.read_parquet(CACHE / "sprint_p3_trades.parquet")
-    trades["entry_date"] = pd.to_datetime(trades["entry_date"])
     dates_all = lab.index
-
-    # ---------------- P8: regime cells on standalone (S1) trades; the disable rule fixed on TRAIN+VAL -------------
-    sig_day = lambda e: dates_all[np.clip(dates_all.get_indexer(e) - 1, 0, None)]  # noqa: E731  signal session
-    p8: dict = {"rule": "disable (strategy, label value) when TRAIN+VAL mean net trade return < 0 with date-clustered "
-                        "t <= -2 and >= 100 trades; applied once to OOS", "cells": [], "disabled": []}
-    solo = trades[trades["rule"].str.startswith("solo_")].copy()
-    solo["sig"] = sig_day(pd.DatetimeIndex(solo["entry_date"]))
-    for l in LABELS:
-        solo[l] = lab[l].reindex(solo["sig"]).to_numpy()
-    solo["era"] = np.where(solo["entry_date"] <= SPLITS["VAL"][1], "DEV", "OOS")
-    for (sid, era), g in solo.groupby([solo["strategy_id"], "era"]):
-        for l in LABELS:
-            for val, h in g.groupby(l):
-                m, t = cluster_t(h["net_ret"], h["sig"])
-                p8["cells"].append({"strategy": sid, "era": era, "label": l, "value": str(val), "n": int(len(h)),
-                                    "mean_net": m, "t": t})
-    cells = pd.DataFrame(p8["cells"])
-    dev = cells[cells["era"] == "DEV"].copy()
-    dev["p"] = 2 * sps.norm.sf(np.abs(dev["t"].fillna(0)))
-    m_tests = int(dev["p"].notna().sum())
-    dev = dev.sort_values("p")
-    dev["holm_p"] = np.minimum(1.0, (dev["p"].to_numpy() * (m_tests - np.arange(len(dev)))))
-    dev["holm_p"] = np.maximum.accumulate(dev["holm_p"].to_numpy())          # Holm step-down: monotone
-    dis = dev[(dev["mean_net"] < 0) & (dev["t"] <= -2) & (dev["n"] >= 100)]
-    p8["n_cells_tested_dev"] = m_tests
-    p8["disabled"] = dis[["strategy", "label", "value", "n", "mean_net", "t", "p", "holm_p"]].to_dict("records")
-    disabled = {(r["strategy"], r["label"], r["value"]) for r in p8["disabled"]}
-    print(f"P8: {len(disabled)} cells disabled by the rule out of {m_tests}", flush=True)
 
     # ---------------- rebuild the replay once: P7 sizing runs and the P8 OOS disable test -------------------------
     d = research_data.get()
@@ -103,6 +99,8 @@ def main() -> None:
     ever = d.u_liquid.any(axis=0)
     cols = pd.Index([s for s in p.symbols if ever.get(s, False) or s == "SPY" or s in bench])
     b = mr.bundle_from_research(p, cols, p.master, d.sectors, bench)
+    dl = p.meta["delistings"].copy()
+    distressed = set(dl.loc[dl["distressed"].astype(bool), "symbol"])
     del d, p
     gc.collect()
     uni = UniverseEngine(cfg).membership(b)
@@ -135,8 +133,80 @@ def main() -> None:
         del by_h
         gc.collect()
     p7["S1_current"] = {sp: mr.period_metrics(base.equity, base.trades, a, z) for sp, (a, z) in SPLITS.items()}
+
+    # ---- the delisting convention: master books -30% on EVERY delisting; on survivorship-free data most are
+    # cash ACQUISITIONS (P3: all 13 in the S1 book). Corrected = the research panel's rule: -30% only when the
+    # delisting was distressed (last close < $3 or >= 50% below its 60-session high), else 0%. No distressed
+    # delisting was hit by the replayed books, so "corrected" = master's engine with delisting_return 0
+    # (verified per run below).
+    cfg0 = load_config(overrides={"backtest": {"sizing": "equal_risk"}, "costs": {"delisting_return": 0.0}})
+    cfg0_ew = load_config(overrides={"backtest": {"sizing": "equal_weight"}, "costs": {"delisting_return": 0.0}})
+    corr: dict = {"rule": "delisting_return 0 for non-distressed delistings (acquisitions); distressed hits counted"}
+
+    def dcount(trades_):
+        x = trades_[trades_["exit_reason"] == "DELISTED"]
+        return {"delisted": int(len(x)), "distressed": int(x["symbol"].isin(distressed).sum())}
+
+    base0 = BacktestEngine(cfg0, b).run(sig, S, uni, fs=fs)
+    corr["S1_current"] = {sp: mr.period_metrics(base0.equity, base0.trades, a, z) for sp, (a, z) in SPLITS.items()}
+    corr["S1_current"]["delistings"] = dcount(base0.trades)
+    r0 = BacktestEngine(cfg0_ew, b).run(sig, S, uni, fs=fs)
+    corr["S0_fixed"] = {sp: mr.period_metrics(r0.equity, r0.trades, a, z) for sp, (a, z) in SPLITS.items()}
+    corr["S0_fixed"]["sharpe_minus_S1_OOS"] = mr.sharpe_diff_ci(r0.equity, base0.equity, *SPLITS["OOS"])
+    corr["sizing_runs"] = {}
+    for m in LB_MODELS:
+        by_h = {h: daily.pivot(index="date", columns="symbol", values=f"{m}_h{h}").reindex(index=b.panel.dates, columns=cols)
+                .to_numpy(dtype="float64") for h in (5, 20)}
+        scale = float(np.nanmedian([by_h[horizon_of(s_)][i, c] for s_, i, c in zip(trn["strategy_id"], di, ci)]))
+        r = mr.SizedEngine(cfg0_ew, b, mr.inverse_vol_weight(None, scale, horizon_of=horizon_of, by_h=by_h), cap=0.10).run(
+            sig, S, uni, fs=fs)
+        corr["sizing_runs"][m] = {sp: mr.period_metrics(r.equity, r.trades, a, z) for sp, (a, z) in SPLITS.items()}
+        corr["sizing_runs"][m]["sharpe_minus_S1_OOS"] = mr.sharpe_diff_ci(r.equity, base0.equity, *SPLITS["OOS"])
+        corr["sizing_runs"][m]["delistings"] = dcount(r.trades)
+        print(f"P7 corrected-delisting sizing {m}: OOS sharpe {corr['sizing_runs'][m]['OOS'].get('sharpe')}", flush=True)
+        del by_h
+        gc.collect()
+    corr["solo_S1"] = {}
+    solo_trades0 = []
+    for sid in mr.REPLAYED:
+        r = BacktestEngine(cfg0, b).run({sid: sig[sid]}, {sid: S[sid]}, uni, fs=fs)
+        corr["solo_S1"][sid] = {sp: mr.period_metrics(r.equity, r.trades, a, z) for sp, (a, z) in SPLITS.items()}
+        corr["solo_S1"][sid]["delistings"] = dcount(r.trades)
+        solo_trades0.append(r.trades.assign(rule=f"solo_{sid}"))
+        print(f"corrected solo {sid}: OOS sharpe {corr['solo_S1'][sid]['OOS'].get('sharpe')}", flush=True)
+    p7["corrected_delisting"] = corr
     del daily
     gc.collect()
+
+    # ---------------- P8: regime cells on standalone (S1) trades; the disable rule fixed on TRAIN+VAL -------------
+    sig_day = lambda e: dates_all[np.clip(dates_all.get_indexer(e) - 1, 0, None)]  # noqa: E731  signal session
+    p8: dict = {"rule": "disable (strategy, label value) when TRAIN+VAL mean net trade return < 0 with date-clustered "
+                        "t <= -2 and >= 100 trades; applied once to OOS", "cells": [], "disabled": []}
+    solo = pd.concat(solo_trades0, ignore_index=True)          # corrected delisting convention
+    solo["entry_date"] = pd.to_datetime(solo["entry_date"])
+    solo["sig"] = sig_day(pd.DatetimeIndex(solo["entry_date"]))
+    for l in LABELS:
+        solo[l] = lab[l].reindex(solo["sig"]).to_numpy()
+    solo["era"] = np.where(solo["entry_date"] <= SPLITS["VAL"][1], "DEV", "OOS")
+    for (sid, era), g in solo.groupby([solo["strategy_id"], "era"]):
+        for l in LABELS:
+            for val, h in g.groupby(l):
+                m, t = cluster_t(h["net_ret"], h["sig"])
+                p8["cells"].append({"strategy": sid, "era": era, "label": l, "value": str(val), "n": int(len(h)),
+                                    "mean_net": m, "t": t})
+    cells = pd.DataFrame(p8["cells"])
+    dev = cells[cells["era"] == "DEV"].copy()
+    dev["p"] = 2 * sps.norm.sf(np.abs(dev["t"].fillna(0)))
+    m_tests = int(dev["p"].notna().sum())
+    dev = dev.sort_values("p")
+    dev["holm_p"] = np.minimum(1.0, (dev["p"].to_numpy() * (m_tests - np.arange(len(dev)))))
+    dev["holm_p"] = np.maximum.accumulate(dev["holm_p"].to_numpy())          # Holm step-down: monotone
+    dis = dev[(dev["mean_net"] < 0) & (dev["t"] <= -2) & (dev["n"] >= 100)]
+    p8["n_cells_tested_dev"] = m_tests
+    p8["disabled"] = dis[["strategy", "label", "value", "n", "mean_net", "t", "p", "holm_p"]].to_dict("records")
+    disabled = {(r["strategy"], r["label"], r["value"]) for r in p8["disabled"]}
+    print(f"P8: {len(disabled)} cells disabled by the rule out of {m_tests}", flush=True)
+
 
     # P8 OOS test: the combined S1 book with the disabled cells filtered out at the signal session
     def filt(day, objs):
@@ -145,10 +215,11 @@ def main() -> None:
             return objs
         return [o for o in objs if not any((o.strategy_id, l, str(row[l])) in disabled for l in LABELS)]
     if disabled:
-        r_dis = BacktestEngine(cfg, b).run(sig, S, uni, fs=fs, candidate_filter=filt)
-        p8["OOS_test"] = {"with_disable": mr.period_metrics(r_dis.equity, r_dis.trades, *SPLITS["OOS"]),
-                          "without": p7["S1_current"]["OOS"],
-                          "sharpe_diff": mr.sharpe_diff_ci(r_dis.equity, base.equity, *SPLITS["OOS"])}
+        r_dis = BacktestEngine(cfg0, b).run(sig, S, uni, fs=fs, candidate_filter=filt)
+        p8["OOS_test"] = {"convention": "corrected delisting (0% for acquisitions)",
+                          "with_disable": mr.period_metrics(r_dis.equity, r_dis.trades, *SPLITS["OOS"]),
+                          "without": corr["S1_current"]["OOS"],
+                          "sharpe_diff": mr.sharpe_diff_ci(r_dis.equity, base0.equity, *SPLITS["OOS"])}
         wd, wo = p8["OOS_test"]["with_disable"], p8["OOS_test"]["without"]
         p8["OOS_verdict"] = ("IMPROVES net expectancy" if (wd.get("total_return") or -9) > (wo.get("total_return") or -9)
                              and (wd.get("sharpe") or -9) > (wo.get("sharpe") or -9) else "DOES NOT IMPROVE")
@@ -211,6 +282,7 @@ def main() -> None:
                         "note": "S1 current sizing (inverse-ATR via stops) = the bot today; no option trade"})
         rows.append(row)
     p7["leaderboard"] = rows
+    p7["winner_per_prereg"] = prereg_winner(p7, p46)
     winners = [r for r in rows if r.get("sizing_improvement")]
     robust = [r for r in rows if r.get("O1_class") == "ROBUST"]
     if winners:
