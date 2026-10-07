@@ -126,3 +126,20 @@ return was.
 |---|---|
 | E2a-v2 THEME | The event stock's statistical-sector ETF (the sector label is the ETF) returned >= +2% on t |
 | E2b-v2 | Laggard peers on THEME days: same-sector liquid stocks <= +1% on t |
+
+## Amendment 2: E4, written after E1-E3 failed and before E4 was run
+
+**Motivation.** UP jumps underperform SPY after costs in every split, news-driven or not. The bot's
+breakout, momentum and relative-strength strategies often signal right after jump days.
+
+**E4: no-chase filter on the bot's own strategies.**
+- **Book:** the sprint replay of master's combined book (S1 current sizing, corrected delisting
+  convention, `scripts/research/alpha/sprint_p78_leaderboard_regimes.py` conventions).
+- **Filter:** drop any candidate whose SIGNAL day had a total return >= +8% AND dollar volume >= 2x its
+  trailing 20-session median. No cooldown and no universe condition.
+- **Comparison:** the filtered book against the unfiltered book.
+- **Metric:** the sprint P3 IMPROVEMENT rule on OOS 2022-24. Sharpe must rise by +0.10 or more, the 90%
+  monthly-block CI must be above 0, and CAGR must not fall. TRAIN and VAL must not contradict (the
+  Sharpe difference > 0 in both).
+- **Reported:** the share of entries removed, per strategy.
+- **Single variant.** Thresholds are not tuned.
