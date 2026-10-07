@@ -8,6 +8,7 @@ from quantlab.alpha import registry
 
 RES = registry.DIR / "results"
 PRE = RES / "pre_audit"
+V2 = RES / "audit_v2_panel"
 
 
 def _load(d, name):
@@ -31,8 +32,10 @@ out = {}
 rows = []
 for fam in ("H01_short_term_reversal", "H03_momentum_matrix", "H04_residual_momentum", "H16_max_lottery",
             "H17_idiosyncratic_vol", "H07_gap_reversal_intraday", "H23_revision_momentum"):
-    a, b = _fam_row(_load(PRE, fam)), _fam_row(_load(RES, fam))
-    rows.append({"family": fam, **{f"before_{k}": v for k, v in a.items()}, **{f"after_{k}": v for k, v in b.items()}})
+    a, m2, b = _fam_row(_load(PRE, fam)), _fam_row(_load(V2, fam)), _fam_row(_load(RES, fam))
+    rows.append({"family": fam, **{f"before_{k}": v for k, v in a.items()}, **{f"v2_{k}": v for k, v in m2.items()},
+                 **{f"after_{k}": v for k, v in b.items()},
+                 "oos_looks_in_ledger": registry.oos_looks(fam.split("_")[0])})
 out["equity_families"] = rows
 for fam in ("H20_earnings_announcement_premium", "H21_eps_surprise_drift"):
     a, b = _load(PRE, fam), _load(RES, fam)

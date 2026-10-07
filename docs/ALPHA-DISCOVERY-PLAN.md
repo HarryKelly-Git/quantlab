@@ -325,4 +325,11 @@ the re-run protocol before any corrected number is seen.
      - Override tags are unique per hypothesis.
      - Re-running a spec on data identical to any earlier OOS run is allowed.
      - Every look at OOS-period data, including descriptive "ALL" families, is counted (`registry.oos_looks`) and reported.
+9. **Rolling walk-forward selection (Part 5), added before it was run.** For every equity family
+   (H01, H03, H04, H07, H16, H17, H23):
+   - Compute every pre-registered variant's daily net return (same engine, costs and borrow).
+   - At the start of each year 2018-2024, select the variant with the best net Sharpe over all earlier years, with at least 2 years of history.
+   - Trade it for that year and concatenate the years.
+   - **Reporting:** Sharpe, Newey-West t, CAGR, max drawdown, beta and alpha against SPY for 2018-2024 and for 2022-2024; how often the selected variant changes; the share of positive years.
+   - The test re-uses calendar years already seen in OOS, so it is logged as an OOS look (`WF_2018_2024`).
 

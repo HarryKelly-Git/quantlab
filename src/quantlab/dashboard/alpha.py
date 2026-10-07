@@ -19,18 +19,27 @@ def alpha_state() -> dict[str, Any]:
     ledger_lines = (ROOT / "ledger.jsonl").read_text().splitlines() if (ROOT / "ledger.jsonl").exists() else []
     ledger = [json.loads(x) for x in ledger_lines if x.strip()]
     results_dir = ROOT / "results"
+    oos_splits = ("OOS", "ALL", "ALL_2016_2024", "WF_2018_2024")
+    looks: dict[str, int] = {}
+    for row in ledger:
+        if row.get("split") in oos_splits:
+            looks[row.get("hypothesis_id")] = looks.get(row.get("hypothesis_id"), 0) + 1
     fams = []
     for f in sorted(results_dir.glob("*.json")) if results_dir.exists() else []:
         if f.stem.endswith("__dev"):
             continue
         r = json.loads(f.read_text())
+        if not isinstance(r, dict):
+            continue
         fs = r.get("family_stats") or {}
         sel = fs.get("selected") or r.get("selected")
         oos = r.get("oos") or {}
+        hid = r.get("hypothesis_id") or str(r.get("family", f.stem)).split("_")[0]
         fams.append({"family": r.get("family", f.stem), "variants": fs.get("n_variants") or len(r.get("variants", {}) or {}),
                      "selected": sel, "spa_p": (fs.get("spa") or {}).get("p_value"), "pbo": (fs.get("pbo") or {}).get("pbo"),
                      "oos_sharpe": oos.get("sharpe"), "oos_t": oos.get("t_mean_nw") or oos.get("weekly_t_nw"),
-                     "class": r.get("classification"), "reason": r.get("classification_reason")})
+                     "oos_looks_in_ledger": looks.get(hid), "class": r.get("classification"),
+                     "reason": r.get("classification_reason")})
     classes: dict[str, int] = {}
     for h in queue:
         c = h.get("classification") or "QUEUED"
@@ -48,6 +57,17 @@ def alpha_state() -> dict[str, Any]:
     port_rows = [{"method": m, "oos_sharpe": (v.get("OOS") or {}).get("sharpe"), "oos_t": (v.get("OOS") or {}).get("t_mean_nw"),
                   "walk_forward_oos_sharpe": (v.get("walk_forward_OOS") or {}).get("sharpe")} for m, v in (port.get("portfolios") or {}).items()]
     q_eq, q_opt = _load("quality_equity.json") or {}, _load("quality_options.json") or {}
+    audit = _load("results/audit_comparison.json") or {}
+    audit_rows = [{"family": x.get("family"), "class_before": x.get("before_class"), "class_after": x.get("after_class"),
+                   "oos_t_before": x.get("before_oos_t"), "oos_t_after": x.get("after_oos_t"),
+                   "selected_before": x.get("before_selected"), "selected_after": x.get("after_selected")}
+                  for x in audit.get("equity_families", [])]
+    p49 = _load("results/H49_two_way_test.json") or {}
+    p49_rows = [{"subset_split": k,
+                 "high_move_low_iv_long_at_ask": (v.get("high_move_low_iv_long_straddle_at_ask") or {}).get("mean"),
+                 "t": (v.get("high_move_low_iv_long_straddle_at_ask") or {}).get("t_nw"),
+                 "high_move_high_iv_iron_fly_at_bid": (v.get("high_move_high_iv_iron_fly_at_bid") or {}).get("mean"),
+                 "t_fly": (v.get("high_move_high_iv_iron_fly_at_bid") or {}).get("t_nw")} for k, v in p49.items()]
     return {
         "n_hypotheses": len(queue), "n_done": sum(1 for h in queue if h.get("status") == "DONE"),
         "n_queued": sum(1 for h in queue if h.get("status") == "QUEUED"), "classes": classes,
@@ -55,6 +75,7 @@ def alpha_state() -> dict[str, Any]:
         "n_oos_evaluations": sum(1 for r in ledger if r.get("split") == "OOS"),
         "queue": [{k: h.get(k) for k in ("id", "name", "category", "status", "classification", "result", "next_action")} for h in queue],
         "families": fams, "options_baseline": opt_rows, "forecast_accuracy": acc_rows, "portfolio": port_rows,
+        "audit": audit_rows, "part49": p49_rows,
         "quality": [{"dataset": "equity bars", **{k: q_eq.get(k) for k in ("rows", "symbols", "duplicates", "high_below_low", "status")}}] +
                    [{"dataset": f"options {m}", "rows": v.get("rows"), "snapshot_timing": v.get("snapshot_timing"), "status": v.get("status")}
                     for m, v in q_opt.items()],

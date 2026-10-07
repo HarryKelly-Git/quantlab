@@ -113,7 +113,7 @@ def override_tag(reason: str) -> str:
     return reason.split(":", 1)[0].strip().lower() if reason else ""
 
 
-OOS_SPLITS = ("OOS", "ALL", "ALL_2016_2024")      # rows whose metrics include the OOS period
+OOS_SPLITS = ("OOS", "ALL", "ALL_2016_2024", "WF_2018_2024")      # rows whose metrics include the OOS period
 
 
 def oos_looks(hypothesis_id: str | None = None, family: str | None = None) -> int:
