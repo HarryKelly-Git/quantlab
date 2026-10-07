@@ -82,7 +82,8 @@ def build_panel(min_price_ever: float = 3.0, min_dv_ever: float = 1e6, keep_type
     bars = bars[bars["symbol"].isin(syms_ok)]
     dates = pd.DatetimeIndex(sorted(bars.loc[bars["symbol"] == "SPY", "date"].unique()))
     if dates.max() >= pd.Timestamp(HOLDOUT_START):
-        raise RuntimeError("holdout dates in panel: refusing")
+        from quantlab.alpha.holdout import refuse
+        refuse("panel.build_panel: holdout dates")
     syms = pd.Index(sorted(bars["symbol"].unique()))
     f: dict[str, pd.DataFrame] = {}
     for c in ("open", "high", "low", "close", "volume", "vwap", "trade_count", "adj_open", "adj_high", "adj_low",

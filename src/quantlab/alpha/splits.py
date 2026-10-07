@@ -36,8 +36,7 @@ SPLITS: dict[str, dict[str, tuple[str, str | None]]] = {
 DEVELOPMENT = ("TRAIN", "VALIDATION")
 
 
-class HoldoutAccessError(RuntimeError):
-    pass
+from quantlab.alpha.holdout import HoldoutAccessError, refuse as _refuse  # noqa: E402  (HOLDOUT_LOCK)
 
 
 def window(dataset: str, split: str) -> tuple[pd.Timestamp, pd.Timestamp | None]:
@@ -47,7 +46,7 @@ def window(dataset: str, split: str) -> tuple[pd.Timestamp, pd.Timestamp | None]
 
 def slice_split(x: pd.Series | pd.DataFrame, dataset: str, split: str):
     if split == "HOLDOUT":
-        raise HoldoutAccessError("the holdout is not available to research code; see docs/ALPHA-DISCOVERY-PLAN.md")
+        _refuse(f"splits.slice_split({dataset}, HOLDOUT)")
     a, b = window(dataset, split)
     return x.loc[a:b]
 

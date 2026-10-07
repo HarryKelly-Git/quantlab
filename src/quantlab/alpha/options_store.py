@@ -46,7 +46,8 @@ def export_option_chain(end: str = RESEARCH_END) -> dict:
     """One parquet per MONTH; resumable (a finished month is skipped). Numbers are cast to DOUBLE in SQL
     and converted to float32 per snapshot: the driver's Decimal objects would otherwise need tens of GB."""
     if pd.Timestamp(end) >= pd.Timestamp(HOLDOUT_START):
-        raise ValueError("refusing to export holdout dates")
+        from quantlab.alpha.holdout import refuse
+        refuse(f"options_store.export end={end}")
     c = _conn("options")
     cur = c.cursor()
     # snapshot dates from the (already exported) per-underlying volatility table: a DISTINCT over the
@@ -115,7 +116,8 @@ def load_chain(years: list[int] | None = None, columns: list[str] | None = None)
         files = [f for f in files if int(f.stem.split("_")[1][:4]) in years]
     df = pd.concat([pd.read_parquet(f, columns=columns) for f in files], ignore_index=True)
     if "date" in df and df["date"].max() >= pd.Timestamp(HOLDOUT_START):
-        raise RuntimeError("options store contains holdout dates: refusing")
+        from quantlab.alpha.holdout import refuse
+        refuse("options_store.load_chain: holdout rows")
     return df
 
 

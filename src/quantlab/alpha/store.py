@@ -37,6 +37,8 @@ import numpy as np
 import pandas as pd
 import requests
 
+import quantlab.alpha.holdout as _holdout
+
 RESEARCH_START = "2016-01-01"
 RESEARCH_END = "2024-12-31"
 HOLDOUT_START = "2025-01-01"
@@ -190,7 +192,7 @@ def download_bars(symbols: list[str], adjustment: str, *, start: str = RESEARCH_
                   batch_size: int = 100, per_minute: int = 120, log_every: int = 25) -> dict[str, Any]:
     """Resumable: one parquet per symbol batch; batches already on disk are skipped."""
     if pd.Timestamp(end) >= pd.Timestamp(HOLDOUT_START):
-        raise ValueError(f"end {end} reaches the locked holdout ({HOLDOUT_START}); refusing")
+        _holdout.refuse(f"store.download_bars end={end}")
     if adjustment not in ("raw", "all"):
         raise ValueError(adjustment)
     limiter = RateLimiter(per_minute)
@@ -277,7 +279,7 @@ def build_store(assets: pd.DataFrame) -> StoreManifest:
     raw = _load_kind("raw")
     adj = _load_kind("all")
     if raw["date"].max() >= pd.Timestamp(HOLDOUT_START) or adj["date"].max() >= pd.Timestamp(HOLDOUT_START):
-        raise RuntimeError("holdout data found in the research store download: refusing to build")
+        _holdout.refuse("store.build_store: holdout rows in the download")
     adj = adj.rename(columns={c: f"adj_{c}" for c in ("open", "high", "low", "close", "volume", "vwap")})
     df = raw.merge(adj[["symbol", "date", "adj_open", "adj_high", "adj_low", "adj_close", "adj_volume"]],
                    on=["symbol", "date"], how="left")
@@ -317,7 +319,7 @@ def build_store(assets: pd.DataFrame) -> StoreManifest:
 def load_bars(columns: Iterable[str] | None = None) -> pd.DataFrame:
     df = pd.read_parquet(store_dir() / "bars_daily.parquet", columns=list(columns) if columns else None)
     if "date" in df and df["date"].max() >= pd.Timestamp(HOLDOUT_START):
-        raise RuntimeError("research store contains holdout dates: refusing to load")
+        _holdout.refuse("store.load_bars: holdout rows in the store")
     return df
 
 
@@ -393,7 +395,7 @@ def download_minutes(symbols: Iterable[str], *, start: str = RESEARCH_START, end
                      per_minute: int = 100) -> dict[str, int]:
     """1-minute SIP bars (raw) for a few symbols, e.g. SPY/QQQ for intraday studies. Resumable per year."""
     if pd.Timestamp(end) >= pd.Timestamp(HOLDOUT_START):
-        raise ValueError("refusing holdout dates")
+        _holdout.refuse(f"store download end={end}")
     limiter = RateLimiter(per_minute)
     s = requests.Session()
     s.headers.update(_auth())
@@ -431,7 +433,7 @@ def download_bars_asof(groups: dict[str, list[str]], adjustment: str, *, start: 
     """Bars for tickers resolved AS OF a given date (the entity that used the ticker then). One parquet
     per (asof, batch); resumable. Used for delisted tickers that Alpaca's asset list no longer carries."""
     if pd.Timestamp(end) >= pd.Timestamp(HOLDOUT_START):
-        raise ValueError("refusing holdout dates")
+        _holdout.refuse(f"store download end={end}")
     limiter = RateLimiter(per_minute)
     s = requests.Session()
     s.headers.update(_auth())
@@ -520,7 +522,7 @@ def extend_store_with_asof(directory: pd.DataFrame) -> dict[str, Any]:
         add[c] = add[c].astype("float64")
     allb = pd.concat([old, add[old.columns]], ignore_index=True).sort_values(["symbol", "date"])
     if allb["date"].max() >= pd.Timestamp(HOLDOUT_START):
-        raise RuntimeError("holdout dates in store")
+        _holdout.refuse("store.extend_store_with_asof: holdout rows")
     allb.to_parquet(root / "bars_daily.parquet", index=False)
     master = pd.read_parquet(root / "security_master.parquet")
     dmap = directory.set_index("act_symbol")

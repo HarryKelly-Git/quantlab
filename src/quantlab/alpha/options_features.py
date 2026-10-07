@@ -102,7 +102,8 @@ def build_features() -> pd.DataFrame:
     for f in files:
         ch = pd.read_parquet(f)
         if ch["date"].max() >= pd.Timestamp(HOLDOUT_START):
-            raise RuntimeError("holdout options data in the research store")
+            from quantlab.alpha.holdout import refuse
+            refuse(f"options_features.build_features: {f.name}")
         syms = [s for s in ch["act_symbol"].astype(str).unique() if s in closes.columns]
         feats.append(month_features(ch, closes[syms], sessions))
     df = pd.concat(feats, ignore_index=True)
