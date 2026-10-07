@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
 from quantlab.alpha import opt_exec as ox  # noqa: E402
-from quantlab.alpha import registry, research_data  # noqa: E402
+from quantlab.alpha import ca_fixes, registry, research_data  # noqa: E402
 from quantlab.alpha import volforecast as vf  # noqa: E402
 from quantlab.alpha.entities import apply_aliases  # noqa: E402
 from quantlab.alpha.experiments import options_vol as ov  # noqa: E402
@@ -125,6 +125,7 @@ def main() -> None:
     for h in vf.HORIZONS:
         ql_name[h] = p2["horizons"][str(h)]["QL_selected_on_VAL"]
     d = research_data.get()
+    ca_info = ca_fixes.patch_research_data(d)
     for k in ("resid", "betas", "sec_ret", "alt_ret_oo", "u_large", "u_survivor", "vol20", "vol60", "cost_bps", "buckets"):
         setattr(d, k, None)
     gc.collect()
@@ -146,6 +147,16 @@ def main() -> None:
     ei = p.dates.get_indexer(pd.to_datetime(feat["exp_session"]))
     feat["n_sess"] = ei - si
     feat = feat[(si >= 0) & (ei > si)].reset_index(drop=True)
+    # sprint-c: an option whose life spans a flagged corporate-action day has an UNKNOWN outcome; truncated
+    # entities (merger ticker reuse) have no valid prices after their last good date
+    fl = p.meta.get("ca_flags")
+    n0 = len(feat)
+    if fl is not None and len(fl):
+        z_ = feat[["entity", "session", "exp_session"]].reset_index().merge(fl.rename(columns={"date": "fdate"}), on="entity")
+        bad = z_.loc[(pd.to_datetime(z_["fdate"]) > pd.to_datetime(z_["session"])) &
+                     (pd.to_datetime(z_["fdate"]) <= pd.to_datetime(z_["exp_session"])), "index"].unique()
+        feat = feat.drop(index=bad).reset_index(drop=True)
+    print(f"dropped {n0 - len(feat)} option rows spanning flagged corporate-action days", flush=True)
     ci = cols.get_indexer(feat["entity"])
     feat["mdv20"] = d.mdv20[cols].to_numpy()[p.dates.get_indexer(pd.to_datetime(feat["session"])), ci]
     feat["split"] = osplit(pd.to_datetime(feat["session"]))
@@ -170,6 +181,7 @@ def main() -> None:
     feat["conf_sel"] = [models["fitted"][h].log_err_sd[ql_name[h] if selk == "QL" else selk] for h in nh]
     print(f"option rows {len(feat):,} with forecasts; {time.time() - t0:.0f}s {mem()}", flush=True)
     res: dict = {"prereg": "docs/ALPHA-SPRINT-PREREG.md sections 4-6", "git": registry.git_commit(), "selected_forecast": sel,
+                 "ca_patch": ca_info,
                  "ql_spec_by_horizon": ql_name, "rows": int(len(feat)), "liquid_rows": int(feat["liquid"].sum()),
                  "unknown_fields": list(ox.UNKNOWN_FIELDS)}
 
@@ -276,6 +288,69 @@ def main() -> None:
             trades.append(v)
     o1["rule"] = "k chosen on VAL from {0.10, 0.20, 0.30} by mean net return at CONSERVATIVE (>= 30 trades); one OOS look"
     res["O1_long_straddle"] = o1
+    # P7 input: the same O1 rule driven by EVERY model's forecast (k chosen on VAL per model)
+    by_model = {}
+    for m in MODELS:
+        zm = o1s[o1s["liquid"]].dropna(subset=[f"f_{m}", "em_pct", "payoff", "exp_close"]).copy()
+        nh_m = nearest_h(zm["n_sess"].to_numpy())
+        nu_m = np.array([models["fitted"][h].nu[ql_name[h] if m == "QL" else m] for h in nh_m])
+        e_m = np.array([vf.expected_abs_move(np.array([s_]), int(h_), int(v_))[0]
+                        for s_, h_, v_ in zip(zm[f"f_{m}"].to_numpy(), zm["n_sess"].to_numpy(), nu_m)])
+        zm["ratio"] = e_m / zm["em_pct"].to_numpy()
+        row = {"VAL_by_k": {}}
+        for k in K_GRID:
+            v = zm[(zm["split"] == "VAL") & (zm["ratio"] >= 1 + k)]
+            row["VAL_by_k"][str(k)] = ox.summarize_levels(straddle_levels(v, "buy"), pd.to_datetime(v["session"]).to_numpy()) \
+                if len(v) else {"CONSERVATIVE": {"n": 0}}
+        el = {k: row["VAL_by_k"][str(k)]["CONSERVATIVE"]["mean"] for k in K_GRID
+              if row["VAL_by_k"][str(k)]["CONSERVATIVE"].get("n", 0) >= 30}
+        kk = max(el, key=el.get) if el else None
+        row["k"] = kk
+        if kk is not None:
+            v = zm[(zm["split"] == "OOS") & (zm["ratio"] >= 1 + kk)]
+            row["OOS"] = ox.summarize_levels(straddle_levels(v, "buy"), pd.to_datetime(v["session"]).to_numpy())
+            row["OOS_class"] = ox.classify(row["OOS"])
+        by_model[m] = row
+    res["O1_by_model"] = by_model
+
+    # ---- P7 input: IV + QuantLab ensemble (log-linear, fit on TRAIN with embargo; kept only if VAL improves) -------
+    e = o1s[o1s["liquid"]].dropna(subset=["f_QL", "iv_atm", "rv_to_exp", "em_pct", "payoff", "exp_close"]).copy()
+    e = e[(e["f_QL"] > 0) & (e["iv_atm"] > 0) & (e["rv_to_exp"] > 0)]
+    tr_e = e[(e["split"] == "TRAIN") & (pd.to_datetime(e["exp_session"]) <= pd.Timestamp(OSPLIT["TRAIN"][1]))]
+    ly = np.log(tr_e["rv_to_exp"].to_numpy())
+    Xi = np.column_stack([np.ones(len(tr_e)), np.log(tr_e["iv_atm"])])
+    Xe = np.column_stack([Xi, np.log(tr_e["f_QL"])])
+    bi, be = np.linalg.lstsq(Xi, ly, rcond=None)[0], np.linalg.lstsq(Xe, ly, rcond=None)[0]
+    si2, se2 = float(np.var(ly - Xi @ bi)), float(np.var(ly - Xe @ be))
+    li, lq = np.log(e["iv_atm"].to_numpy()), np.log(e["f_QL"].to_numpy())
+    e["f_IVcal"] = np.exp(bi[0] + bi[1] * li + si2 / 2)
+    e["f_ENS"] = np.exp(be[0] + be[1] * li + be[2] * lq + se2 / 2)
+    ens = {"train_coef_iv_only": bi.round(4).tolist(), "train_coef_ens": be.round(4).tolist(), "n_train": int(len(tr_e))}
+    for sp in ("VAL", "OOS"):
+        ens[f"{sp}_qlike"] = qlike_tab(e[e["split"] == sp], ["f_IVcal", "f_ENS", "f_QL", "iv_atm"])
+    keep = ens["VAL_qlike"]["f_ENS"] < ens["VAL_qlike"]["f_IVcal"]
+    ens["status"] = ("KEPT: lower VAL QLIKE than TRAIN-calibrated IV" if keep else
+                     "DISCARDED: the ensemble did not improve VAL QLIKE over TRAIN-calibrated IV")
+    if keep:
+        nh_e = nearest_h(e["n_sess"].to_numpy())
+        nu_e = np.array([models["fitted"][h].nu[ql_name[h]] for h in nh_e])
+        em_e = np.array([vf.expected_abs_move(np.array([s_]), int(h_), int(v_))[0]
+                         for s_, h_, v_ in zip(e["f_ENS"].to_numpy(), e["n_sess"].to_numpy(), nu_e)])
+        e["ratio"] = em_e / e["em_pct"].to_numpy()
+        vb = {}
+        for k in K_GRID:
+            v = e[(e["split"] == "VAL") & (e["ratio"] >= 1 + k)]
+            vb[str(k)] = ox.summarize_levels(straddle_levels(v, "buy"), pd.to_datetime(v["session"]).to_numpy()) \
+                if len(v) else {"CONSERVATIVE": {"n": 0}}
+        el = {k: vb[str(k)]["CONSERVATIVE"]["mean"] for k in K_GRID if vb[str(k)]["CONSERVATIVE"].get("n", 0) >= 30}
+        kk = max(el, key=el.get) if el else None
+        ens["O1_VAL_by_k"], ens["O1_k"] = vb, kk
+        if kk is not None:
+            v = e[(e["split"] == "OOS") & (e["ratio"] >= 1 + kk)]
+            ens["O1_OOS"] = ox.summarize_levels(straddle_levels(v, "buy"), pd.to_datetime(v["session"]).to_numpy())
+            ens["O1_OOS_class"] = ox.classify(ens["O1_OOS"])
+            res["O1_by_model"]["ENSEMBLE"] = {"k": kk, "OOS": ens["O1_OOS"], "OOS_class": ens["O1_OOS_class"]}
+    res["ensemble"] = ens
     print(f"O1 done: k*={k_star}, OOS class {o1.get('OOS_class')}", flush=True)
 
     # ---- P6 O2: long 25-delta strangle when model E[payoff] - cost(CONSERVATIVE) > 0 ---------------------

@@ -23,7 +23,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
-from quantlab.alpha import registry, research_data  # noqa: E402
+from quantlab.alpha import ca_fixes, registry, research_data  # noqa: E402
 from quantlab.alpha import volforecast as vf  # noqa: E402
 from quantlab.alpha.store import store_dir  # noqa: E402
 
@@ -47,6 +47,8 @@ def split_of(dates: pd.Series) -> pd.Series:
 def main() -> None:
     t0 = time.time()
     d = research_data.get()
+    ca = ca_fixes.patch_research_data(d, OUT / "ca_fixes_report.json")
+    print(f"sprint-c corporate-action patch: {ca}", flush=True)
     for k in ("resid", "betas", "sec_ret", "alt_ret_oo", "u_large", "u_survivor", "vol20", "vol60", "cost_bps"):
         setattr(d, k, None)
     gc.collect()
@@ -86,7 +88,7 @@ def main() -> None:
           flush=True)
 
     res: dict = {"prereg": "docs/ALPHA-SPRINT-PREREG.md section 2", "git": registry.git_commit(),
-                 "data": {"panel_version": d.manifest.get("panel_version"), "rows": int(len(df)),
+                 "data": {"panel_version": d.manifest.get("panel_version"), "ca_patch": d.manifest.get("ca_patch"), "rows": int(len(df)),
                           "origins": int(df["date"].nunique()), "symbols": int(df["symbol"].nunique()),
                           "by_split": df["split"].value_counts().to_dict(),
                           "note": "the store starts 2016-01 and the universe needs 252 sessions of history, so TRAIN "
@@ -167,13 +169,13 @@ def main() -> None:
     with (CACHE / "sprint_p2_models.pkl").open("wb") as fh:
         pickle.dump(models, fh)
     for sp in ("VAL", "OOS"):
-        registry.append_run(hypothesis_id="S2_vol_forecast", family="sprint_vol", split=sp,
+        registry.append_run(oos_override="SPRINT-C: re-run on the corporate-action-patched panel (fake adjusted moves found by the master replay); spec unchanged" if sp == "OOS" else None, hypothesis_id="S2_vol_forecast", family="sprint_vol", split=sp,
                             spec={"prereg": "ALPHA-SPRINT-PREREG section 2", "horizons": list(vf.HORIZONS),
                                   "features": list(vf.QL_FEATURES), "hgb": vf.HGB_PARAMS},
                             metrics={str(h): {k: v["QLIKE"] for k, v in res["horizons"][str(h)]["splits"][sp]["models"].items()}
                                      for h in vf.HORIZONS},
                             conclusion=f"selected={selected}; {why}" if sp == "OOS" else "", seed=7,
-                            data={"panel_version": d.manifest.get("panel_version")})
+                            data={"panel_version": d.manifest.get("panel_version"), "ca_patch": d.manifest.get("ca_patch")})
 
     # daily forecasts (h = 5, 20) on the liquid universe for P3/P7 sizing
     del df

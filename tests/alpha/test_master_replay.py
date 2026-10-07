@@ -74,3 +74,15 @@ def test_period_metrics_and_sharpe_ci(setup):
     assert m["n_days"] > 300 and np.isfinite(m["vol"])
     ci = mr.sharpe_diff_ci(r.equity, r.equity, str(d[300].date()), str(d[-1].date()), n_boot=50)
     assert abs(ci["diff"]) < 1e-12
+
+
+def test_raw_accounting_reproduces_total_return_with_signed_residuals():
+    p = make_panel(n_stocks=5, n_days=300, seed=9)
+    rng = np.random.default_rng(0)
+    noise = pd.DataFrame(1 + rng.normal(0, 3e-4, p["close"].shape), index=p.dates, columns=p.symbols)
+    p.f["close"] = p["close"] * noise.cumprod()          # raw closes drift by symmetric noise vs total return
+    b = mr.bundle_from_research(p, p.symbols, p.master, None, {})
+    c, pr = b.panel.close, b.panel.close.shift(1)
+    r = (c * b.panel.split_ratio + b.panel.dividend) / pr - 1
+    np.testing.assert_allclose(r.iloc[1:].to_numpy(), b.panel.ret.iloc[1:].to_numpy(), atol=1e-12, equal_nan=True)
+    assert (b.panel.dividend < 0).any().any()             # negative residuals are booked, not dropped

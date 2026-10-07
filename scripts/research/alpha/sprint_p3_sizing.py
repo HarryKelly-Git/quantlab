@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT / "src"))
 os.environ.setdefault("QUANTLAB_SKIP_LOCAL_CONFIG", "1")
 
 from quantlab.alpha import master_replay as mr  # noqa: E402
-from quantlab.alpha import registry, research_data  # noqa: E402
+from quantlab.alpha import ca_fixes, registry, research_data  # noqa: E402
 from quantlab.alpha.store import store_dir  # noqa: E402
 from quantlab.backtest.engine import BacktestEngine  # noqa: E402
 from quantlab.config import load_config  # noqa: E402
@@ -52,6 +52,7 @@ def metrics_all(res) -> dict:
 def main(only_combined: bool = False) -> None:
     t0 = time.time()
     d = research_data.get()
+    ca_info = ca_fixes.patch_research_data(d)
     for k in ("resid", "betas", "sec_ret", "alt_ret_oo", "u_large", "u_survivor", "vol20", "vol60", "cost_bps", "buckets"):
         setattr(d, k, None)
     gc.collect()
@@ -63,6 +64,7 @@ def main(only_combined: bool = False) -> None:
     keep = [s for s in p.symbols if ever.get(s, False) or s == "SPY" or s in bench]
     cols = pd.Index(keep)
     b = mr.bundle_from_research(p, cols, p.master, d.sectors, bench)
+    b_raw = mr.bundle_from_research(p, cols, p.master, d.sectors, bench, unknown_days="raw")
     regimes = d.regimes
     u_liq = d.u_liquid
     del d, p
@@ -79,7 +81,7 @@ def main(only_combined: bool = False) -> None:
     print(f"signals {', '.join(f'{k}:{int(np.isfinite(v.to_numpy()).sum())}' for k, v in sig.items())}; "
           f"{time.time() - t0:.0f}s {mem()}", flush=True)
 
-    out: dict = {"prereg": "docs/ALPHA-SPRINT-PREREG.md sections 1 and 3", "git": registry.git_commit(),
+    out: dict = {"prereg": "docs/ALPHA-SPRINT-PREREG.md sections 1 and 3", "git": registry.git_commit(), "ca_patch": ca_info,
                  "replayed": list(mr.REPLAYED), "not_replayed": mr.NOT_REPLAYED, "bundle_meta": b.panel.meta,
                  "universe_names_per_day": float(uni.sum(axis=1).mean()), "runs": {}}
     hold = {s.strategy_id: int(s.params.get("hold_sessions", 20)) for s in strats}
@@ -126,6 +128,18 @@ def main(only_combined: bool = False) -> None:
     s4 = run("combined_S4_forecast_vol", mr.SizedEngine(cfg_ew, b, mr.inverse_vol_weight(
         None, m_fc, horizon_of=horizon_of, by_h=by_h), cap=0.10))
     eqs = {"S0": s0.equity, "S1": s1.equity, "S2": s2.equity, "S3": s3.equity, "S4": s4.equity}
+    # sensitivities of the S1 book: flagged corporate-action days at the RAW move; master's -30% delisting rule at 0
+    uni_raw = UniverseEngine(cfg).membership(b_raw)
+    fs_raw = FeatureSet(b_raw, universe=uni_raw)
+    sig_raw = StrategyArena(strats).scores(fs_raw, uni_raw)
+    t_ = time.time()
+    rr_ = BacktestEngine(cfg, b_raw).run(sig_raw, S, uni_raw, fs=fs_raw)
+    out["runs"]["combined_S1_sens_unknown_days_raw"] = {"metrics": metrics_all(rr_)}
+    print(f"combined_S1_sens_unknown_days_raw: OOS {out['runs']['combined_S1_sens_unknown_days_raw']['metrics']['OOS'].get('sharpe')} ({time.time() - t_:.0f}s)", flush=True)
+    del b_raw, uni_raw, fs_raw, sig_raw, rr_
+    gc.collect()
+    run("combined_S1_sens_delisting_return_0", BacktestEngine(load_config(overrides={"backtest": {"sizing": "equal_risk"},
+                                                                                     "costs": {"delisting_return": 0.0}}), b))
     cls = {}
     for k in ("S0", "S2", "S3", "S4"):
         row = {}
@@ -186,7 +200,7 @@ def main(only_combined: bool = False) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "P3_sizing.json").write_text(json.dumps(registry._clean(out), indent=1, default=str))
     for sp in ("VAL", "OOS"):
-        registry.append_run(hypothesis_id="S3_vol_sizing", family="sprint_sizing", split=sp,
+        registry.append_run(oos_override="SPRINT-C: re-run on the corporate-action-patched panel (fake adjusted moves found by the master replay); spec unchanged" if sp == "OOS" else None, hypothesis_id="S3_vol_sizing", family="sprint_sizing", split=sp,
                             spec={"prereg": "ALPHA-SPRINT-PREREG section 3", "rules": ["S0", "S1", "S2", "S3", "S4"],
                                   "forecast": sel},
                             metrics={k: v["metrics"][sp] for k, v in out["runs"].items()},

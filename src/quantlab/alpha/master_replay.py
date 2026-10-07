@@ -12,8 +12,11 @@ companies (entity keys ``TICKER@last_seen``).
   return ``r`` satisfies (1 + r) * prev_close = close * split + dividend, so
   ``x = (1 + r) * prev_close / close``:
   - beyond +/-15% is a split ratio (master's own SMALL_SPLIT_RATIO);
-  - between 1 and 1.15 is a cash dividend of (x - 1) * close;
-  - anything else is ignored (counted in ``meta``).
+  - anything else is booked as a SIGNED cash flow of (x - 1) * close per share. Real dividends are
+    positive. Rounding noise in the 4-decimal adjusted prices is either sign.
+
+  Raw-price accounting then reproduces the total return exactly. Crediting only the positive residuals
+  biased returns upward; that version was caught before any result was read.
 - **Reference rows:**
   - ``security_type`` comes from the store's security master.
   - ``exchange`` is "NYSE" by construction: the store holds only SIP-reported, exchange-listed bars.
@@ -47,29 +50,48 @@ REPLAYED = ("momentum_trend", "mean_reversion", "breakout", "relative_strength",
 NOT_REPLAYED = {"pead_ear": "needs a point-in-time earnings-event feed (store has none before 2020)",
                 "quality_momentum": "needs fundamentals (not in the research store)"}
 SPLIT_LIMIT = 1.15
+NOISE = 2e-4            # residuals within 2 bps are counted as rounding noise in ``meta`` (all are booked, signed)
 
 
 def bundle_from_research(p, cols: pd.Index, master: pd.DataFrame, sectors: pd.DataFrame | None,
-                         benchmarks: dict[str, Any], market: str = "SPY") -> DataBundle:
-    """Master DataBundle from an AlphaPanel ``p`` restricted to ``cols`` (must include the benchmarks)."""
+                         benchmarks: dict[str, Any], market: str = "SPY", unknown_days: str = "neutral") -> DataBundle:
+    """Master DataBundle from an AlphaPanel ``p`` restricted to ``cols`` (must include the benchmarks).
+
+    ``unknown_days`` handles the corporate-action days the sprint-c patch flagged UNKNOWN (``p.meta['ca_flags']``):
+    - ``neutral`` (primary): the holder's value is unchanged that day, booked as a split ratio or cash.
+      Example: UHAL's 9-for-1 distribution becomes shares x 9.87, not a -90% loss.
+    - ``raw`` (sensitivity): the raw price move is booked, which ignores the value distributed."""
     close, open_ = p["close"][cols], p["open"][cols]
     k = close / p["adj_close"][cols]
     high, low = p["adj_high"][cols] * k, p["adj_low"][cols] * k
     vol = p["volume"][cols]
     ret = p["ret_cc"][cols].where(close.notna())
     prev = close.ffill().shift(1)
+    fl = p.meta.get("ca_flags")
+    if fl is not None and len(fl):
+        mask = pd.DataFrame(False, index=p.dates, columns=cols)
+        for r in fl.itertuples(index=False):
+            if r.entity in mask.columns and pd.Timestamp(r.date) in mask.index:
+                mask.at[pd.Timestamp(r.date), r.entity] = True
+        # neutral: total return 0 (x = prev/close becomes a split ratio or a cash residual); raw: the raw move (x = 1)
+        ret = ret.where(~mask, 0.0 if unknown_days == "neutral" else close / prev - 1.0)
     x = (1.0 + ret) * prev / close
     big = np.abs(np.log(x)) > math.log(SPLIT_LIMIT)
-    divd = (x > 1.0 + 1e-9) & ~big
+    resid = (np.abs(x - 1.0) > 1e-12) & ~big
     split = pd.DataFrame(np.where(big, x, 1.0), index=p.dates, columns=cols).fillna(1.0)
-    dividend = pd.DataFrame(np.where(divd, (x - 1.0) * close, 0.0), index=p.dates, columns=cols).fillna(0.0)
-    ignored = int(((x < 1.0 - 1e-6) & ~big).sum().sum())
+    # every non-split residual is booked as a SIGNED cash flow per share, so raw-price accounting reproduces
+    # the total return exactly (no one-sided bias from crediting only the positive side)
+    dividend = pd.DataFrame(np.where(resid, (x - 1.0) * close, 0.0), index=p.dates, columns=cols).fillna(0.0)
+    divd = (x > 1.0 + NOISE) & ~big
+    ignored = int(((x < 1.0 - NOISE) & ~big).sum().sum())
+    noise = int((resid & (np.abs(x - 1.0) <= NOISE)).sum().sum())
     tri = (1.0 + ret.fillna(0.0)).cumprod().where(close.notna())
     kk = tri / close
     f = {"open": open_, "high": high, "low": low, "close": close, "volume": vol, "ret": ret, "tri": tri,
          "aopen": open_ * kk, "ahigh": high * kk, "alow": low * kk, "aclose": tri,
          "dollar_volume": close * vol, "split_ratio": split, "dividend": dividend}
-    panel = Panel(f, {"providers": ["alpaca_sip_research_store"], "ignored_negative_adjustments": ignored,
+    panel = Panel(f, {"providers": ["alpaca_sip_research_store"], "negative_residual_days_over_2bp": ignored,
+                      "residual_days_within_2bp": noise,
                       "n_splits": int(big.sum().sum()), "n_dividend_days": int(divd.sum().sum())})
     m = master.set_index("symbol").reindex(cols)
     first_sector = {}
