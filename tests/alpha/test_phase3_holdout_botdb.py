@@ -72,3 +72,42 @@ def test_botdb_import_validates_and_reports_only(tmp_path):
     sqlite3.connect(bad).execute("create table orders (id text)").connection.commit()
     with pytest.raises(botdb.SchemaError):
         botdb.load(bad)
+
+
+def test_botdb_filter_ablation_readmits_only_single_filter_rejections(tmp_path):
+    """P1: 'remove filter X' re-admits rejected candidates whose ONLY blocking failures are X, re-checks EV
+    for candidates the risk chain stopped earlier, and labels the result exploratory under 20 dates."""
+    db = tmp_path / "abl.db"
+    _db(db, n_dates=3)
+    con = sqlite3.connect(db)
+    con.execute("create table risk_checks (id integer primary key autoincrement, candidate_id text, decision_id text, "
+                "check_name text, passed integer, severity text, reason text, details_json text, created_at text)")
+    con.execute("create table decisions (decision_id text, candidate_id text, decision text, reject_stage text, ev_json text)")
+    # candidate c{k}: per date, i=0..2 traded; i=3 liquidity only (EV 20bp); i=4 liquidity+volatility; i=5 volatility only
+    # (EV 5bp: fails the 10bp EV re-check, passes the relaxed 0bp one); i=6 portfolio capacity; the rest score_below.
+    rows = con.execute("select candidate_id, symbol from shadow_opportunities").fetchall()
+    for cid, sym in rows:
+        i = int(sym[1:])
+        fails = {3: [("no_trade.liquidity", {"adv20": 3e6, "min": 5e6})],
+                 4: [("no_trade.liquidity", {"adv20": 1e6, "min": 5e6}), ("no_trade.volatility", {"vol_20d": 2.0, "max": 1.2})],
+                 5: [("no_trade.volatility", {"vol_20d": 1.4, "max": 1.2})],
+                 6: [("risk.portfolio", {"rejection_reason": "max_positions"})]}.get(i, [] if i < 3 else [("risk.ev", {"ev_bps": -5.0, "min_ev_bps": 10.0})])
+        for name, det in fails:
+            con.execute("insert into risk_checks (candidate_id, check_name, passed, severity, details_json) values (?,?,?,?,?)",
+                        (cid, name, 0, "CRITICAL", json.dumps(det)))
+            con.execute("insert into risk_checks (candidate_id, check_name, passed, severity, details_json) values (?,?,?,?,?)",
+                        (cid, name, 0, "CRITICAL", json.dumps(det)))           # the pipeline records no-trade checks twice
+        ev = {3: 0.0020, 4: 0.0020, 5: 0.0005, 6: 0.0030}.get(i, 0.0030 if i < 3 else -0.0005)
+        con.execute("insert into decisions values (?,?,?,?,?)", (f"d{cid}", cid, "x", "x", json.dumps({"ev": ev})))
+    con.commit(); con.close()
+    res = botdb.ablation(botdb.load(db))
+    sc = res["scenarios"]
+    assert res["status"].startswith("EXPLORATORY") and res["blocking_source"] == "risk_checks"
+    assert sc["A_current"]["n_added"] == 0
+    assert sc["B_remove_liquidity"]["n_added"] == 3                    # i=3 on each date; i=4 still fails volatility
+    assert sc["C_remove_volatility"]["n_added"] == 0                   # i=5 fails the EV re-check (5bp <= 10bp)
+    assert sc["E_remove_risk.portfolio"]["n_added"] == 3
+    assert sc["F_relaxed_thresholds"]["n_added"] == 6                  # i=3 and i=5 per date; i=4 too far; EV < 0 never
+    assert "NOT IDENTIFIABLE" in res["D_remove_score_threshold"]
+    h5 = sc["B_remove_liquidity"]["by_horizon"]["5"]
+    assert h5["added"]["n"] == 3 and h5["traded_now"]["n"] == 9 and h5["book_after"]["n"] == 12

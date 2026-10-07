@@ -28,8 +28,15 @@ REQUIRED = {
     "shadow_outcomes": ["opportunity_id", "horizon_sessions", "ret", "ret_hold", "mfe", "mae", "hit_stop",
                         "hit_target", "benchmark_ret", "excess_ret", "status"],
 }
-OPTIONAL = ("shadow_outcome_details",)
+OPTIONAL = ("shadow_outcome_details", "risk_checks", "decisions")
 MIN_DATES = 20            # distinct as-of dates before any group comparison is called more than descriptive
+
+# Filter ablation (sprint P1). Fixed BEFORE any bot data was seen (docs/ALPHA-SPRINT-PREREG.md section 1).
+# "Remove filter X" re-admits rejected candidates whose ONLY blocking failures are in X.
+ABLATIONS = {"B_remove_liquidity": {"no_trade.liquidity"}, "C_remove_volatility": {"no_trade.volatility"}}
+# F: relaxed thresholds. check -> (measured field, threshold field, comparison, relaxation factor).
+RELAX = {"no_trade.liquidity": ("adv20", "min", ">=", 0.5), "no_trade.volatility": ("vol_20d", "max", "<=", 1.25),
+         "risk.ev": ("ev_bps", "min_ev_bps", ">", 0.0)}
 
 
 class SchemaError(ValueError):
@@ -139,9 +146,123 @@ def analyse(f: dict[str, pd.DataFrame]) -> dict[str, Any]:
     return out
 
 
+def _blocking(f: dict[str, pd.DataFrame], o: pd.DataFrame) -> tuple[pd.Series, str]:
+    """opportunity_id -> {names of blocking (failed CRITICAL) checks}. Prefers the per-check records
+    (``risk_checks``); falls back to the ``reject_reason`` text ("name: reason; name: reason")."""
+    rc = f.get("risk_checks")
+    if rc is not None and "candidate_id" in o.columns and not rc.empty:
+        b = rc[(rc["passed"].astype(int) == 0) & (rc["severity"] == "CRITICAL")]
+        names = b.groupby("candidate_id")["check_name"].agg(lambda x: frozenset(x))
+        out = o["candidate_id"].map(names)
+        return out.where(out.notna(), frozenset()).set_axis(o["opportunity_id"]), "risk_checks"
+
+    def parse(txt: Any) -> frozenset:
+        parts = [p.split(":")[0].strip() for p in str(txt or "").split("; ")]
+        return frozenset(p if p.startswith(("no_trade.", "risk.")) else ("ai" if p.startswith("AI") else "other")
+                         for p in parts if p)
+    return pd.Series([parse(t) for t in o["reject_reason"]], index=o["opportunity_id"]), "reject_reason_text"
+
+
+def _check_details(f: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """(candidate_id, check_name) -> details dict (first record), for threshold relaxation."""
+    rc = f.get("risk_checks")
+    if rc is None or rc.empty or "details_json" not in rc.columns:
+        return pd.DataFrame(columns=["candidate_id", "check_name", "details"])
+    d = rc.drop_duplicates(["candidate_id", "check_name"])[["candidate_id", "check_name", "details_json"]]
+    return d.assign(details=[json.loads(x) if isinstance(x, str) and x else {} for x in d["details_json"]])
+
+
+def _ev_bps(f: dict[str, pd.DataFrame]) -> pd.Series:
+    """candidate_id -> EV after costs in bps, from ``decisions.ev_json`` (computed for every candidate,
+    even when the risk chain stopped before its EV stage). Missing -> NaN (UNKNOWN fails closed)."""
+    d = f.get("decisions")
+    if d is None or d.empty or "ev_json" not in d.columns:
+        return pd.Series(dtype=float)
+    ev = [(json.loads(x) or {}).get("ev") if isinstance(x, str) and x else None for x in d["ev_json"]]
+    return pd.Series(pd.to_numeric(pd.Series(ev), errors="coerce").to_numpy() * 1e4, index=d["candidate_id"]).groupby(level=0).first()
+
+
+def _relaxed_pass(name: str, det: dict, min_ev_bps: float) -> bool:
+    if name not in RELAX:
+        return False
+    field_, thr, op, k = RELAX[name]
+    v, t = det.get(field_), det.get(thr, min_ev_bps if name == "risk.ev" else None)
+    if v is None or t is None:
+        return False                                      # UNKNOWN stays failed
+    lim = float(t) * k if name != "risk.ev" else k
+    return {"<=": v <= lim, ">=": v >= lim, ">": v > lim}[op]
+
+
+def ablation(f: dict[str, pd.DataFrame], min_ev_bps: float = 10.0) -> dict[str, Any]:
+    """Sprint P1: what the bot would have added under each filter ablation, and how those candidates did.
+
+    EXPLORATORY with the forward sample available (a handful of dates): it reports, it never picks a winner.
+    Re-admitted candidates are an UPPER BOUND on what would have traded: portfolio capacity, sector caps and
+    sizing were not replayed, and checks after the first failed stage were never evaluated (EV is re-checked
+    from ``decisions.ev_json``; the rest is unknown). D (remove the score threshold) is not identifiable here:
+    sub-threshold names never become candidates. It is tested on 2016-2024 history instead."""
+    o = f["shadow_opportunities"]
+    o = o[o["is_synthetic"].fillna(0).astype(int) == 0].copy()
+    blk, src = _blocking(f, o)
+    o["blocking"] = o["opportunity_id"].map(blk)
+    o["blocking"] = [b if isinstance(b, frozenset) else frozenset() for b in o["blocking"]]
+    ev = _ev_bps(f)
+    o["ev_bps"] = o["candidate_id"].map(ev) if "candidate_id" in o.columns and not ev.empty else np.nan
+    det = _check_details(f)
+    dmap = {(r.candidate_id, r.check_name): r.details for r in det.itertuples()} if not det.empty else {}
+    rejected = o["bot_decision"] != "TRADE"
+    ev_known = o["ev_bps"].notna().any()
+
+    def readmit(removed: set[str] | None = None, relax: bool = False) -> pd.Series:
+        keep = []
+        for r in o.itertuples():
+            if r.bot_decision == "TRADE" or not r.blocking:
+                keep.append(False)
+                continue
+            left = set(r.blocking) - (removed or set())
+            if relax:
+                left = {n for n in left if not _relaxed_pass(n, dmap.get((getattr(r, "candidate_id", None), n), {}) |
+                                                              ({"ev_bps": r.ev_bps} if n == "risk.ev" else {}), min_ev_bps)}
+            ok = not left
+            if ok and ev_known and "risk.ev" not in set(r.blocking):  # EV stage may not have run: re-check it
+                lim = 0.0 if relax else min_ev_bps
+                ok = bool(np.isfinite(r.ev_bps) and r.ev_bps > lim)
+            keep.append(ok)
+        return pd.Series(keep, index=o.index)
+
+    scen = {"A_current": pd.Series(False, index=o.index)}
+    scen.update({k: readmit(v) for k, v in ABLATIONS.items()})
+    seen = sorted({n for b in o.loc[rejected, "blocking"] for n in b})
+    scen.update({f"E_remove_{n}": readmit({n}) for n in seen if n not in set().union(*ABLATIONS.values())})
+    scen["F_relaxed_thresholds"] = readmit(relax=True)
+    r = f["shadow_outcomes"]
+    m = r.merge(o[["opportunity_id", "as_of_date", "strategy_id", "bot_decision"]], on="opportunity_id", how="inner")
+    n_dates = int(o["as_of_date"].nunique())
+    out: dict[str, Any] = {
+        "status": (f"EXPLORATORY: {n_dates} distinct as-of dates. No winner is declared below {MIN_DATES} dates, and no "
+                   "filter is changed on this sample." if n_dates < MIN_DATES else
+                   "descriptive; a filter change still needs a pre-registered forward test"),
+        "blocking_source": src, "ev_recheck": "decisions.ev_json" if ev_known else "UNKNOWN (no decisions table)",
+        "D_remove_score_threshold": "NOT IDENTIFIABLE from the bot database (sub-threshold names are never recorded); "
+                                    "see the historical threshold ablation",
+        "relaxation_factors": {k: {"field": v[0], "factor_or_limit": v[3]} for k, v in RELAX.items()},
+        "scenarios": {}}
+    traded_ids = set(o.loc[~rejected, "opportunity_id"])
+    for name, mask in scen.items():
+        added = set(o.loc[mask, "opportunity_id"])
+        res = {"n_added": len(added), "added_by_strategy": o.loc[mask, "strategy_id"].value_counts().to_dict(),
+               "by_horizon": {}}
+        for h, g in m.groupby("horizon_sessions"):
+            res["by_horizon"][str(int(h))] = {"traded_now": _summ(g[g["opportunity_id"].isin(traded_ids)]),
+                                              "added": _summ(g[g["opportunity_id"].isin(added)]),
+                                              "book_after": _summ(g[g["opportunity_id"].isin(traded_ids | added)])}
+        out["scenarios"][name] = res
+    return out
+
+
 def run(path: str | Path, out_dir: str | Path) -> dict[str, Any]:
     f = load(path)
-    res = {"source": str(path), "quality": quality(f), "analysis": analyse(f)}
+    res = {"source": str(path), "quality": quality(f), "analysis": analyse(f), "ablation": ablation(f)}
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     (out / "botdb_missed_opportunities.json").write_text(json.dumps(res, indent=1, default=str))
