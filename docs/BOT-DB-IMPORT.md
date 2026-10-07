@@ -13,9 +13,26 @@ Make a consistent copy while the bot keeps running (SQLite online backup; the li
 .venv\Scripts\python -c "import sqlite3; sqlite3.connect('var/quantlab.db').backup(sqlite3.connect('var/quantlab_export.db'))"
 ```
 
-## 2. Get the copy to the cloud session (pick one)
+## 2. Get the copy to the cloud session
 
-- **Git (simplest).** `var/` is git-ignored, so force-add it on a separate branch:
+> **The GitHub repository `HarryKelly-Git/quantlab` is PUBLIC (checked 2026-10-07).** Do NOT push the
+> database to any branch while it is public. A pushed file is world-readable and may be cached even
+> after deletion.
+
+Pick one:
+
+- **Upload it into the Claude chat (preferred).** Attach `var/quantlab_export.db` to a message in the
+  cloud session. It lands in `/mnt/user-data/uploads/`.
+
+  If the file is too large to attach, export only the five tables the analysis reads:
+  `shadow_opportunities`, `shadow_outcomes`, `shadow_outcome_details`, `risk_checks`, `decisions`.
+  Ready-made request for the PC Claude chat, which you approve yourself:
+
+  > "Create var/quantlab_export.db containing only the tables shadow_opportunities, shadow_outcomes,
+  > shadow_outcome_details, risk_checks and decisions copied from var/quantlab.db (read-only; do not
+  > modify var/quantlab.db), then tell me the file size."
+- **Git, ONLY after making the repository private** (GitHub: Settings -> General -> Danger Zone ->
+  Change visibility). `var/` is git-ignored, so force-add it on a separate branch:
   ```
   git checkout -b bot-db-export
   git add -f var/quantlab_export.db
@@ -24,11 +41,15 @@ Make a consistent copy while the bot keeps running (SQLite online backup; the li
   git checkout master
   ```
   The file holds paper-account records only. Secrets live in `.env` and are never in the database.
-- **Ask the PC Claude chat to do step 1 and the git push.** Approve its permission prompt yourself. The
-  earlier cross-session attempt was blocked because the approval has to come from you.
 
 ## 3. In the cloud session
 
+Uploaded file:
+```
+.venv/bin/python scripts/research/alpha/run_botdb.py /mnt/user-data/uploads/quantlab_export.db
+```
+
+Private-repo git route:
 ```
 git fetch origin bot-db-export
 git show origin/bot-db-export:var/quantlab_export.db > var/quantlab_export.db
