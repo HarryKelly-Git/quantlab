@@ -1,0 +1,170 @@
+{
+ "liquid=False|TRAIN": {
+  "high_move_low_iv_long_straddle_at_ask": {
+   "mean": -0.1306476808302616,
+   "t_nw": -1.4318013601141084,
+   "n_trades": 19794,
+   "n_weeks": 152
+  },
+  "high_move_low_iv_long_straddle_at_mid": {
+   "mean": 0.01982620979470462,
+   "t_nw": 0.22032869419652,
+   "n_trades": 19794,
+   "n_weeks": 152
+  },
+  "high_move_high_iv_iron_fly_at_bid": {
+   "mean": -0.09307183185429474,
+   "t_nw": -3.890878329470841,
+   "n_trades": 19541,
+   "n_weeks": 152
+  },
+  "high_move_high_iv_short_straddle_at_bid": {
+   "mean": -0.14282076207821623,
+   "t_nw": -2.830168350684622,
+   "n_trades": 19840,
+   "n_weeks": 152
+  },
+  "realised_over_iv_low_iv_group": 0.9110152471926638,
+  "realised_over_iv_high_iv_group": 0.8084865458457988
+ },
+ "liquid=False|VALIDATION": {
+  "high_move_low_iv_long_straddle_at_ask": {
+   "mean": -0.21670068427351016,
+   "t_nw": -6.046270843853085,
+   "n_trades": 7741,
+   "n_weeks": 52
+  },
+  "high_move_low_iv_long_straddle_at_mid": {
+   "mean": -0.033110669075080194,
+   "t_nw": -0.8695334413685795,
+   "n_trades": 7741,
+   "n_weeks": 52
+  },
+  "high_move_high_iv_iron_fly_at_bid": {
+   "mean": -0.07885765188147528,
+   "t_nw": -5.577049051217215,
+   "n_trades": 7744,
+   "n_weeks": 52
+  },
+  "high_move_high_iv_short_straddle_at_bid": {
+   "mean": -0.08923996627055628,
+   "t_nw": -4.073808803324608,
+   "n_trades": 7758,
+   "n_weeks": 52
+  },
+  "realised_over_iv_low_iv_group": 0.9689070790368123,
+  "realised_over_iv_high_iv_group": 0.8482129158225591
+ },
+ "liquid=False|OOS": {
+  "high_move_low_iv_long_straddle_at_ask": {
+   "mean": -0.16306903197112574,
+   "t_nw": -4.165319004585481,
+   "n_trades": 14689,
+   "n_weeks": 99
+  },
+  "high_move_low_iv_long_straddle_at_mid": {
+   "mean": 6.84853699190526e-05,
+   "t_nw": 0.0019531917864935313,
+   "n_trades": 14689,
+   "n_weeks": 99
+  },
+  "high_move_high_iv_iron_fly_at_bid": {
+   "mean": -0.19686387417624593,
+   "t_nw": -11.105450635151476,
+   "n_trades": 14705,
+   "n_weeks": 99
+  },
+  "high_move_high_iv_short_straddle_at_bid": {
+   "mean": -0.20172764330069634,
+   "t_nw": -7.474137694193282,
+   "n_trades": 14729,
+   "n_weeks": 99
+  },
+  "realised_over_iv_low_iv_group": 0.9385042872143932,
+  "realised_over_iv_high_iv_group": 0.7048939793027215
+ },
+ "liquid=True|TRAIN": {
+  "high_move_low_iv_long_straddle_at_ask": {
+   "mean": -0.010549602774748194,
+   "t_nw": -0.11462935673960487,
+   "n_trades": 4138,
+   "n_weeks": 147
+  },
+  "high_move_low_iv_long_straddle_at_mid": {
+   "mean": 0.02608934840521421,
+   "t_nw": 0.28361111609463957,
+   "n_trades": 4138,
+   "n_weeks": 147
+  },
+  "high_move_high_iv_iron_fly_at_bid": {
+   "mean": -0.018812510971719897,
+   "t_nw": -0.5667553678199821,
+   "n_trades": 3691,
+   "n_weeks": 151
+  },
+  "high_move_high_iv_short_straddle_at_bid": {
+   "mean": -0.040843843899507105,
+   "t_nw": -0.6414117564215973,
+   "n_trades": 3704,
+   "n_weeks": 152
+  },
+  "realised_over_iv_low_iv_group": 0.9068394333779948,
+  "realised_over_iv_high_iv_group": 0.8872459628959124
+ },
+ "liquid=True|VALIDATION": {
+  "high_move_low_iv_long_straddle_at_ask": {
+   "mean": -0.06796621090803191,
+   "t_nw": -1.5221580035062994,
+   "n_trades": 1586,
+   "n_weeks": 52
+  },
+  "high_move_low_iv_long_straddle_at_mid": {
+   "mean": -0.03244209800791041,
+   "t_nw": -0.7302401514353115,
+   "n_trades": 1586,
+   "n_weeks": 52
+  },
+  "high_move_high_iv_iron_fly_at_bid": {
+   "mean": 0.010925762002417403,
+   "t_nw": 0.4064892193966794,
+   "n_trades": 1678,
+   "n_weeks": 52
+  },
+  "high_move_high_iv_short_straddle_at_bid": {
+   "mean": 0.02457960559164067,
+   "t_nw": 0.7466847741950718,
+   "n_trades": 1679,
+   "n_weeks": 52
+  },
+  "realised_over_iv_low_iv_group": 0.9489391130522337,
+  "realised_over_iv_high_iv_group": 0.9143836219786682
+ },
+ "liquid=True|OOS": {
+  "high_move_low_iv_long_straddle_at_ask": {
+   "mean": -0.019632316775756442,
+   "t_nw": -0.5397647646772772,
+   "n_trades": 4948,
+   "n_weeks": 99
+  },
+  "high_move_low_iv_long_straddle_at_mid": {
+   "mean": 0.013033440926627076,
+   "t_nw": 0.35812747430660413,
+   "n_trades": 4948,
+   "n_weeks": 99
+  },
+  "high_move_high_iv_iron_fly_at_bid": {
+   "mean": -0.04819212530477863,
+   "t_nw": -2.429204002253805,
+   "n_trades": 2822,
+   "n_weeks": 99
+  },
+  "high_move_high_iv_short_straddle_at_bid": {
+   "mean": -0.042732125250790065,
+   "t_nw": -1.4339763983289453,
+   "n_trades": 2826,
+   "n_weeks": 99
+  },
+  "realised_over_iv_low_iv_group": 0.9394175748207334,
+  "realised_over_iv_high_iv_group": 0.8627969389632439
+ }
+}

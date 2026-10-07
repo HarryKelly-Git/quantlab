@@ -10,10 +10,10 @@
   "status": "DONE",
   "expected_information_value_rank": 1,
   "compute": "low",
-  "result": "Survivors-only universe overstates long-only CAGR by +1.2pp (EW), +1.3pp (12-1 mom), +2.4pp (5d losers), +5.3pp (high vol), 2016-24; delisting-return assumption moves <0.15pp; pre-2017-10 delistings still partly missing (true bias larger)",
+  "result": "survivors-only universe overstates long-only CAGR by +1.2 pp/yr (EW), +1.5 (12-1 momentum), +2.4 (5d losers), +5.5 (top-decile volatility); 18% of the daily liquid universe later delisted; 1,871 delistings (645 distressed) in panel v3. Lower bound: reused-ticker delisted companies still missing.",
   "classification": "FINDING",
   "confidence": "high",
-  "next_action": "use the survivorship-free store for every future long-only test"
+  "next_action": "recover reused-ticker delisted companies via asof queries and re-measure"
  },
  {
   "id": "H33",
@@ -26,10 +26,10 @@
   "status": "DONE",
   "expected_information_value_rank": 2,
   "compute": "medium",
-  "result": "QuantLab's RV forecast beats raw IV overall (OOS MSE 0.123 vs 0.197) and adds information beyond IV even in liquid options (encompassing t 12.7), but IV alone wins among liquid options in 2023-24 (0.091 debiased vs 0.123); every realistic straddle book (ask in, bid out / intrinsic) loses after spreads",
-  "classification": "D",
+  "result": "PART 49 ANSWER: in liquid options IV forecasts 1-month realised vol better than QuantLab (OOS log-var MSE 0.085 vs 0.120; VAL 0.069 vs 0.089); QuantLab adds little beyond IV (encompassing coef 0.13, Driscoll-Kraay t 3.9 OOS; t 1.4 VAL); forecast beats only illiquid options' IV. Two-way test: high move+low IV long straddle -2.0%/trade (liquid OOS, t -0.5); high move+high IV capped iron fly -4.8% (t -2.4). First run's 'beyond IV t 12.7 in liquid options' was wrong (week clustering + contaminated joins).",
+  "classification": "E",
   "confidence": "high",
-  "next_action": "the ONE answer to Part 49: QuantLab has incremental volatility information but not enough to pay option spreads; revisit only with cheaper execution (mid fills) or a longer-dated / less spread-intensive structure"
+  "next_action": "use the forecast for risk, not to trade options; only revisit with a mid-fill execution test"
  },
  {
   "id": "H24",
@@ -42,10 +42,10 @@
   "status": "DONE",
   "expected_information_value_rank": 3,
   "compute": "medium",
-  "result": "HV-IV decile ranking monotonic in the full universe, but largely an illiquidity artefact; in liquid options (spread<=10%) long-top/short-bottom loses -4%/trade OOS (t -2.2)",
-  "classification": "D",
+  "result": "HV-IV deciles: realistic L/S (long top at ask, short bottom at bid) OOS -22.0% (all, t -12.6), -4.6% (liquid, t -2.6); liquid deciles flat OOS; first-run TRAIN spread +22% was partly wrong-company joins (corrected +9%).",
+  "classification": "E",
   "confidence": "high",
-  "next_action": "retire as tradeable; keep as a description of option richness"
+  "next_action": "retire at quoted spreads; only an execution (mid-fill) test could revisit"
  },
  {
   "id": "H01",
@@ -58,10 +58,10 @@
   "status": "DONE",
   "expected_information_value_rank": 4,
   "compute": "low",
-  "result": "160 variants: no variant positive net in TRAIN; best TRAIN Sharpe -0.10; OOS 2022-24 -31% (Sharpe -0.55); costs (turnover 0.2-1.5/day) exceed the 0-4 bps/day gross",
+  "result": "160 variants (2.0 effective); no variant positive net in TRAIN; selected 10d raw EW L/S: TRAIN t -0.17, VAL -0.24, OOS Sharpe -0.55 (t -1.12); SPA p 1.00; gross 0-5 bp/day < costs 5-30 bp/day. Identical on first run, panel v2 and panel v3.",
   "classification": "E",
   "confidence": "high",
-  "next_action": "retire; only a low-turnover large-cap version could change this and the literature says it decayed after 2011"
+  "next_action": "retire as a stand-alone strategy; a regime-conditional (high-volatility) version only if pre-registered"
  },
  {
   "id": "H26",
@@ -74,10 +74,10 @@
   "status": "DONE",
   "expected_information_value_rank": 5,
   "compute": "medium",
-  "result": "pre-earnings straddle: mid-to-mid +1.7-2.4% but the non-earnings placebo earns the same; paying spreads (11-15% each side) -30% per trade, hit rate 4-6%",
+  "result": "pre-earnings straddle (corrected placebo, 31 sessions earlier, off-event): mid-to-mid +1.9% to +3.9% vs placebo +0.6% to +7.6%; event beat placebo by 1.5-2 pp in 2020-21 only; ask in/bid out -28% to -35% per trade, hit rate 4-10%.",
   "classification": "E",
-  "confidence": "high",
-  "next_action": "retire; published effect not reproduced as event-specific"
+  "confidence": "medium-high",
+  "next_action": "retire at quoted spreads"
  },
  {
   "id": "H25",
@@ -90,10 +90,10 @@
   "status": "DONE",
   "expected_information_value_rank": 6,
   "compute": "medium",
-  "result": "realised/expected move averages 0.82-1.05 (median 0.64-0.85); earnings windows ~fair (0.93-1.00); high-IV non-earnings most overpriced (0.82) but short vol at the bid loses after spreads",
+  "result": "OOS realised/implied move 0.83-0.99 (median 0.64-0.84); earnings windows ~fair (0.94-0.99); high-IV non-earnings most overpriced (0.83) but selling at the bid loses after spreads.",
   "classification": "E",
   "confidence": "medium",
-  "next_action": "the only premium is in high-IV non-earnings names; needs sub-spread execution"
+  "next_action": "retire"
  },
  {
   "id": "H27",
@@ -106,10 +106,10 @@
   "status": "DONE",
   "expected_information_value_rank": 7,
   "compute": "medium",
-  "result": "option momentum: monotonic deciles in the full universe, flat among liquid options; L/S liquid OOS -4.1% (t -3.0)",
-  "classification": "D",
-  "confidence": "medium",
-  "next_action": "retire as tradeable"
+  "result": "option momentum: corrected TRAIN top-bottom +4% (first run +31%, wrong-company joins); realistic L/S OOS -20% (all), -5.9%/-4.6% (liquid 3m/12m).",
+  "classification": "E",
+  "confidence": "high",
+  "next_action": "retire"
  },
  {
   "id": "H28",
@@ -122,7 +122,7 @@
   "status": "DONE",
   "expected_information_value_rank": 8,
   "compute": "medium",
-  "result": "term slope: TRAIN t 1.2 (weak); OOS pattern driven by illiquid names; not tradeable after spreads",
+  "result": "term slope: realistic L/S OOS -17.9% (all), -2.6% (liquid, t -1.6).",
   "classification": "E",
   "confidence": "medium",
   "next_action": "retire"
@@ -138,7 +138,7 @@
   "status": "DONE",
   "expected_information_value_rank": 9,
   "compute": "medium",
-  "result": "skew: no straddle-return or next-21d stock-return predictability (OOS t 0.8)",
+  "result": "skew: no straddle-return or 21-day stock-return predictability (OOS T-B t 1.4 ask-to-ask); realistic L/S -30% (all), -4.1% (liquid).",
   "classification": "E",
   "confidence": "medium",
   "next_action": "retire"
@@ -154,10 +154,10 @@
   "status": "DONE",
   "expected_information_value_rank": 10,
   "compute": "low",
-  "result": "16 variants; best TRAIN t 0.93, VAL -0.08, OOS t 0.62; PBO 0.55",
+  "result": "16 variants (1.2 effective); selected 6-1 two-factor: TRAIN t 0.90, VAL -0.02, OOS t 0.65; PBO 0.61; overnight-only gross return (H06).",
   "classification": "E",
-  "confidence": "medium",
-  "next_action": "retire as stand-alone"
+  "confidence": "high",
+  "next_action": "retire"
  },
  {
   "id": "H03",
@@ -170,10 +170,10 @@
   "status": "DONE",
   "expected_information_value_rank": 11,
   "compute": "low",
-  "result": "40 variants; best (12-1 in strong breadth) TRAIN t 1.89, VAL -0.09, OOS Sharpe 0.58 t 0.99; SPA p 0.32, DSR ~0",
+  "result": "40 variants (4.1 effective); selected 12-1 in strong breadth: TRAIN t 1.86, VAL -0.11, OOS Sharpe 0.59 (t 1.01); SPA p 0.40, DSR 0; gross return entirely overnight (H06).",
   "classification": "E",
-  "confidence": "medium",
-  "next_action": "forward-track 12-1 momentum as a portfolio component only; no stand-alone edge"
+  "confidence": "high",
+  "next_action": "shadow-track only if anything; do not trade"
  },
  {
   "id": "H06",
@@ -183,13 +183,13 @@
   "hypothesis": "Anomaly returns split differently overnight vs intraday",
   "data_required": "store",
   "priority": 12,
-  "status": "QUEUED",
+  "status": "DONE",
   "expected_information_value_rank": 12,
   "compute": "low",
-  "result": null,
-  "classification": null,
-  "confidence": null,
-  "next_action": "run"
+  "result": "decomposition of the selected books (gross): momentum (H03/H04) earns +3.5 to +6.5 bp/night (t 3.4-5.8 in TRAIN and OOS) and ~0 intraday; low-MAX/low-IVOL lose overnight and gain intraday (replicates Lou-Polk-Skouras 2019). Not tradeable stand-alone (a daily round trip costs ~14 bp).",
+  "classification": "FINDING",
+  "confidence": "medium-high",
+  "next_action": "use for execution timing of any momentum rebalance (close vs open)"
  },
  {
   "id": "H07",
@@ -202,10 +202,10 @@
   "status": "DONE",
   "expected_information_value_rank": 13,
   "compute": "low",
-  "result": "intraday gap reversal: gross +8-10 bps/day (t 2.9) in development; trades ~4x book/day so costs make it -44 bps/day; OOS -99%",
+  "result": "gap reversal: dev gross t 2.9 (~10 bp/day) but net -59 bp/day (OOS t -10.1). Bounce test (40 large caps, 2020-21, minute bars): 09:35 entry keeps 62% of the opening-print gross (+3.0 vs +4.8 bp/day, both insignificant) -> D stands by the pre-registered rule.",
   "classification": "D",
-  "confidence": "high",
-  "next_action": "only viable with sub-2bp execution, which this account does not have"
+  "confidence": "medium",
+  "next_action": "retire; costs, not fill timing, kill it"
  },
  {
   "id": "H16",
@@ -218,10 +218,10 @@
   "status": "DONE",
   "expected_information_value_rank": 14,
   "compute": "low",
-  "result": "TRAIN t 0.05, VAL -0.62; OOS raw t 0.26 (beta -1.19), beta-adjusted alpha t 1.29",
+  "result": "TRAIN t 0.01, VAL -0.64, OOS t 0.25 (beta -1.20, alpha t 1.27).",
   "classification": "E",
-  "confidence": "medium",
-  "next_action": "retire; any beta-neutral redesign needs forward data (OOS already seen)"
+  "confidence": "high",
+  "next_action": "retire"
  },
  {
   "id": "H17",
@@ -234,10 +234,10 @@
   "status": "DONE",
   "expected_information_value_rank": 15,
   "compute": "low",
-  "result": "TRAIN t 0.20, VAL -0.72; OOS raw t 0.54 (beta -1.11), beta-adjusted alpha t 1.52",
+  "result": "TRAIN t 0.13, VAL -0.82, OOS t 0.53 (beta -1.13, alpha t 1.52).",
   "classification": "E",
-  "confidence": "medium",
-  "next_action": "retire; beta-neutral low-vol book is a forward-test candidate only"
+  "confidence": "high",
+  "next_action": "retire"
  },
  {
   "id": "H30",
@@ -250,7 +250,7 @@
   "status": "DONE",
   "expected_information_value_rank": 16,
   "compute": "medium",
-  "result": "IV percentile / IV change: full-universe spreads are illiquidity artefacts; liquid L/S OOS -1.6% (t -1.3)",
+  "result": "IV percentile (pre-registered 52w; first run used 150w by mistake, both reported) and IV change: realistic L/S OOS -19%/-32% (all), -2.8%/-4.4% (liquid).",
   "classification": "E",
   "confidence": "medium",
   "next_action": "retire"
@@ -266,10 +266,10 @@
   "status": "DONE",
   "expected_information_value_rank": 17,
   "compute": "low",
-  "result": "earnings announcement premium (calendar era): best TRAIN +1.6 bps t -0.36, VAL -10.7, OOS -11.9 bps t -0.5",
+  "result": "calendar-era EAP (entity-corrected, 75,508 events): every variant <= 0 in 2020-21; selected 5d pre: OOS -12 bp/event (t -0.2), -68 bp without top 5%. 3 OOS looks (first run, calendar-split rerun, audit rerun).",
   "classification": "E",
   "confidence": "medium",
-  "next_action": "retire"
+  "next_action": "retest only on a true point-in-time calendar"
  },
  {
   "id": "H21",
@@ -282,7 +282,7 @@
   "status": "DONE",
   "expected_information_value_rank": 18,
   "compute": "medium",
-  "result": "SUE drift: TRAIN +100-200 bps/event but t 1.4-2.2 and negative without the top 5% of trades; OOS t -0.45 (OOS for hold21 seen once by a split bug - disclosed)",
+  "result": "SUE drift (entity-corrected): TRAIN t 0.3-0.8 (first run 1.4-2.2 before future delisters were included); OOS +29 bp mean but t -0.6 and -542 bp without the top 5%. 3 OOS looks, all disclosed.",
   "classification": "E",
   "confidence": "medium",
   "next_action": "retire"
@@ -298,10 +298,10 @@
   "status": "DONE",
   "expected_information_value_rank": 19,
   "compute": "medium",
-  "result": "revision momentum: TRAIN t -0.89, VAL -0.05, OOS t 0.45, PBO 0.60",
+  "result": "revision momentum (entity-corrected): TRAIN t -0.39, VAL -0.02, OOS t 0.35.",
   "classification": "E",
-  "confidence": "medium",
-  "next_action": "retire with this data; vendor estimate history before 2021-04 is archive-imported"
+  "confidence": "high",
+  "next_action": "retire"
  },
  {
   "id": "H09",
@@ -314,9 +314,9 @@
   "status": "DONE",
   "expected_information_value_rank": 20,
   "compute": "low",
-  "result": "13 SPY calendar effects: none survives BH (min q 0.82); pre-FOMC +14 bps and NFP-Friday +13 bps consistently positive but t<0.7; costs ~14 bps round trip",
+  "result": "13 SPY calendar effects: none survives BH (min q 0.82); pre-FOMC +14 bp and NFP Friday +13-18 bp positive in every split but t < 0.8; round trip ~14 bp.",
   "classification": "E",
-  "confidence": "high",
+  "confidence": "medium",
   "next_action": "retire"
  },
  {
@@ -346,10 +346,10 @@
   "status": "DONE",
   "expected_information_value_rank": 22,
   "compute": "medium",
-  "result": "OOS 2022-24: DIRECTION AUC 0.514-0.518, TIMING 0.50-0.52 (not predictable); MAGNITUDE rank IC 0.36 (vs 0.32 trailing vol), VOLATILITY IC 0.80 (vs 0.69), TAIL AUC 0.70 (vs 0.68). Trees overfit TRAIN (AUC 0.70-0.82) without beating linear OOS.",
-  "classification": "E (direction/timing); FINDING (magnitude/vol)",
+  "result": "899k stock-weeks, OOS 2022-24: DIRECTION AUC 0.513-0.518, TIMING 0.50-0.52; MAGNITUDE rank IC 0.36 (trailing-vol baseline 0.32), VOLATILITY IC 0.80 (0.69), TAIL AUC 0.70 (0.68); trees overfit (train AUC 0.70-0.82 for direction/timing).",
+  "classification": "E (direction/timing); FINDING (magnitude/volatility)",
   "confidence": "high",
-  "next_action": "use magnitude/vol forecasts for risk sizing and as option-pricing context, not as a direction signal"
+  "next_action": "use the volatility/magnitude model for risk sizing in the paper bot; measure forward"
  },
  {
   "id": "H31",
@@ -394,9 +394,9 @@
   "status": "DONE",
   "expected_information_value_rank": 25,
   "compute": "medium",
-  "result": "SPY/QQQ first half-hour vs last half-hour: |t|<1.3 in every split, slope ~0 except 2020-21",
+  "result": "SPY/QQQ first-half-hour vs last-half-hour: |t| < 1.3 in every split; slope ~0 except 2020-21.",
   "classification": "E",
-  "confidence": "high",
+  "confidence": "medium",
   "next_action": "retire"
  },
  {
@@ -410,7 +410,7 @@
   "status": "DONE",
   "expected_information_value_rank": 26,
   "compute": "low",
-  "result": "GGR distance pairs (20 pairs, 2-sigma, next-open): Sharpe -0.75/+0.25/-0.18 (within sector), -0.36/+0.70/-0.41 (any), ~+/-1%/yr, all |t|<1.5",
+  "result": "GGR distance pairs: Sharpe -0.62/+0.23/-0.18 (within sector), -0.16/+0.57/-0.41 (any sector); |t| < 1.2.",
   "classification": "E",
   "confidence": "medium",
   "next_action": "retire"
@@ -426,9 +426,9 @@
   "status": "DONE",
   "expected_information_value_rank": 27,
   "compute": "medium",
-  "result": "5 equity streams (3.1 effective): every construction method negative in 2020-21; OOS Sharpe 0.13-0.62, t<=1.05; walk-forward OOS 0.20-0.51",
+  "result": "5 equity streams = 3.1 effective bets (MAX/IVOL 0.96, MOM/RM 0.72); every construction method negative in 2020-21; OOS Sharpe 0.13-0.63 (t <= 1.07); yearly walk-forward 0.20-0.50.",
   "classification": "E",
-  "confidence": "medium",
+  "confidence": "high",
   "next_action": "nothing to combine until a component has an edge"
  },
  {
@@ -506,9 +506,9 @@
   "status": "DONE",
   "expected_information_value_rank": 32,
   "compute": "medium",
-  "result": "1M ATM straddles on SPY/DIA: IV>RV 67-79% of weeks but short-straddle P&L at the bid ~0 (t~0) over 2019-24; XLK/XLF spreads 14-51% make shorts lose",
+  "result": "1M ATM index straddles 2019-24: SPY short at bid -0.5%/-11.3%/+0.9% per month (t ~0), iron fly +4.3%/-12.4%/-4.6%; DIA similar; XLK/XLF quotes too wide. OTM put-writing not tested.",
   "classification": "E",
   "confidence": "medium",
-  "next_action": "untested: OTM put-writing / longer-dated index structures (Cboe PUT-style) - a different, lower-turnover expression"
+  "next_action": "test OTM put-writing (PUT-index structure) only as a pre-registered hypothesis"
  }
 ]

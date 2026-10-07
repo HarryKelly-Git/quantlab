@@ -1,0 +1,69 @@
+{
+ "design": "docs/ALPHA-DISCOVERY-PLAN.md section 10.6",
+ "sample": [
+  "ADSK",
+  "AEE",
+  "AMD",
+  "AWK",
+  "CCI",
+  "CMI",
+  "COF",
+  "DELL",
+  "DVN",
+  "DXCM",
+  "EFX",
+  "ELV",
+  "EQIX",
+  "ES",
+  "FAST",
+  "KHC",
+  "LHX",
+  "LIN",
+  "MCK",
+  "MDB",
+  "MRVL",
+  "NEM",
+  "OPTU",
+  "PANW",
+  "RF",
+  "SEDG",
+  "SHW",
+  "SPGI",
+  "TGT",
+  "TSM",
+  "TT",
+  "TTWO",
+  "ULTA",
+  "VMRK",
+  "WDC",
+  "WMT",
+  "WSM",
+  "WY",
+  "XLNX",
+  "XYZ"
+ ],
+ "n_positions": 3591,
+ "n_days": 505,
+ "r_open_print": {
+  "mean_bps": 4.766337242232775,
+  "t_nw": 0.9926071210605967,
+  "n_days": 505
+ },
+ "r_0935": {
+  "mean_bps": 2.977061463067342,
+  "t_nw": 0.6573396267276713,
+  "n_days": 505
+ },
+ "r_vwap5": {
+  "mean_bps": 5.192292726966817,
+  "t_nw": 1.1231312943393081,
+  "n_days": 505
+ },
+ "open_minus_0935": {
+  "mean_bps": 1.7892757791654321,
+  "t_nw": 0.8015180097201349
+ },
+ "median_abs_first_trade_vs_daily_open_bps": 0.0,
+ "verdict": "D stands: most of the gross return survives a 09:35 entry",
+ "bounce_share": 0.3753984848808668
+}
