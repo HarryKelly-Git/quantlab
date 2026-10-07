@@ -50,8 +50,9 @@ high-volatility stock in a news-dense theme, so big moves are likely. It cannot 
 
 **Answer:**
 - Yes, it repeats, but what repeats is **underperformance**. After a big jump the average stock lags
-  the market over the next 1, 5, 20 and 60 days, news or not. News-driven jumps lag less than no-news
-  jumps, by about 1-1.5 points, but still lag. The difference is not significant at the pre-registered
+  the market over the next 1, 5, 20 and 60 days, news or not.
+- News-driven jumps lag less than no-news jumps: by +1.5 points in 2016-19 and +1.2 in 2022-24, but
+  not in 2020-21 (−0.1). They still lag, and the difference is not significant at the pre-registered
   bar.
 - Laggards do not catch up.
 - Calls after news jumps are expensive: the median spread is 16% of the premium, and implied vol is high
