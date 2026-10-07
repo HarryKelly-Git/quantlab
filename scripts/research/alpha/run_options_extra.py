@@ -97,7 +97,7 @@ for lq in (False, True):
 (RES / "H49_two_way_test.json").write_text(json.dumps(registry._clean(p49), indent=1))
 registry.append_run(hypothesis_id="H33", family="H49_two_way_test", spec={"design": "plan section 10.7", "groups": "weekly forecast terciles x log(forecast/IV) terciles",
                     "long": "high move + low IV: straddle at ask", "short": "high move + high IV: iron fly at bid (capped)"},
-                    split="ALL", metrics=p49)
+                    split="ALL", metrics=p49, data=r.get("data_version") or {})
 
 # --- H35 index / sector ETF variance premium ---------------------------------------------------------------
 e["short_mid"] = (e["straddle_mid"] - e["payoff"]) / e["straddle_mid"]

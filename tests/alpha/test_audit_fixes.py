@@ -280,3 +280,62 @@ def test_straddle_events_decision_pit_and_placebo_exclusion(full):
     pl3 = earnings.straddle_events(d, cal, 2, placebo=True, chain=chain, real_events=real)
     assert first_pl not in set(pd.to_datetime(pl3["entry"]))
     assert len(pl3) == len(pl) - 1
+
+
+# --- verification-review follow-ups: symbol changes, false twins, override tags ------------------------------
+def _renames(rows):
+    return pd.DataFrame(rows, columns=["old_symbol", "new_symbol", "old_cusip", "new_cusip", "process_date"]).assign(
+        process_date=lambda x: pd.to_datetime(x["process_date"]))
+
+
+def test_resolve_follows_symbol_changes_both_ways():
+    d = pd.bdate_range("2019-06-03", "2023-12-29")
+    bars = pd.concat([
+        pd.DataFrame({"symbol": "PARA", "date": d[d >= "2021-01-04"]}),      # today's PARA: traded as BNZI until 2026
+        pd.DataFrame({"symbol": "CBS@2019-12-01", "date": d}),               # CBS -> VIAC -> PARA (old Paramount)
+        pd.DataFrame({"symbol": "OLD@2020-01-10", "date": d[d <= "2021-06-30"]}),   # last seen 2020-01-10, no rename
+    ])
+    rn = _renames([("BNZI", "PARA", "X1", "X1", "2026-08-07"), ("CBS", "VIAC", "Y1", "Y1", "2020-02-13"),
+                   ("VIAC", "PARA", "Y1", "Y1", "2022-02-17")])
+    r = resolve(bars, rn).set_index(["ticker", "date"])["entity"]
+    assert r[("PARA", pd.Timestamp("2023-06-01"))] == "CBS@2019-12-01"     # not Banzai
+    assert r[("BNZI", pd.Timestamp("2023-06-01"))] == "PARA"
+    assert r[("VIAC", pd.Timestamp("2021-06-01"))] == "CBS@2019-12-01"
+    assert r[("CBS", pd.Timestamp("2019-07-01"))] == "CBS@2019-12-01"
+    assert ("CBS", pd.Timestamp("2021-06-01")) not in r.index
+    assert r[("OLD", pd.Timestamp("2020-01-16"))] == "OLD@2020-01-10"     # last_seen + 7 days tolerance
+    assert ("OLD", pd.Timestamp("2020-03-02")) not in r.index              # later bars claim nothing
+    # CUSIP-only records change no ticker
+    rn2 = pd.concat([rn, _renames([("PARA", "PARA", "Z9", "X1", "2026-09-01")])], ignore_index=True)
+    r2 = resolve(bars, rn2).set_index(["ticker", "date"])["entity"]
+    assert r2[("PARA", pd.Timestamp("2023-06-01"))] == "CBS@2019-12-01"
+
+
+def test_dedupe_requires_most_common_days_identical():
+    d = pd.bdate_range("2019-01-01", periods=100)
+    rng = np.random.default_rng(3)
+    a = pd.DataFrame({"symbol": "FUNDA", "date": d, "close": 10 + rng.normal(0, 0.1, 100).round(2), "volume": rng.integers(100, 900, 100).astype(float)})
+    b = a.copy()
+    b["symbol"] = "FUNDB"
+    scattered = np.arange(100) % 15 == 0                                   # identical on 7 scattered days only
+    b.loc[~scattered, "close"] = b.loc[~scattered, "close"] + 0.37
+    out, aliases, renamed, rep = dedupe_twins(pd.concat([a, b], ignore_index=True), min_days=5)
+    assert len(out) == 200 and len(aliases) == 0
+
+
+def test_registry_override_tags_and_identical_reruns(tmp_path, monkeypatch):
+    monkeypatch.setattr(registry, "DIR", tmp_path)
+    monkeypatch.setattr(registry, "LEDGER", tmp_path / "ledger.jsonl")
+    monkeypatch.setattr(registry, "QUEUE", tmp_path / "queue.json")
+    kw = dict(hypothesis_id="H8", family="f", split="OOS", metrics={})
+    registry.append_run(spec={"v": 1}, data={"panel": 1}, **kw)
+    registry.append_run(spec={"v": 1}, data={"panel": 2}, oos_override="audit-2026-10: twins removed, same spec", **kw)
+    registry.append_run(spec={"v": 1}, data={"panel": 2}, **kw)              # identical to an earlier run: allowed
+    registry.append_run(spec={"v": 1}, data={"panel": 1}, **kw)              # identical to the first run: allowed
+    with pytest.raises(registry.OOSReuseError):                               # same tag, reworded: refused
+        registry.append_run(spec={"v": 1}, data={"panel": 3}, oos_override="audit-2026-10: reworded reason, new data", **kw)
+    with pytest.raises(registry.OOSReuseError):                               # no tag
+        registry.append_run(spec={"v": 1}, data={"panel": 3}, oos_override="a long reason without any tag at all here", **kw)
+    registry.append_run(spec={"v": 1}, data={"panel": 3}, oos_override="audit-2026-10b: zero-volume filler dropped", **kw)
+    registry.append_run(spec={"v": 1}, data={"panel": 3}, split="ALL", hypothesis_id="H8", family="f", metrics={})
+    assert registry.oos_looks("H8") == 6

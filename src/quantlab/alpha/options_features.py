@@ -26,6 +26,9 @@ import pandas as pd
 from quantlab.alpha.options_store import options_dir
 from quantlab.alpha.store import HOLDOUT_START, load_bars
 
+OPTIONS_DATA_VERSION = ("2026-10-audit-b: ticker->company by date incl. Alpaca symbol changes; (ticker, month) "
+                        "wrong-company parity test; strict-ATM rows flagged, not dropped")
+
 
 def _session_map(sessions: pd.DatetimeIndex, dates: pd.Series) -> pd.Series:
     pos = sessions.searchsorted(pd.to_datetime(dates).to_numpy(), side="right") - 1
@@ -64,31 +67,34 @@ def month_features(chain: pd.DataFrame, closes: pd.DataFrame, sessions: pd.Datet
     out = out.merge(c25, on=key, how="left").merge(p25, on=key, how="left")
     out["dte"] = (pd.to_datetime(out["expiration"]) - pd.to_datetime(out["session"])).dt.days
     out["em_pct"] = out["straddle_mid"] / out["spot"]
-    # audit fix C2: reject chains that do not belong to the matched stock series. Put-call parity at the
-    # ATM strike implies the spot (ignoring carry, fine for short-dated near-the-money options); if it is
-    # more than 5% from the matched close, or the ATM strike is > 10% from the spot, the chain and the
-    # price series are different companies (recycled/renamed ticker) or the quote is broken: drop.
+    # put-call parity at the ATM strike implies the spot (ignoring carry, fine for short-dated near-the-money
+    # options); used by build_features to reject (ticker, month) chains that belong to another company
     atm_c_mid = (atm["bid_c"] + atm["ask_c"]).to_numpy() / 2
     atm_p_mid = (atm["bid_p"] + atm["ask_p"]).to_numpy() / 2
     implied = atm_c_mid - atm_p_mid + atm["strike"].to_numpy()
     out["parity_err"] = np.abs(implied / out["spot"].to_numpy() - 1)
     out["k_dist"] = np.abs(out["k_atm"] / out["spot"] - 1)
-    out["chain_matches_stock"] = (out["parity_err"] <= 0.05) & (out["k_dist"] <= 0.10)
     return out
 
 
 def ticker_level(bars: pd.DataFrame) -> pd.DataFrame:
-    """Map store entities to the plain ticker the option chain uses, choosing BY DATE the entity that used
-    the ticker then (alpha.entities.resolve: '@' entities first). Audit fix C2: the first version preferred
-    the plain (current) entity, so e.g. old-Caesars CZR options were priced against Eldorado's history."""
+    """Map store entities to the ticker the option chain uses, choosing BY DATE the entity that traded under
+    that ticker then (alpha.entities.resolve with Alpaca's symbol-change history). Audit fix C2: the first
+    version preferred the plain (current) entity, so e.g. old-Caesars CZR options were priced against
+    Eldorado's history, and 2023 PARA (Paramount) options against Banzai's SPAC."""
     from quantlab.alpha.entities import resolve
-    r = resolve(bars)
-    return r.drop(columns=["symbol"]).rename(columns={"ticker": "symbol"})
+    from quantlab.alpha.store import load_name_changes
+    r = resolve(bars, load_name_changes()).drop(columns=["symbol"])
+    r["symbol"] = r["ticker"].astype(str)
+    r["entity"] = r["entity"].astype(str)
+    return r.drop(columns=["ticker"])
 
 
 def build_features() -> pd.DataFrame:
     t0 = time.time()
-    bars = ticker_level(load_bars(columns=["symbol", "date", "close", "adj_close"]))
+    raw = load_bars(columns=["symbol", "date", "close", "adj_close", "volume"])
+    bars = ticker_level(raw[raw["volume"] > 0].drop(columns=["volume"]))       # filler bars claim no ticker
+    del raw
     closes = bars.pivot(index="date", columns="symbol", values="close")
     sessions = closes.index
     files = sorted(options_dir().glob("chain_*-*.parquet"))
@@ -100,13 +106,23 @@ def build_features() -> pd.DataFrame:
         syms = [s for s in ch["act_symbol"].astype(str).unique() if s in closes.columns]
         feats.append(month_features(ch, closes[syms], sessions))
     df = pd.concat(feats, ignore_index=True)
-    ok = df["chain_matches_stock"].to_numpy()
-    rej = df.loc[~ok]
-    report = {"rows_before_parity_filter": int(len(df)), "rows_rejected": int((~ok).sum()),
+    # wrong-company test PER (ticker, month): a chain belonging to another company misses the matched close
+    # on (almost) every snapshot, so the month's MEDIAN parity error is large. A per-row rule (first audit
+    # fix) mostly removed legitimate cheap, high-IV names on days without a near-the-money strike
+    # (verification review): those rows stay, flagged by ``atm_ok`` for a strict-ATM sensitivity run.
+    month = pd.to_datetime(df["session"]).dt.to_period("M")
+    med = df.groupby([df["act_symbol"], month])["parity_err"].transform("median")
+    wrong = (med > 0.05).to_numpy()
+    rej = df.loc[wrong]
+    report = {"rule": "drop (ticker, month) whose median put-call-parity spot error > 5%",
+              "rows_before_filter": int(len(df)), "rows_rejected": int(wrong.sum()),
+              "rejected_ticker_months": int(rej.groupby(["act_symbol", month[wrong]]).ngroups) if wrong.any() else 0,
               "rejected_tickers": int(rej["act_symbol"].nunique()),
               "rejected_by_year": {str(k): int(v) for k, v in pd.to_datetime(rej["session"]).dt.year.value_counts().sort_index().items()},
               "top_rejected_tickers": {str(k): int(v) for k, v in rej["act_symbol"].value_counts().head(25).items()}}
-    df = df.loc[ok].drop(columns=["chain_matches_stock"]).reset_index(drop=True)
+    df = df.loc[~wrong].reset_index(drop=True)
+    df["atm_ok"] = (df["k_dist"] <= 0.10) & (df["parity_err"] <= 0.05)
+    report["rows_not_atm_ok_kept"] = int((~df["atm_ok"]).sum())
     # the store entity behind each (ticker, session): what every equity lookup must use (audit fixes C2/M1)
     ent = bars[["symbol", "date", "entity"]].rename(columns={"symbol": "act_symbol", "date": "session"})
     df = df.merge(ent, on=["act_symbol", "session"], how="left")
@@ -114,7 +130,7 @@ def build_features() -> pd.DataFrame:
     report["rows_on_delisted_entities"] = int(df["entity"].astype(str).str.contains("@").sum())
     import json
     (options_dir() / "features_report.json").write_text(json.dumps(report, indent=1))
-    print(f"features: {len(df)} rows in {time.time() - t0:.0f}s; parity/strike filter rejected {report['rows_rejected']}", flush=True)
+    print(f"features: {len(df)} rows in {time.time() - t0:.0f}s; wrong-company months rejected {report['rows_rejected']} rows", flush=True)
     df = add_outcomes(df, bars)
     df.to_parquet(options_dir() / "features.parquet", index=False)
     print(f"outcomes added in {time.time() - t0:.0f}s", flush=True)

@@ -305,4 +305,24 @@ the re-run protocol before any corrected number is seen.
      - all names, and the liquid subset (straddle spread ≤ 10% of mid);
      - a long-straddle-at-mid line, to separate signal from spread.
    - No parameter is tuned. Thirds are fixed here.
+8. **Revisions after the verification review (2026-10-07).** These were made before any corrected
+   options or earnings result was seen. The six equity families had been re-run once on panel v2, and
+   their results matched the first run.
+   - **Ticker → company by date** now also uses Alpaca's symbol-change history (3,679 changes,
+     2017-2026). The first fix still sent old-company data for reused tickers to today's holder of the
+     ticker (e.g. 2023 PARA options to Banzai's SPAC; old Barnes Group events to Barrick).
+     - A key's ticker on each date follows its rename chain, CUSIP-continuous.
+     - An '@' key claims its ticker only up to its last-seen date + 7 days, unless the chain shows the company continuing under a new ticker.
+     - Data for a company missing from the store is dropped, never assigned to another company.
+   - **The options filter is now per (ticker, month):** a month is dropped when its median put-call-parity spot error exceeds 5%.
+     - The per-row rule from §10.1 (also dropping rows whose ATM strike is > 10% from spot) mostly removed legitimate cheap, high-IV names.
+     - It is kept only as a labelled strict-ATM sensitivity.
+   - **Panel v3:**
+     - Zero-volume bars are dropped. They are carry-forward filler from the entity mapping: 4.9% of rows, with 268 places where a filler stretch ends in a jump joining two different securities (up to ×2,500).
+     - Twins require an unbroken run of ≥ 5 identical common trading days, and are ranked by real trading days.
+     - All equity families are re-run once more under the override tag `audit-2026-10b`; every earlier OOS row stays in the ledger and is reported.
+   - **Registry:**
+     - Override tags are unique per hypothesis.
+     - Re-running a spec on data identical to any earlier OOS run is allowed.
+     - Every look at OOS-period data, including descriptive "ALL" families, is counted (`registry.oos_looks`) and reported.
 

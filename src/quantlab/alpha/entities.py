@@ -32,34 +32,142 @@ def _ticker(sym: pd.Index) -> pd.Index:
     return pd.Index(sym.astype(str)).str.split("@").str[0]
 
 
-def resolve(bars: pd.DataFrame) -> pd.DataFrame:
+AT_TOLERANCE_DAYS = 7          # an '@' entity claims its ticker up to its directory last_seen date + 7 days
+
+
+FORWARD_WINDOW = (30, 120)     # an '@' key's rename must fall within [last_seen - 30d, last_seen + 120d]
+
+
+def rename_chains(renames: pd.DataFrame | None, keys) -> dict[str, tuple[np.ndarray, list[str]]]:
+    """For each store key whose company traded under more than one ticker: the tickers it used over time,
+    oldest first, with the start date of every later one (from Alpaca's symbol-change history).
+      * plain key K: followed BACKWARDS from the latest change into K;
+      * 'T@D' key (T last seen in the directory on D): backwards from T before D, and FORWARDS through
+        the change out of T dated within [D - 30d, D + 120d] (the two sources' dates differ a little),
+        e.g. CBS@2019-12-01 -> VIAC (2020) -> PARA (2022).
+    Every step after the first must be the same security (CUSIP continuity); a break stops the chain, and
+    the earlier/later ticker is then left unclaimed rather than guessed."""
+    if renames is None or len(renames) == 0:
+        return {}
+    r = renames[renames["old_symbol"] != renames["new_symbol"]].sort_values("process_date")   # CUSIP-only records change no ticker
+    by_new = {sym: g for sym, g in r.groupby("new_symbol")}
+    by_old = {sym: g for sym, g in r.groupby("old_symbol")}
+    out: dict[str, tuple[np.ndarray, list[str]]] = {}
+    for k in keys:
+        at = "@" in k
+        t = k.split("@")[0]
+        anchor = pd.Timestamp(k.split("@")[1]) if at else None
+        if t not in by_new and not (at and t in by_old):
+            continue
+        # backwards
+        cur, end, cusip, back = t, anchor, None, []
+        first_cusip = None
+        while len(back) < 25:
+            g = by_new.get(cur)
+            if g is not None and end is not None:
+                g = g[g["process_date"] < end]
+            if g is not None and cusip is not None:
+                g = g[g["new_cusip"] == cusip]
+            if g is None or g.empty:
+                back.append((cur, None))
+                break
+            ch = g.iloc[-1]
+            first_cusip = first_cusip or ch["new_cusip"]
+            back.append((cur, ch["process_date"]))
+            cur, end, cusip = ch["old_symbol"], ch["process_date"], ch["old_cusip"]
+        segs = back[::-1]
+        # forwards ('@' keys only)
+        if at:
+            cur, cusip, lo, hi = t, first_cusip, anchor - pd.Timedelta(days=FORWARD_WINDOW[0]), anchor + pd.Timedelta(days=FORWARD_WINDOW[1])
+            while len(segs) < 50:
+                g = by_old.get(cur)
+                if g is None:
+                    break
+                g = g[g["process_date"] >= lo]
+                if hi is not None:
+                    g = g[g["process_date"] <= hi]
+                if cusip is not None:
+                    g = g[g["old_cusip"] == cusip]
+                if g.empty:
+                    break
+                ch = g.iloc[0]
+                segs.append((ch["new_symbol"], ch["process_date"]))
+                cur, cusip, lo, hi = ch["new_symbol"], ch["new_cusip"], ch["process_date"], None
+        if len(segs) < 2:
+            continue
+        starts = np.array([pd.Timestamp(d).to_datetime64() for _, d in segs[1:]], dtype="datetime64[ns]")
+        out[k] = (starts, [x for x, _ in segs])
+    return out
+
+
+def resolve(bars: pd.DataFrame, renames: pd.DataFrame | None = None) -> pd.DataFrame:
     """(ticker, date) -> entity for every date the store has a bar. ``bars``: symbol, date (+ any cols,
-    which are carried through for the chosen entity). Output columns: the input ones + ticker + entity."""
-    b = bars.copy()
-    b["symbol"] = b["symbol"].astype(str)
-    syms = pd.Index(b["symbol"].unique())
-    tick = pd.Series(_ticker(syms), index=syms)
-    b["ticker"] = b["symbol"].map(tick)
-    b["entity"] = b["symbol"]
-    n_ent = tick.groupby(tick).transform("size")
-    multi = set(n_ent[n_ent > 1].index)                     # entity keys whose ticker has several entities
-    if not multi:
-        return b
-    one = b[~b["symbol"].isin(multi)]
-    many = b[b["symbol"].isin(multi)].copy()
-    last = many.groupby("symbol")["date"].transform("max")
-    many["prio"] = np.where(many["symbol"] != many["ticker"], 0, 1)    # '@' entities first
-    many["end"] = last
-    many = (many.sort_values(["ticker", "date", "prio", "end"])
-            .drop_duplicates(["ticker", "date"], keep="first").drop(columns=["prio", "end"]))
-    return pd.concat([one, many], ignore_index=True)
+    which are carried through for the chosen entity). Output: the chosen input rows plus categorical
+    ``ticker`` and ``entity`` columns (``symbol`` = ``entity``).
+    Which ticker a key's bar was traded under on its date:
+      * 'T@D' keys: T up to D + 7 days; later bars claim nothing, unless the symbol-change history shows
+        the company continuing under a new ticker (then that ticker, e.g. CBS@2019-12-01 -> VIAC -> PARA);
+      * plain keys with a symbol-change history (``renames``, Alpaca corporate actions): the ticker in force
+        on that date (audit follow-up to C2: a plain key's asof history includes the years before it took
+        its current ticker - e.g. today's PARA, Banzai, traded as BNZI until 2026-08 - so it must never
+        answer for the company that used the ticker before);
+      * other plain keys: the key.
+    Among keys claiming the same (ticker, date): '@' keys first (the one ending first), then plain.
+    Integer codes throughout: the full store is ~19M rows."""
+    sym = bars["symbol"]
+    cat = sym if isinstance(sym.dtype, pd.CategoricalDtype) else sym.astype(str).astype("category")
+    cats = pd.Index(cat.cat.categories.astype(str))
+    codes = cat.cat.codes.to_numpy().astype(np.int64)
+    dates = pd.to_datetime(bars["date"]).to_numpy().astype("datetime64[ns]")
+    is_at_c = np.asarray(cats.str.contains("@"), dtype=bool)
+    lim_c = (pd.to_datetime(cats.str.split("@").str[1], errors="coerce")
+             + pd.Timedelta(days=AT_TOLERANCE_DAYS)).to_numpy().astype("datetime64[ns]")
+    tick_c = _ticker(cats)
+    chains = rename_chains(renames, list(cats))
+    fwd = np.array([bool(is_at_c[i]) and k in chains and chains[k][1][-1] != tick_c[i] for i, k in enumerate(cats)], dtype=bool)
+    keep = np.ones(len(codes), dtype=bool)
+    at_rows = is_at_c[codes] & ~fwd[codes]                  # '@' keys without a forward rename stop at last_seen
+    keep[at_rows] = ~(dates[at_rows] > lim_c[codes[at_rows]])
+    del at_rows
+    names = set(tick_c)
+    for _, nm in chains.values():
+        names.update(nm)
+    tickers = pd.Index(sorted(names))
+    tcode = tickers.get_indexer(tick_c)[codes]
+    if chains:
+        order = np.argsort(codes, kind="stable")
+        bounds = np.searchsorted(codes[order], np.arange(len(cats) + 1))
+        for k, (starts, nm) in chains.items():
+            ci = cats.get_loc(k)
+            rows = order[bounds[ci]:bounds[ci + 1]]
+            if len(rows):
+                tcode[rows] = tickers.get_indexer(pd.Index(nm))[np.searchsorted(starts, dates[rows], side="right")]
+        del order
+    end_c = pd.Series(dates).groupby(codes).max().reindex(range(len(cats))).to_numpy().astype("datetime64[ns]")
+    idx = np.nonzero(keep)[0]
+    del keep
+    o = np.lexsort((end_c[codes[idx]].view("i8"), np.where(is_at_c[codes[idx]], 0, 1), dates[idx].view("i8"), tcode[idx]))
+    sel = idx[o]
+    del idx, o
+    t_s, d_s = tcode[sel], dates[sel].view("i8")
+    first = np.ones(len(sel), dtype=bool)
+    first[1:] = (t_s[1:] != t_s[:-1]) | (d_s[1:] != d_s[:-1])
+    sel = np.sort(sel[first])
+    out = bars.iloc[sel].copy()
+    out["entity"] = pd.Categorical.from_codes(codes[sel], categories=cats)
+    out["symbol"] = out["entity"]
+    out["ticker"] = pd.Categorical.from_codes(tcode[sel], categories=tickers)
+    return out.reset_index(drop=True)
 
 
 def map_events(events: pd.DataFrame, resolved: pd.DataFrame, ticker_col: str, date_col: str) -> pd.Series:
-    """Entity for each (ticker, session) row of ``events``; NaN when the store has no bar that session."""
-    key = resolved[["ticker", "date", "entity"]].rename(columns={"ticker": ticker_col, "date": date_col})
-    e = events[[ticker_col, date_col]].copy()
-    e[date_col] = pd.to_datetime(e[date_col])
+    """Entity for each (ticker, session) row of ``events``; NaN when no store entity used that ticker on
+    that session."""
+    tick = events[ticker_col].astype(str)
+    key = resolved.loc[resolved["ticker"].isin(set(tick)), ["ticker", "date", "entity"]]
+    key = pd.DataFrame({ticker_col: key["ticker"].astype(str).to_numpy(), date_col: pd.to_datetime(key["date"]).to_numpy(),
+                        "entity": key["entity"].astype(str).to_numpy()})
+    e = pd.DataFrame({ticker_col: tick.to_numpy(), date_col: pd.to_datetime(events[date_col]).to_numpy()}, index=events.index)
     m = e.reset_index().merge(key, on=[ticker_col, date_col], how="left").set_index("index")
     return m["entity"].reindex(events.index)
 
@@ -67,8 +175,10 @@ def map_events(events: pd.DataFrame, resolved: pd.DataFrame, ticker_col: str, da
 def dedupe_twins(bars: pd.DataFrame, min_days: int = 5, drop_frac: float = 0.95
                  ) -> tuple[pd.DataFrame, pd.DataFrame, set[str], pd.DataFrame]:
     """Returns (bars without twin rows, aliases [symbol, date, keeper], renamed keys, per-pair report).
-    Two keys are TWINS when they share (date, raw close, volume > 0) on >= ``min_days`` days (counted per
-    pair, so a third key matching on a couple of days by coincidence does not break the pair)."""
+    Two keys are TWINS on the days where they share (date, raw close, volume > 0) in an UNBROKEN run of
+    >= ``min_days`` of their common trading days. A twin period (rename, merger survivor, SPAC splice) is
+    contiguous; coincidences are scattered (verification review: two NextShares funds matched on 5 of 330
+    common days). Counted per pair, so a third key matching on a couple of days does not break the pair."""
     from collections import Counter
     from itertools import combinations
     empty = pd.DataFrame(columns=["symbol", "date", "keeper"])
@@ -90,18 +200,35 @@ def dedupe_twins(bars: pd.DataFrame, min_days: int = 5, drop_frac: float = 0.95
     for g, sym, dt in zip(gid, d["symbol"].to_numpy(), d["date"].to_numpy()):
         members.setdefault(g, []).append(sym)
         dates[g] = dt
-    pairs: Counter = Counter()
-    for mem in members.values():
+    pair_dates: dict[tuple[str, str], list] = {}
+    for g, mem in members.items():
         for a, b in combinations(sorted(set(mem)), 2):
-            pairs[(a, b)] += 1
-    twin = {k for k, n in pairs.items() if n >= min_days}
-    if not twin:
+            pair_dates.setdefault((a, b), []).append(dates[g])
+    cand = {k: v for k, v in pair_dates.items() if len(v) >= min_days}
+    if not cand:
+        return bars, empty, set(), pd.DataFrame()
+    in_pairs = {x for k in cand for x in k}
+    vv = v[v["symbol"].astype(str).isin(in_pairs)]
+    def _ns(x) -> np.ndarray:
+        return np.asarray(x).astype("datetime64[ns]").astype(np.int64)
+    days = {k: _ns(g.to_numpy()) for k, g in vv.groupby(vv["symbol"].astype(str))["date"]}
+    twin_days: dict[tuple[str, str], set] = {}
+    for k, ident in cand.items():
+        common = np.intersect1d(days[k[0]], days[k[1]])
+        is_id = np.isin(common, _ns(ident))
+        edges = np.diff(np.r_[0, is_id.astype(np.int8), 0])            # runs of consecutive identical common days
+        starts, ends = np.nonzero(edges == 1)[0], np.nonzero(edges == -1)[0]
+        keep_days = [common[a_:b_] for a_, b_ in zip(starts, ends) if b_ - a_ >= min_days]
+        if keep_days:
+            twin_days[k] = set(np.concatenate(keep_days).tolist())
+    if not twin_days:
         return bars, empty, set(), pd.DataFrame()
     drop_rows = []
     for g, mem in members.items():              # members are in priority order (sorted by rank above)
         kept: list[str] = []
+        dt_g = int(_ns([dates[g]])[0])
         for x in mem:
-            hit = next((k for k in kept if (min(k, x), max(k, x)) in twin), None)
+            hit = next((k for k in kept if dt_g in twin_days.get((min(k, x), max(k, x)), ())), None)
             if hit is None:
                 kept.append(x)
             else:
@@ -132,10 +259,27 @@ def dedupe_twins(bars: pd.DataFrame, min_days: int = 5, drop_frac: float = 0.95
 
 
 def apply_aliases(entity: pd.Series, date: pd.Series, aliases: pd.DataFrame | None) -> pd.Series:
-    """Replace (entity, date) pairs that were removed as twins by the key that was kept."""
+    """Replace (entity, date) pairs that were removed as twins by the key that was kept. Only rows whose
+    entity appears in ``aliases`` are looked up (the resolution table has ~19M rows)."""
     if aliases is None or len(aliases) == 0:
         return entity
-    a = aliases.rename(columns={"symbol": "_e", "date": "_d"})
-    x = pd.DataFrame({"_e": entity.astype(object), "_d": pd.to_datetime(date)}, index=entity.index).reset_index()
-    m = x.merge(a, on=["_e", "_d"], how="left").set_index("index")["keeper"].reindex(entity.index)
-    return m.where(m.notna(), entity)
+    hit = entity.isin(set(aliases["symbol"].astype(str))).to_numpy()
+    if not hit.any():
+        return entity
+    sub = pd.DataFrame({"_e": entity[hit].astype(str).to_numpy(), "_d": pd.to_datetime(date[hit]).to_numpy()})
+    a = pd.DataFrame({"_e": aliases["symbol"].astype(str).to_numpy(), "_d": pd.to_datetime(aliases["date"]).to_numpy(),
+                      "keeper": aliases["keeper"].astype(str).to_numpy()})
+    k = sub.merge(a, on=["_e", "_d"], how="left")["keeper"].to_numpy()
+    if isinstance(entity.dtype, pd.CategoricalDtype):
+        new = sorted({x for x in k if isinstance(x, str)} - set(entity.cat.categories))
+        out = entity.cat.add_categories(new) if new else entity.copy()
+    else:
+        out = entity.copy()
+    vals = out.to_numpy(copy=True)
+    pos = np.nonzero(hit)[0]
+    found = pd.notna(k)
+    if isinstance(out.dtype, pd.CategoricalDtype):
+        out.iloc[pos[found]] = k[found]
+        return out
+    vals[pos[found]] = k[found]
+    return pd.Series(vals, index=entity.index, name=entity.name)

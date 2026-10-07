@@ -15,11 +15,12 @@ The OOS-once rule: a hypothesis's OOS split may be evaluated once per locked spe
 A second OOS run with a different spec or different data is refused unless it is either
   * a NEW variant (``new_variant_ok``: raises the family's trial count, so every later statistic is
     deflated for it), or
-  * a documented BUG-FIX re-evaluation (``oos_override``: a written reason of >= 30 characters). Each
-    reason can be used ONCE per hypothesis (audit fix M6: the first version hard-coded reason strings that
-    silently passed on every rerun). The earlier OOS rows stay in the ledger and every report states how
-    many OOS evaluations a hypothesis has had.
-Re-running the identical spec on identical data reproduces the same number and is allowed.
+  * a documented BUG-FIX re-evaluation (``oos_override``: 'TAG: reason', >= 30 characters). Each TAG
+    (e.g. 'audit-2026-10') can be used ONCE per hypothesis (audit fix M6: the first version hard-coded
+    reason strings that silently passed on every rerun). The earlier OOS rows stay in the ledger and every
+    report states how many OOS looks a hypothesis has had (``oos_looks``, which also counts descriptive
+    'ALL' families: they select nothing, but each re-run still looks at the OOS period).
+Re-running a spec on data identical to ANY earlier OOS run reproduces a known number and is allowed.
 """
 from __future__ import annotations
 
@@ -107,6 +108,22 @@ def ledger() -> list[dict[str, Any]]:
     return [json.loads(line) for line in LEDGER.read_text().splitlines() if line.strip()]
 
 
+def override_tag(reason: str) -> str:
+    """The audit/cycle tag of an OOS override: the text before the first ':' (e.g. 'audit-2026-10')."""
+    return reason.split(":", 1)[0].strip().lower() if reason else ""
+
+
+OOS_SPLITS = ("OOS", "ALL", "ALL_2016_2024")      # rows whose metrics include the OOS period
+
+
+def oos_looks(hypothesis_id: str | None = None, family: str | None = None) -> int:
+    """How many ledger rows have looked at OOS-period data for a hypothesis / family (descriptive 'ALL'
+    families included: they have no selection step, but every re-run is still a look)."""
+    return sum(1 for r in ledger() if r.get("split") in OOS_SPLITS
+               and (hypothesis_id is None or r.get("hypothesis_id") == hypothesis_id)
+               and (family is None or r.get("family") == family))
+
+
 def trial_counts(family: str | None = None) -> dict[str, int]:
     rows = ledger()
     fam = [r for r in rows if family is None or r.get("family") == family]
@@ -121,17 +138,18 @@ def append_run(*, hypothesis_id: str, family: str, spec: dict[str, Any], split: 
     dh = spec_hash(data or {})
     if split == "OOS":
         prior = [r for r in ledger() if r["hypothesis_id"] == hypothesis_id and r["split"] == "OOS"]
-        identical = all(r["spec_hash"] == h and r.get("data_hash") == dh for r in prior)
+        identical = any(r["spec_hash"] == h and r.get("data_hash") == dh for r in prior)   # reproduces a known number
         if prior and not identical and not new_variant_ok:
             if not oos_override:
                 raise OOSReuseError(f"{hypothesis_id}: OOS already evaluated with spec(s) "
                                     f"{sorted({r['spec_hash'] for r in prior})}; a different spec is a NEW variant and "
                                     "different data needs a documented one-time override")
-            if len(oos_override.strip()) < 30:
-                raise OOSReuseError(f"{hypothesis_id}: an OOS override needs a documented reason (>= 30 characters)")
-            if any(r.get("oos_override") == oos_override for r in prior):
-                raise OOSReuseError(f"{hypothesis_id}: this override reason was already used once; a second override "
-                                    "with the same reason is refused")
+            if len(oos_override.strip()) < 30 or ":" not in oos_override:
+                raise OOSReuseError(f"{hypothesis_id}: an OOS override needs 'TAG: documented reason' (>= 30 characters)")
+            tag = override_tag(oos_override)
+            if any(override_tag(r.get("oos_override") or "") == tag for r in prior):
+                raise OOSReuseError(f"{hypothesis_id}: override tag {tag!r} was already used once for this hypothesis; "
+                                    "a second override under the same tag is refused")
     row = {"ts": pd.Timestamp.now(tz="UTC").isoformat(), "hypothesis_id": hypothesis_id, "family": family,
            "split": split, "spec": spec, "spec_hash": h, "metrics": metrics, "conclusion": conclusion,
            "seed": seed, "data": data or {}, "data_hash": dh, "git": git_commit()}

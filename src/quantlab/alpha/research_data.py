@@ -19,7 +19,8 @@ from quantlab.alpha.panel import (SECTOR_ETFS, AlphaPanel, build_panel, median_d
                                   residual_returns, rolling_betas, sector_return, statistical_sectors)
 from quantlab.alpha.store import store_dir
 
-PANEL_VERSION = "2026-10-audit: twins de-duplicated (M2), distress flag on adjusted prices, spy_vol fixed bins"
+PANEL_VERSION = ("2026-10-audit-b: zero-volume filler bars dropped; twins de-duplicated (M2) on real trading days with "
+                 ">= 50% identical common days; distress flag on adjusted prices; spy_vol fixed bins")
 CACHE_FIELDS = ("open", "close", "volume", "dollar_volume", "adj_open", "adj_high", "adj_low", "adj_close",
                 "ret_cc", "ret_on", "ret_id", "ret_oo", "n_hist")
 
@@ -51,12 +52,13 @@ class EquityData:
         r = getattr(self, "_resolved", None)
         if r is None:
             from quantlab.alpha.entities import apply_aliases, resolve
-            src = None
+            src, renames = None, None
             if not (self.manifest.get("synthetic") or self.p.meta.get("is_synthetic")):
                 try:
-                    from quantlab.alpha.store import load_bars
-                    src = load_bars(columns=["symbol", "date"])
-                    src = src[src["date"] <= self.p.dates[-1]]
+                    from quantlab.alpha.store import load_bars, load_name_changes
+                    src = load_bars(columns=["symbol", "date", "volume"])
+                    src = src.loc[(src["date"] <= self.p.dates[-1]) & (src["volume"] > 0), ["symbol", "date"]]
+                    renames = load_name_changes()
                 except FileNotFoundError:
                     src = None
             if src is None:
@@ -64,7 +66,7 @@ class EquityData:
                 long = self.p["close"].stack(future_stack=True).dropna().rename("close").reset_index()
                 long.columns = ["date", "symbol", "close"]
                 src = long[["symbol", "date"]]
-            r = resolve(src)
+            r = resolve(src, renames)
             r["entity"] = apply_aliases(r["entity"], r["date"], self.p.meta.get("twin_aliases"))
             object.__setattr__(self, "_resolved", r)
         return r
@@ -132,7 +134,11 @@ def get(refresh: bool = False) -> EquityData:
     path = _cache() / "equity_data.pkl"
     if path.exists() and not refresh:
         with path.open("rb") as fh:
-            return pickle.load(fh)
+            d = pickle.load(fh)
+        if d.manifest.get("panel_version") != PANEL_VERSION:
+            raise RuntimeError(f"cached research data is panel version {d.manifest.get('panel_version')!r}, code expects "
+                               f"{PANEL_VERSION!r}: rebuild with run_batch.py build")
+        return d
     d = build()
     with path.open("wb") as fh:
         pickle.dump(d, fh, protocol=pickle.HIGHEST_PROTOCOL)
@@ -195,6 +201,7 @@ def from_panel(p: AlphaPanel, manifest: dict | None = None) -> EquityData:
                      "n_twin_keys_deduplicated": int(len(tw)) if tw is not None else 0,
                      "n_twin_rows_removed": int(len(p.meta.get("twin_aliases", []))),
                      "n_renamed_not_delisted": int(ren.sum()),
+                     "n_zero_volume_bars_dropped": int(p.meta.get("n_zero_volume_bars_dropped", 0)),
                      "n_delisted_in_panel": int((~ren).sum()), "n_delisted_distressed": int(dl["distressed"].astype(bool).sum()),
                      "n_survivor_symbols": len(survivors), "panel_symbols": int(p.meta["n_symbols"]),
                      "universe_liquid_avg_names": float(u_liquid.sum(axis=1).mean()),

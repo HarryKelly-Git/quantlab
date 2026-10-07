@@ -16,8 +16,9 @@ m = ov.build_obs(d)
 print(f"obs {len(m)} built in {time.time() - t0:.0f}s", flush=True)
 m.to_parquet(research_data.store_dir() / "options" / "obs_monthly.parquet", index=False)
 out = {"n_obs": int(len(m)), "data": "DoltHub chains (archive import < 2021-05, commit-verified after); one 1-month ATM straddle per underlying per week",
-       "audit": "2026-10 re-run: entity-by-date joins (C2/M1), parity/strike filter, RV model on calendar-covered TRAIN rows "
-                "with embargo (M3), Driscoll-Kraay t (M4), median forecast for log accuracy, IV debiased with the TRAIN bias",
+       "audit": "2026-10 re-run: ticker->company by date incl. symbol changes (C2/M1), (ticker, month) wrong-company parity "
+                "test (strict-ATM rows as a sensitivity), RV model on calendar-covered TRAIN rows with embargo (M3), "
+                "Driscoll-Kraay t (M4), median forecast for log accuracy, IV debiased with the TRAIN bias",
        "n_obs_delisted_entities": int(m["entity"].astype(str).str.contains("@").sum()),
        "n_entities": int(m["entity"].nunique())}
 
@@ -25,18 +26,28 @@ def split_of(x):
     return splits.label_series(pd.DatetimeIndex(pd.to_datetime(x["session"])), "options").to_numpy()
 m["split"] = split_of(m)
 ok = m.dropna(subset=["ret_hold_ask", "iv_atm", "rv_to_exp"])
+from quantlab.alpha.options_features import OPTIONS_DATA_VERSION
+DATA = {"options": out["data"], "version": OPTIONS_DATA_VERSION, "panel_version": d.manifest.get("panel_version")}
+out["data_version"] = DATA
+
+
 # --- baseline facts: the variance risk premium and straddle returns ----------------------------------
-base = {}
-for sp in ("TRAIN", "VALIDATION", "OOS"):
-    x = ok[ok["split"] == sp]
-    wk = x.groupby("week", observed=True)
-    base[sp] = {"n": int(len(x)), "mean_log_rv_over_iv": float(np.log(x["rv_to_exp"] / x["iv_atm"]).mean()),
+def baseline(frame):
+    res = {}
+    for sp in ("TRAIN", "VALIDATION", "OOS"):
+        x = frame[frame["split"] == sp]
+        wk = x.groupby("week", observed=True)
+        res[sp] = {"n": int(len(x)), "mean_log_rv_over_iv": float(np.log(x["rv_to_exp"] / x["iv_atm"]).mean()),
                 "share_rv_below_iv": float((x["rv_to_exp"] < x["iv_atm"]).mean()),
                 "long_straddle_ask_mean": float(x["ret_hold_ask"].mean()), "long_straddle_mid_mean": float(x["ret_hold_mid"].mean()),
                 "long_straddle_ask_t_weekly": ov.nw_t(wk["ret_hold_ask"].mean().to_numpy()).t,
                 "iron_fly_mean": float(x["fly_ret"].mean()), "iron_fly_t_weekly": ov.nw_t(wk["fly_ret"].mean().dropna().to_numpy()).t,
                 "median_spread_frac": float((x["straddle_ask"] / x["straddle_mid"] - 1).median()),
                 "earn_in_window_share": float(x["earn_in_window"].mean())}
+    return res
+
+
+base = baseline(ok)
 out["baseline"] = base
 print(json.dumps(base, indent=1), flush=True)
 # --- H33: forecast vs IV ----------------------------------------------------------------------------
@@ -82,10 +93,21 @@ for name, col in SORTS.items():
         res["fwd21_mkt_adj"] = ov.summarize(x, "fwd21_mkt_adj")
     fam[name] = res
     registry.append_run(hypothesis_id=name.split("_")[0], family=f"options_{name}", spec={"sort": col, "unit": "1M ATM straddle, weekly, hold to expiry",
-                        "long": "top decile", "costs": "pay ask; intrinsic at expiry; fly wings BS-priced + 10%"}, split="ALL", metrics=res, data={"options": out["data"]})
+                        "long": "top decile", "costs": "pay ask; intrinsic at expiry; fly wings BS-priced + 10%"}, split="ALL", metrics=res, data=DATA)
     tr = res["ret_hold_ask"].get("TRAIN", {}); oo = res["ret_hold_ask"].get("OOS", {})
     print(f"{name:34s} TRAIN T-B {tr.get('top_minus_bottom_mean')} t {tr.get('top_minus_bottom_t_nw')} | OOS T-B {oo.get('top_minus_bottom_mean')} t {oo.get('top_minus_bottom_t_nw')}", flush=True)
 out["families"] = fam
+# --- sensitivity: strict-ATM rows only (|K/S - 1| <= 10% and parity error <= 5% on the snapshot; the first
+# audit fix applied this per row, which mostly removed cheap high-IV names - verification review) ---------
+strict = ok[ok["atm_ok"].astype(bool)]
+out["strict_atm_share_of_obs"] = float(len(strict) / max(len(ok), 1))
+out["strict_atm_baseline"] = baseline(strict)
+fam_s = {}
+for name in ("H24_hv_minus_iv", "H33_forecast_minus_iv", "H30_iv_pctile_low", "H27_option_momentum_3m", "H27_option_momentum_12m"):
+    col = SORTS[name]
+    fam_s[name] = {rc: ov.summarize(ov.decile_table(strict.assign(**{col: m.loc[strict.index, col]}), col, rc), rc)
+                   for rc in ("ret_hold_ask", "fly_ret")}
+out["families_strict_atm"] = fam_s
 # --- H25 expected vs realised move -------------------------------------------------------------------
 x = ok.dropna(subset=["move_to_exp", "em_pct"]).copy()
 x["ratio"] = x["move_to_exp"] / x["em_pct"]

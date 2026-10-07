@@ -53,5 +53,5 @@ single = {c: {sp: core_metrics(splits.slice_split(R[c], "equity", sp)).get("shar
 out["single_stream_sharpe"] = single
 (registry.DIR / "results" / "H36_portfolio_construction.json").write_text(json.dumps(registry._clean(out), indent=1, default=str))
 registry.append_run(hypothesis_id="H36", family="H36_portfolio_construction", spec={"methods": list(pf.METHODS), "fit": "TRAIN", "streams": list(R.columns)},
-                    split="ALL", metrics=out)
+                    split="ALL", metrics=out, data=d.manifest)
 print(json.dumps(registry._clean({"corr_full": out["corr_full"], "effective": out["effective_independent_streams"]}), indent=1))

@@ -10,6 +10,7 @@ after that close, executed at the NEXT session's open or close):
       ret_oo[t] = adj_open[t+1]/ adj_open[t]   - 1     open-to-open, the P&L of a position held from
                                                         the open of t to the open of t+1 (forward-looking:
                                                         it is an OUTCOME, never a feature)
+  * Zero-volume bars are dropped (they are carry-forward filler, not trades).
   * Twins (audit fix M2): keys carrying the same security on the same day (identical raw close and
     volume) are de-duplicated by ``entities.dedupe_twins``; a key whose history continued under its twin
     is ``renamed``, not delisted (its last bar exits at the close, no delisting return).
@@ -65,6 +66,11 @@ def build_panel(min_price_ever: float = 3.0, min_dv_ever: float = 1e6, keep_type
     master = load_master()
     types = master.drop_duplicates("symbol", keep="first").set_index("symbol")["sec_type"]
     bars = bars[bars["symbol"].map(types).isin(keep_types) | bars["symbol"].isin(extra_symbols)]
+    # zero-volume bars are not trades: in this store they are mostly carry-forward FILLER from the asof entity
+    # mapping (4.9% of rows), and the jump where a filler stretch ends can join two different securities
+    # (x130, x2,500): such a bar would enter every trailing-return signal. Treated as missing (audit, panel v3).
+    n_zero_volume = int((bars["volume"].fillna(0) <= 0).sum())
+    bars = bars[bars["volume"] > 0]
     if dedupe:
         from quantlab.alpha.entities import dedupe_twins
         bars, twin_aliases, renamed, twin_report = dedupe_twins(bars)
@@ -110,7 +116,8 @@ def build_panel(min_price_ever: float = 3.0, min_dv_ever: float = 1e6, keep_type
     meta = {"n_symbols": len(syms), "n_dates": len(dates), "start": str(dates[0].date()), "end": str(end.date()),
             "delistings": pd.DataFrame(delisted, columns=["symbol", "last_bar", "distressed", "delist_return", "renamed"]),
             "delist_distressed": delist_distressed, "delist_other": delist_other,
-            "twin_aliases": twin_aliases, "twin_report": twin_report, "renamed": sorted(renamed)}
+            "twin_aliases": twin_aliases, "twin_report": twin_report, "renamed": sorted(renamed),
+            "n_zero_volume_bars_dropped": n_zero_volume}
     return AlphaPanel(dates, syms, f, m.reset_index(), meta)
 
 

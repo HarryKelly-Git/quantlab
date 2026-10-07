@@ -321,6 +321,41 @@ def load_bars(columns: Iterable[str] | None = None) -> pd.DataFrame:
     return df
 
 
+def download_name_changes(start: str = "2016-01-01", end: str | None = None, per_minute: int = 100) -> pd.DataFrame:
+    """Every symbol change (Alpaca corporate actions, ``name_change``: old/new symbol, CUSIPs, process date)
+    from ``start`` to today. IDENTITY metadata, not prices: changes after 2024 are used only to know which
+    company held a ticker on a past date (audit follow-up to C2/M1), never as data. Quarterly requests,
+    paginated. Saved to var/alpha/external/name_changes.parquet."""
+    end = end or str(pd.Timestamp.now(tz="UTC").date())
+    limiter = RateLimiter(per_minute)
+    s = requests.Session()
+    s.headers.update(_auth())
+    rows = []
+    for a in pd.date_range(start, end, freq="QS"):
+        b = min(a + pd.offsets.QuarterEnd(0), pd.Timestamp(end))
+        token = None
+        while True:
+            params = {"types": "name_change", "start": str(a.date()), "end": str(b.date()), "limit": 1000}
+            if token:
+                params["page_token"] = token
+            j = _get(s, f"{DATA_URL}/v1/corporate-actions", params, limiter)
+            rows += (j.get("corporate_actions") or {}).get("name_changes") or []
+            token = j.get("next_page_token")
+            if not token:
+                break
+    df = pd.DataFrame(rows).drop_duplicates("id")
+    df["process_date"] = pd.to_datetime(df["process_date"])
+    out = store_dir() / "external"
+    out.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(out / "name_changes.parquet", index=False)
+    return df
+
+
+def load_name_changes() -> pd.DataFrame | None:
+    p = store_dir() / "external" / "name_changes.parquet"
+    return pd.read_parquet(p) if p.exists() else None
+
+
 def load_master() -> pd.DataFrame:
     return pd.read_parquet(store_dir() / "security_master.parquet")
 
