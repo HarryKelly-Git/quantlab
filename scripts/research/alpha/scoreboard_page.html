@@ -431,7 +431,7 @@ dl.terms dd { margin: 0; color: var(--ink); }
     $("#findings").replaceChildren(...(SB.findings || []).map(f => h("li", {}, h("span", {}, f.text), h("span", { class: "src" }, f.source))));
     const needs = [
       { id: "db", title: "Export the bot's database after 20 trading days", meta: `About 2026-10-22. ${L.trading_days} of 20 days done. Upload it in chat, never commit it: the repository is public. Steps: docs/BOT-DB-IMPORT.md.` },
-      { id: "pr", title: "Review the two bot data fixes", meta: "Takeovers no longer booked as −30% losses; spin-off days no longer booked as crashes. Branch proposal/delisting-and-spinoffs. Merge only if you agree." },
+      { id: "pr", title: "Review the two bot data fixes", meta: "Takeovers no longer booked as −30% losses; spin-off days no longer booked as crashes. Draft PR #3 on GitHub (HarryKelly-Git/quantlab/pull/3): 985 tests pass. Merge only if you agree; after merging, re-ingest corporate actions on the PC (command in the PR doc)." },
       { id: "private", title: "Decide whether the repository should be private", meta: "It is public today. Say \"make it private\" and I will do it." }
     ];
     const done = store.get("needs", {});
@@ -579,7 +579,7 @@ dl.terms dd { margin: 0; color: var(--ink); }
     const order = { PROPOSED: 0, FIXED: 1 };
     $("#fix-list").replaceChildren(...[...SB.fixes].sort((a, b) => order[a.status] - order[b.status]).map(f => h("div", { class: "fix" },
       h("div", {}, pill(f.status, f.status === "FIXED" ? "Fixed" : "Proposed")),
-      h("div", { style: "min-width:0" }, h("h3", {}, f.title), h("div", { class: "muted", style: "font-size:13px;margin:2px 0 6px" }, f.where), h("p", {}, f.detail), h("div", { class: "src mono muted", style: "font-size:12px;margin-top:6px" }, f.source)))));
+      h("div", { style: "min-width:0" }, h("h3", {}, f.title), h("div", { class: "muted", style: "font-size:13px;margin:2px 0 6px" }, f.where), h("p", {}, f.detail), (/^https:\/\//.test(f.source) ? h("a", { class: "src mono", style: "font-size:12px;margin-top:6px;display:block", href: f.source.split(" ")[0], target: "_blank", rel: "noopener" }, f.source) : h("div", { class: "src mono muted", style: "font-size:12px;margin-top:6px" }, f.source))))));
   };
 
   /* ---------- TERMS ---------- */

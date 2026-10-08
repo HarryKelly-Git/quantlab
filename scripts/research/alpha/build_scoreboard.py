@@ -243,12 +243,14 @@ FIXES = [
     {"title": "Every delisting booked as a -30% loss", "where": "Bot backtester (master)",
      "status": "PROPOSED", "detail": "All 13 delisted trades in the bot's replay were cash takeovers at or above the last "
      "price, yet the rule booked each as -30%. This flips the bot's backtest from about zero to clearly negative and "
-     "skews its own outcome statistics. Fix: takeovers exit at the deal price, others keep -30%.",
-     "source": "branch proposal/delisting-and-spinoffs"},
+     "skews its own outcome statistics. Fix: takeovers with an Alpaca merger record exit at the last close, others keep "
+     "-30%. Alpaca has records for 9 of those 13 (all 2022-24; almost none before 2020), so it fixes most takeovers "
+     "from now on. 985 tests pass.",
+     "source": "https://github.com/HarryKelly-Git/quantlab/pull/3 (draft, not merged)"},
     {"title": "Spin-off days booked as real losses in the bot's live data", "where": "Bot price data (master)",
      "status": "PROPOSED", "detail": "The bot builds returns from raw prices, so a spin-off day looks like a crash. That can "
      "trigger a stop or a false 'buy the dip' signal. Fix: use the spin-off records the data vendor does provide.",
-     "source": "branch proposal/delisting-and-spinoffs"},
+     "source": "https://github.com/HarryKelly-Git/quantlab/pull/3 (draft, not merged)"},
     {"title": "Options matched to the wrong company", "where": "Research data", "status": "FIXED",
      "detail": "Old option chains were joined to whichever company holds the ticker today (e.g. old Caesars vs Eldorado). "
      "One options result showed +31%; corrected, it is +4%.", "source": "docs/ALPHA-DISCOVERY-REPORT-2026-10.md audit"},
@@ -269,7 +271,7 @@ NEXT = [
      "how": "docs/BOT-DB-IMPORT.md (upload in chat; never commit it: the repo is public)"},
     {"rank": 2, "action": "Review the two bot data fixes (delisting and spin-offs)",
      "who": "Harry", "why": "Makes the bot's own backtests and outcome statistics honest. Not merged without you.",
-     "how": "Branch proposal/delisting-and-spinoffs"},
+     "how": "Draft PR #3: https://github.com/HarryKelly-Git/quantlab/pull/3"},
     {"rank": 3, "action": "Keep O1 as a record-only shadow", "who": "Lab",
      "why": "The only positive options rule; needs forward evidence before any money or orders.",
      "how": "Score it on excess over buying every straddle on the same dates"},
