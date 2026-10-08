@@ -87,18 +87,30 @@ candidate; the number kept this way is reported.
 
 Results: `research/alpha/results/new_areas/`. Ledger: `NA_A_market_overlays`, `NA_C_spy_overnight`, `NA_F_lowvol_screen`.
 
-**A. Market overlays: every rule NO IMPROVEMENT.**
+**A. Market overlays: every rule RISK REDUCTION ONLY (corrected 2026-10-08).**
+
+> **Correction.** The first run applied each month-end decision one month late: on 95% of days it used the
+> decision from two month ends earlier. The cause was a code bug (`shift(1)` before a forward-filled
+> reindex), not a rule change. That run reported every rule as NO IMPROVEMENT; its file is kept as
+> `A_market_overlays__lagged_bug.json` and its ledger row stays. The corrected re-run uses the same
+> pre-registered rules, with ledger override `A-TIMING-FIX`.
 
 | Rule | 2013-24 return/yr | Sharpe | Worst fall | 2000-12 worst fall |
 |---|---|---|---|---|
 | BH | 14.5% | 0.79 | −34% | −55% |
-| VM1 | 10.9% | 0.68 | −34% | −34% |
-| VM15 | 12.3% | 0.67 | −41% | −35% |
-| TR10 | 12.0% | 0.75 | −34% | **−22%** |
-| VM1+TR10 | 9.4% | 0.62 | −34% | −19% |
+| VM1 | 12.4% | 0.85 | −24% | −36% |
+| VM15 | 12.8% | 0.76 | −26% | −37% |
+| TR10 | 11.3% | 0.81 | −22% | −26% |
+| VM1+TR10 | 10.6% | 0.82 | −18% | −18% |
 
-TR10 is the only rule with a use: it is insurance against a long bear market (2000-12), paid for with about
-2.5 points a year in rising markets. It is a risk choice for real money, outside QuantLab's paper scope.
+**Reading it**
+- Every rule cut the worst falls by a third or more.
+- Each one returned 1.7-3.9 points a year less than holding in 2013-24.
+- None beat holding's Sharpe in all three periods: each was below BH in 1963-99. So none passes as an
+  improvement.
+
+These rules are insurance against long bear markets, paid for with return. Whether that is worth it is a
+risk choice for real money, outside QuantLab's paper scope.
 
 **C. SPY overnight / intraday: both DO NOT BEAT buy-and-hold.** Overnight-only made −0.7%/yr after costs in
 2022-24 (buy-and-hold +8.9%); intraday-only −0.8%.

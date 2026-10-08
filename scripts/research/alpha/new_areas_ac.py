@@ -112,7 +112,9 @@ def area_a() -> dict:
     daily_ret, daily_w = {}, {}
     for k, wm in weights.items():
         # weight decided at month end applies to the NEXT month's days
-        w = wm.shift(1).reindex(mkt.index, method="ffill").fillna(1.0 if k == "BH" else np.nan)
+        # the decision at a month end applies from the NEXT trading day (fixed 2026-10-08: the first run used
+        # wm.shift(1).reindex(..., method="ffill"), which applied each decision one month late)
+        w = wm.reindex(mkt.index).shift(1).ffill().fillna(1.0 if k == "BH" else np.nan)
         lev = (w - 1).clip(lower=0)
         turn = w.diff().abs().fillna(0)
         r = w * mkt + (1 - w).clip(lower=0) * rf - lev * (rf + 0.01 / 252) - turn * COST
@@ -173,7 +175,32 @@ def area_c() -> dict:
     return out
 
 
+def fix_a() -> None:
+    """Corrected Area A re-run (2026-10-08). The first run applied each month-end decision one month late. Its
+    results file is kept as A_market_overlays__lagged_bug.json and its ledger row stays."""
+    old = OUT / "A_market_overlays.json"
+    keep = OUT / "A_market_overlays__lagged_bug.json"
+    if old.exists() and not keep.exists():
+        keep.write_text(old.read_text())
+    a = area_a()
+    a["correction"] = ("2026-10-08: timing fixed. The first run applied each month-end decision from the month end "
+                       "before the previous one on 95% of days. That run is kept in A_market_overlays__lagged_bug.json.")
+    old.write_text(json.dumps(registry._clean(a), indent=1, default=str))
+    for k, v in a["rules"].items():
+        s = v["splits"]
+        print(f"A {k}: " + " | ".join(f"{sp} CAGR {s[sp]['cagr']*100:.1f}% Sh {s[sp]['sharpe']:.2f} DD {s[sp]['max_drawdown']*100:.0f}% exp {s[sp]['avg_exposure']:.2f}" for sp in s)
+              + f" | {v.get('verdict', '')}", flush=True)
+    registry.append_run(hypothesis_id="NA_A_market_overlays", family="new_areas", split="OOS",
+                        spec={"prereg": "NEW-AREAS-PREREG", "timing": "month-end decision applies from the next trading day"},
+                        metrics={k: v.get("verdict") for k, v in a["rules"].items()}, conclusion="corrected re-run; see results/new_areas",
+                        seed=7, oos_override="A-TIMING-FIX: the first run applied each decision one month late (code bug, "
+                                             "not a rule change); same pre-registered rules, corrected timing; first run kept")
+
+
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "fix-a":
+        fix_a()
+        return
     OUT.mkdir(parents=True, exist_ok=True)
     a = area_a()
     (OUT / "A_market_overlays.json").write_text(json.dumps(registry._clean(a), indent=1, default=str))

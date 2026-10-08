@@ -15,7 +15,8 @@ def _load(name: str) -> Any:
 
 
 VERDICT_LABELS = {"FAILED": "Failed", "NO_IMPROVEMENT": "No improvement", "WATCH": "Watch (record only)",
-                  "USEFUL": "Useful, not money", "BLOCKED": "Blocked", "RUNNING": "Running"}
+                  "USEFUL": "Useful, not money", "RISK_ONLY": "Less risk, less return", "BLOCKED": "Blocked",
+                  "RUNNING": "Running"}
 
 
 def scoreboard() -> dict[str, Any] | None:

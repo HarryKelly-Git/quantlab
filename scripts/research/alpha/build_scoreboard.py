@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[3]
 RES = ROOT / "research" / "alpha" / "results"
 OUT = ROOT / "research" / "alpha" / "scoreboard.json"
 
+# RISK_ONLY: lower drawdown without a better return or Sharpe in every period (insurance, not an edge)
 # verdict codes shown as pills: FAILED (lost money or no better than doing nothing), NO_IMPROVEMENT (a change to
 # something that already exists that did not help), WATCH (positive but not proven; record-only), USEFUL (true and
 # usable, but not a money-maker by itself), BLOCKED (waiting on data), RUNNING
@@ -56,19 +57,25 @@ def market_rows() -> tuple[list[dict], dict]:
                  "VM15": "Same, but allowed up to 1.5x when calm (borrowed)",
                  "TR10": "Trend rule: hold the market only above its 10-month average",
                  "VM1+TR10": "Both rules together"}
+        vmap = {"RISK REDUCTION ONLY": "RISK_ONLY", "NO IMPROVEMENT": "NO_IMPROVEMENT",
+                "RISK-ADJUSTED IMPROVEMENT": "USEFUL", "ABSOLUTE IMPROVEMENT": "USEFUL"}
         for k, nm in names.items():
             s = a["rules"][k]["splits"]
             o, v = s["OOS"], s["VAL"]
+            verdict = vmap.get(a["rules"][k].get("verdict"), "NO_IMPROVEMENT")
             key = (f"2013-24: {o['cagr'] * 100:.1f}%/yr vs {bh['OOS']['cagr'] * 100:.1f}% buy-and-hold; "
-                   f"worst fall {o['max_drawdown'] * 100:.0f}% vs {bh['OOS']['max_drawdown'] * 100:.0f}%")
-            if k == "TR10":
-                meaning = (f"It earns less in normal years but cut the 2000-12 fall from {bh['VAL']['max_drawdown'] * 100:.0f}% "
-                           f"to {v['max_drawdown'] * 100:.0f}%. Insurance against a long bear market that costs about "
-                           f"{(bh['OOS']['cagr'] - o['cagr']) * 100:.1f} points a year when markets rise.")
+                   f"worst fall {o['max_drawdown'] * 100:.0f}% vs {bh['OOS']['max_drawdown'] * 100:.0f}%; "
+                   f"Sharpe {o['sharpe']:.2f} vs {bh['OOS']['sharpe']:.2f}")
+            if verdict == "RISK_ONLY":
+                meaning = (f"Insurance, not extra return: smaller falls (2000-12: {v['max_drawdown'] * 100:.0f}% vs "
+                           f"{bh['VAL']['max_drawdown'] * 100:.0f}%), about {(bh['OOS']['cagr'] - o['cagr']) * 100:.1f} points "
+                           "a year less in 2013-24. Not better in all three periods, so it does not pass.")
             else:
                 meaning = "Lower returns than simply holding the market, with no better risk-adjusted return out of sample."
+            if a.get("correction"):
+                meaning += " (Corrected 2026-10-08: the first run applied each monthly decision a month late.)"
             rows.append(idea(f"A-{k}", "market", nm, "Does a simple rule beat holding the whole US market (1963-2024)?",
-                             "NO_IMPROVEMENT", key, meaning, "research/alpha/results/new_areas/A_market_overlays.json"))
+                             verdict, key, meaning, "research/alpha/results/new_areas/A_market_overlays.json"))
         ec = a["equity_curves_monthly"]
         chart = {k: ec[k] for k in ("BH", "TR10", "VM1")}
         chart["_table"] = {k: {sp: {m: round(v[m], 4) for m in ("cagr", "sharpe", "max_drawdown", "avg_exposure")}
@@ -260,13 +267,17 @@ FIXES = [
     {"title": "Overstated statistics", "where": "Research method", "status": "FIXED",
      "detail": "Overlapping returns had inflated t-statistics about 1.7x; a placebo test compared earnings with earnings.",
      "source": "docs/ALPHA-DISCOVERY-REPORT-2026-10.md audit"},
+    {"title": "Market-timing test acted a month late", "where": "Research code", "status": "FIXED",
+     "detail": "The 60-year market-timing test applied each month-end decision one month late (a code bug). Corrected: "
+     "every rule moves from 'no improvement' to 'less risk, less return'. The flawed run is kept on record.",
+     "source": "docs/NEW-AREAS-PREREG.md results"},
     {"title": "Replay dividend bias and a winner-picking bug", "where": "Research code", "status": "FIXED",
      "detail": "Caught before any result was read: one-sided dividend rounding biased returns up; the leaderboard picked a "
      "'winner' even when every option lost money.", "source": "docs/ALPHA-SPRINT-FINAL.md deviations"},
 ]
 
 NEXT = [
-    {"rank": 1, "action": "Send the bot's database export after about 20 trading days (around 2026-10-22)",
+    {"rank": 1, "action": "Send the bot's database export from Wednesday 21 October (NZ time)",
      "who": "Harry (5 minutes)", "why": "The only evidence on the bot's real filters. Free. Analysis runs the moment it lands.",
      "how": "docs/BOT-DB-IMPORT.md (upload in chat; never commit it: the repo is public)"},
     {"rank": 2, "action": "Review the two bot data fixes (delisting and spin-offs)",

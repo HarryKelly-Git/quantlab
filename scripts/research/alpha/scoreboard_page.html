@@ -71,6 +71,7 @@ section.tab { display: grid; gap: 22px; padding-top: 22px; }
 .v-WATCH { color: var(--watch); background: var(--watch-soft); }
 .v-USEFUL { color: var(--useful); background: var(--useful-soft); }
 .v-BLOCKED { color: var(--neutral); background: var(--neutral-soft); }
+.v-RISK_ONLY { color: var(--accent); background: var(--accent-soft); }
 .v-RUNNING { color: var(--accent); background: var(--accent-soft); }
 .v-FIXED { color: var(--good); background: var(--good-soft); }
 .v-PROPOSED { color: var(--watch); background: var(--watch-soft); }
@@ -82,8 +83,11 @@ ol.steps li::before { content: counter(s); font: 600 13px/28px var(--font-data);
 .step-meta { font-size: 13px; color: var(--muted); }
 
 .checklist { display: grid; gap: 8px; }
-.checklist label { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: var(--surface); }
+.checklist .need { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); min-width: 0; }
+.checklist label { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; cursor: pointer; }
 .checklist input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); }
+.howto { margin: 8px 0 0 32px; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; overflow-wrap: anywhere; }
+.howto li::marker { color: var(--muted); }
 .checklist label.done .step-title { text-decoration: line-through; color: var(--muted); }
 
 .mixbar { display: grid; gap: 10px; }
@@ -302,9 +306,9 @@ dl.terms dd { margin: 0; color: var(--ink); }
   const pc = (x, d = 1, sign = true) => (x === null || x === undefined || isNaN(x)) ? "UNKNOWN" : ((sign && x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x * 100).toFixed(d) + "%");
   const cls = (x) => x > 0 ? "pos" : x < 0 ? "neg" : "";
 
-  const VL = { FAILED: "Failed", NO_IMPROVEMENT: "No improvement", WATCH: "Watch only", USEFUL: "Useful, not money", BLOCKED: "Blocked", RUNNING: "Running" };
-  const VORDER = ["FAILED", "NO_IMPROVEMENT", "WATCH", "USEFUL", "BLOCKED", "RUNNING"];
-  const VCOLOR = { FAILED: "--fail", NO_IMPROVEMENT: "--neutral", WATCH: "--watch", USEFUL: "--useful", BLOCKED: "--line", RUNNING: "--accent" };
+  const VL = { FAILED: "Failed", NO_IMPROVEMENT: "No improvement", WATCH: "Watch only", USEFUL: "Useful, not money", RISK_ONLY: "Less risk, less return", BLOCKED: "Blocked", RUNNING: "Running" };
+  const VORDER = ["FAILED", "NO_IMPROVEMENT", "RISK_ONLY", "WATCH", "USEFUL", "BLOCKED", "RUNNING"];
+  const VCOLOR = { FAILED: "--fail", NO_IMPROVEMENT: "--neutral", WATCH: "--watch", USEFUL: "--useful", RISK_ONLY: "--accent", BLOCKED: "--line", RUNNING: "--accent" };
   const pill = (code, label) => h("span", { class: "pill v-" + code }, label || VL[code] || code);
 
   /* ---------- tabs ---------- */
@@ -430,17 +434,32 @@ dl.terms dd { margin: 0; color: var(--ink); }
     $("#sum-tiles").replaceChildren(...tiles.map(([a, b, s]) => h("div", { class: "tile" }, h("span", { class: "label" }, a), h("span", { class: "value " + (a.startsWith("Bot") ? cls(L.bot_pl) : "") }, b), h("span", { class: "sub" }, s))));
     $("#findings").replaceChildren(...(SB.findings || []).map(f => h("li", {}, h("span", {}, f.text), h("span", { class: "src" }, f.source))));
     const needs = [
-      { id: "db", title: "Export the bot's database after 20 trading days", meta: `About 2026-10-22. ${L.trading_days} of 20 days done. Upload it in chat, never commit it: the repository is public. Steps: docs/BOT-DB-IMPORT.md.` },
-      { id: "pr", title: "Review the two bot data fixes", meta: "Takeovers no longer booked as −30% losses; spin-off days no longer booked as crashes. Draft PR #3 on GitHub (HarryKelly-Git/quantlab/pull/3): 985 tests pass. Merge only if you agree; after merging, re-ingest corporate actions on the PC (command in the PR doc)." },
-      { id: "private", title: "Decide whether the repository should be private", meta: "It is public today. Say \"make it private\" and I will do it." }
+      { id: "private", title: "Make the GitHub repository private (30 seconds)", meta: "Claude's cloud access is not allowed to change repository settings, so this one is yours.",
+        steps: ["Open github.com/HarryKelly-Git/quantlab and click Settings (top row of tabs).",
+                "Stay on General, scroll to the bottom: Danger Zone.",
+                "Click Change visibility, then Change to private, and confirm (GitHub may ask you to type the repository name).",
+                "Afterwards, git on the PC may ask you to sign in to GitHub once when it next pulls. That is normal."] },
+      { id: "pr", title: "Approve the two bot data fixes (about 10 minutes)", meta: "Do it on a Sunday (NZ), or on a weekday between 9:30am and 11:30am NZ time, when the bot is idle. Draft PR #3: 985 tests pass.",
+        steps: ["Open github.com/HarryKelly-Git/quantlab/pull/3 and read the summary at the top.",
+                "Click Ready for review, then Merge pull request, then Confirm merge.",
+                "On the PC, open PowerShell in the QuantLab folder (File Explorer, QuantLab folder, click the address bar, type powershell, press Enter).",
+                "Stop the bot: .venv\\Scripts\\python -m quantlab.cli paper stop   then check: .venv\\Scripts\\python -m quantlab.cli paper status  (should say STOPPED).",
+                "Get the update: git pull origin master   (if it shows an error or a conflict, stop and paste the message to Claude).",
+                "Refresh past corporate actions so the fix can see them: .venv\\Scripts\\python -m quantlab.cli ingest --kinds corporate_actions --start 2016-01-01 --end YYYY-MM-DD   (yesterday's date; a few minutes).",
+                "Restart the bot: double-click scripts\\run_paper.cmd, then check paper status says RUNNING."] },
+      { id: "db", title: "Send the bot's database (from Wednesday 21 October, NZ time)", meta: `${L.trading_days} of about 20 trading days recorded so far. The copy is safe to make while the bot runs; the bot's own file is not changed.`,
+        steps: ["On the PC, open PowerShell in the QuantLab folder (as above).",
+                "Paste: .venv\\Scripts\\python -c \"import sqlite3; sqlite3.connect('var/quantlab.db').backup(sqlite3.connect('var/quantlab_export.db'))\"",
+                "In the Claude chat, click the attach button, pick QuantLab\\var\\quantlab_export.db, and send it with the words: bot db.",
+                "If it is too big to attach, tell Claude the file size: there is a smaller export ready."] }
     ];
     const done = store.get("needs", {});
     $("#needs").replaceChildren(...needs.map(n => {
       const cb = h("input", { type: "checkbox", id: "need-" + n.id });
       cb.checked = !!done[n.id];
-      const lab = h("label", { for: "need-" + n.id, class: done[n.id] ? "done" : "" }, cb, h("span", {}, h("div", { class: "step-title" }, n.title), h("div", { class: "step-meta" }, n.meta)));
+      const lab = h("label", { for: "need-" + n.id, class: done[n.id] ? "done" : "" }, cb, h("span", { style: "min-width:0" }, h("div", { class: "step-title" }, n.title), h("div", { class: "step-meta" }, n.meta)));
       cb.addEventListener("change", () => { done[n.id] = cb.checked; lab.classList.toggle("done", cb.checked); store.set("needs", done); });
-      return lab;
+      return h("div", { class: "need" }, lab, n.steps ? h("ol", { class: "howto" }, ...n.steps.map(t => h("li", {}, t))) : null);
     }));
     $("#next").replaceChildren(...SB.next_steps.map(n => h("li", {}, h("div", {}, h("div", { class: "step-title" }, n.action), h("div", { class: "step-meta" }, n.why + (n.who ? " · " + n.who : ""))))));
     // verdict mix per area
