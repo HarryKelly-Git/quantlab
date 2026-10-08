@@ -145,3 +145,40 @@ plan's entry reference price (`stop_price / entry_ref_price < 0.80`).
 - worst calendar year;
 - the 2008 and 2022 drawdowns;
 - the share of OOS months the tilt beat the market.
+
+---
+
+## Part C. Batch 1 results: bot tests (added 2026-10-08, after the runs; Part B unchanged)
+
+Source: `research/alpha/results/improvement/B_bot.json`; ledger `IP_B1_young` .. `IP_B5_cash`. Replay, corrected
+delisting convention, current sizing. Sharpe here is mean/std of daily returns, as in master_replay.
+
+| Test | 2016-19 Sharpe | 2020-21 | 2022-24 | 2022-24 return/yr | Verdict |
+|---|---|---|---|---|---|
+| Base book | 0.25 | 0.06 | 0.01 | −0.3% | |
+| B1 young stocks | same | same | same | same | NO IMPROVEMENT: never fired |
+| B2 wide stops (>20%) | 0.03 | 0.21 | −0.19 | −1.9% | NO IMPROVEMENT |
+| B3 both | 0.03 | 0.21 | −0.19 | −1.9% | NO IMPROVEMENT (identical to B2) |
+| B4 pruned to momentum_trend + sector_rotation | 0.08 | 0.21 | 0.04 | −0.0% | NO IMPROVEMENT (+0.03 < the +0.10 bar) |
+| B5a idle cash earns T-bills | 0.33 | 0.09 | 0.28 | +2.2% | arithmetic |
+| B5b idle cash in SPY | 0.83 | 0.82 | 0.35 | +4.8% | SPY ALONE IS BETTER |
+| SPY buy-and-hold | 1.12 | 0.99 | 0.57 | +8.8% | |
+
+**B1 never fired.** Master's universe already requires 260 sessions of history. The blow-ups (SKYH, CXAI,
+AISP) are de-SPACs, whose SPAC-shell history counts. A de-SPAC filter is a separate hypothesis for
+Batch 2.
+
+**B2.** Wide-stop trades are the risky ones, but they are also where the momentum strategies' winners
+are. Removing them lost more than it saved.
+
+**B5: what it means for Harry.**
+- The bot holds 66% cash on average.
+- Earning T-bill interest on that cash alone would have turned 2022-24 from −0.3% into +2.2% a year.
+  That is arithmetic, not skill. Alpaca paper pays no interest, but a real account would.
+- With the idle cash in SPY, the combination still trailed plain SPY in every period: Sharpe 0.35
+  against 0.57 in 2022-24.
+
+On this evidence the bot's strategies subtract value relative to simply holding the index.
+
+**Not run yet: M1-M6** (ETF core). The script is ready (`scripts/research/alpha/improvement_etf.py`) and was
+paused when the priorities changed.

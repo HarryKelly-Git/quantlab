@@ -5,12 +5,16 @@ with the reason each was rejected and the bot's own forward outcomes: returns, M
 hits. Only the `shadow_*` tables are read, and the analysis is descriptive. No filter is changed on a
 single sample.
 
-## 1. On the PC (Windows, repo root, any time; ~1 minute)
+## 1. On the PC (Windows, QuantLab folder, any time; ~1 minute)
+
+Open PowerShell IN the QuantLab folder: the one that contains `.venv` and `scripts`. Either type `powershell`
+in File Explorer's address bar there, or run `cd "<path to quantlab>"` first. In PowerShell the command must
+start with `.\`, or PowerShell reports "The module '.venv' could not be loaded".
 
 Make a consistent copy while the bot keeps running (SQLite online backup; the live file is untouched):
 
 ```
-.venv\Scripts\python -c "import sqlite3; sqlite3.connect('var/quantlab.db').backup(sqlite3.connect('var/quantlab_export.db'))"
+.\.venv\Scripts\python.exe -c "import sqlite3; sqlite3.connect('var/quantlab.db').backup(sqlite3.connect('var/quantlab_export.db'))"
 ```
 
 ## 2. Get the copy to the cloud session

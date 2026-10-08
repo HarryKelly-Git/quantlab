@@ -156,6 +156,27 @@ def bot_rows() -> tuple[list[dict], dict]:
         rows.append(idea("F", "bot", "Skip the most volatile 20% of the bot's candidates",
                          "High predicted volatility goes with slightly worse returns. Does dropping those candidates help the bot?",
                          "RUNNING", "Replay running", "Result pending.", "docs/NEW-AREAS-PREREG.md section F"))
+    ib = _j("improvement/B_bot.json")
+    if ib:
+        t = ib["tests"]
+        d2, d4 = t["B2_wide_stop"]["sharpe_diff"], t["B4_pruned"].get("sharpe_diff") or {}
+        rows.append(idea("B2", "bot", "Skip trades whose stop is more than 20% away",
+                         "Would avoiding the wildest stocks stop the blow-ups?", "NO_IMPROVEMENT",
+                         f"Sharpe change 2016-19 {d2['TRAIN']['diff']:+.2f}, 2020-21 {d2['VAL']['diff']:+.2f}, 2022-24 {d2['OOS']['diff']:+.2f}",
+                         "The wild stocks also hold the momentum winners; removing them lost more than it saved.",
+                         "research/alpha/results/improvement/B_bot.json"))
+        rows.append(idea("B4", "bot", "Keep only the strategies that worked in 2016-21",
+                         "Would dropping the losing strategies fix the book?", "NO_IMPROVEMENT",
+                         f"Kept {', '.join(t['B4_pruned'].get('kept', []))}; 2022-24 Sharpe change "
+                         f"{(d4.get('OOS') or {}).get('diff', 0):+.2f} (bar: +0.10)",
+                         "Past winners among the strategies did not stay winners.", "research/alpha/results/improvement/B_bot.json"))
+        c = t["B5_cash"]
+        rows.append(idea("B5", "bot", "Put the bot's idle cash to work",
+                         "The bot is two-thirds cash. Does bot + index beat the index alone?", "FAILED",
+                         f"2022-24: bot {pct(ib['base']['OOS']['cagr'])}/yr; with T-bill interest {pct(c['B5a_tbill_metrics']['OOS']['cagr'])}; "
+                         f"with idle cash in SPY {pct(c['B5b_spy_metrics']['OOS']['cagr'])} vs SPY alone {pct(c['spy_buy_hold']['OOS']['cagr'])}",
+                         "Holding SPY alone beat bot + SPY in every period. In a real account, idle cash should at least earn T-bill interest.",
+                         "research/alpha/results/improvement/B_bot.json"))
     rows.append(idea("P1", "bot", "Which trades did the bot's live filters reject, and were they right?",
                      "Are the bot's real-time safety and quality filters costing money?", "BLOCKED",
                      "Needs about 20 trading days of the bot's own database (around 2026-10-22)",

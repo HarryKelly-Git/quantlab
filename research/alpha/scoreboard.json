@@ -1,13 +1,13 @@
 {
- "generated_at": "2026-10-08 08:55 UTC",
+ "generated_at": "2026-10-08 09:05 UTC",
  "headline": "No money-making rule has been proven yet. The paper bot runs, but its strategies earn about zero on honest 2016-24 data.",
  "paper_only": true,
  "holdout": "2025+ data is sealed and untouched (0 of 1 uses).",
  "counts": {
-  "ideas": 43,
-  "ledger_runs": 836,
-  "FAILED": 29,
-  "NO_IMPROVEMENT": 5,
+  "ideas": 46,
+  "ledger_runs": 841,
+  "FAILED": 30,
+  "NO_IMPROVEMENT": 7,
   "BLOCKED": 1,
   "USEFUL": 3,
   "WATCH": 1,
@@ -109,6 +109,36 @@
    "key_number": "Sharpe change 2016-19 -0.27, 2020-21 +1.10, 2022-24 -0.34 (90% range -0.95 to +0.34); 2022-24 return -2.5%/yr vs -0.3%",
    "meaning": "46% of the bot's trades are in the most volatile fifth of stocks (momentum_trend 90%). Those trades averaged -0.8% against +0.4% for the rest, but removing them changed the book's Sharpe the wrong way in 2016-19 and 2022-24. Nothing changes in the bot.",
    "source": "research/alpha/results/new_areas/F_lowvol_screen.json"
+  },
+  {
+   "id": "B2",
+   "area": "bot",
+   "name": "Skip trades whose stop is more than 20% away",
+   "question": "Would avoiding the wildest stocks stop the blow-ups?",
+   "verdict": "NO_IMPROVEMENT",
+   "key_number": "Sharpe change 2016-19 -0.22, 2020-21 +0.15, 2022-24 -0.20",
+   "meaning": "The wild stocks also hold the momentum winners; removing them lost more than it saved.",
+   "source": "research/alpha/results/improvement/B_bot.json"
+  },
+  {
+   "id": "B4",
+   "area": "bot",
+   "name": "Keep only the strategies that worked in 2016-21",
+   "question": "Would dropping the losing strategies fix the book?",
+   "verdict": "NO_IMPROVEMENT",
+   "key_number": "Kept momentum_trend, sector_rotation; 2022-24 Sharpe change +0.03 (bar: +0.10)",
+   "meaning": "Past winners among the strategies did not stay winners.",
+   "source": "research/alpha/results/improvement/B_bot.json"
+  },
+  {
+   "id": "B5",
+   "area": "bot",
+   "name": "Put the bot's idle cash to work",
+   "question": "The bot is two-thirds cash. Does bot + index beat the index alone?",
+   "verdict": "FAILED",
+   "key_number": "2022-24: bot -0.3%/yr; with T-bill interest +2.2%; with idle cash in SPY +4.8% vs SPY alone +8.8%",
+   "meaning": "Holding SPY alone beat bot + SPY in every period. In a real account, idle cash should at least earn T-bill interest.",
+   "source": "research/alpha/results/improvement/B_bot.json"
   },
   {
    "id": "P1",
