@@ -90,3 +90,43 @@ Cash earns the 1-month T-bill rate. Costs are 5 bps per unit of weight traded. B
 
 Part I has three rules and Part II has two. Any pass is a candidate for forward paper shadowing, never
 proof.
+
+---
+
+## Results (added 2026-10-08, after the runs; the rules above were not changed)
+
+Files: `research/alpha/results/dips/{I_index,S_stocks}.json`; ledger `DIP_I1`, `DIP_I2`, `DIP_I3`, `DIP_S1`, `DIP_S2`.
+
+**Part I: index dips** (Ken French daily market; buy-and-hold is 12.6% / 2.2% / 14.5% a year in the three
+splits):
+
+| Rule | 1963-99 return/yr | 2000-12 | 2013-24 | 2013-24 worst fall | Time in market | Verdict |
+|---|---|---|---|---|---|---|
+| I1 RSI(2) dip, cash otherwise | 3.9% | 3.1% | 4.3% | −9% | 10-14% | FAILS |
+| I1, entered a day late | 6.8% | 4.8% | 3.7% | −10% | | (robustness) |
+| I2 hold + 2x during dips | 9.6% | 2.6% | **17.2%** | −38% | | HIGHER RETURN, HIGHER RISK |
+| I3 hold + 1.5x for a year after a 10% correction | 12.7% | −1.0% | 16.5% | −45% | | HIGHER RETURN, HIGHER RISK |
+
+Per-trade I1 results:
+
+| Period | Trades | Mean per trade | Winners | Average hold | Per day held |
+|---|---|---|---|---|---|
+| 2013-24 | 100 | +0.37% | 73% | 3.4 days | +0.11% (about twice buy-and-hold's daily rate) |
+| 1963-99 | 324 | −0.13% | | | |
+
+**Index dip-buying is an era effect.** It paid well in the recent bull market and lost in 1963-99. Adding
+leverage on dips raised 2013-24 returns but lost to plain holding in 1963-99 (I2) or 2000-12 (I3).
+
+**Part II: single-stock dips** (stocks in an uptrend that fell 8% or more in 5 days; buy next open, exit
+on recovery or after 20 days):
+
+| Variant | 2016-19 return/yr | 2020-21 | 2022-24 | Per-trade excess vs SPY, 2022-24 | Recovered within 20 days | Verdict |
+|---|---|---|---|---|---|---|
+| S1 all liquid | 2.6% | 16.4% | **−10.4%** | −1.1% (t −1.2) | ~20% | FAILS |
+| S2 large caps | 4.1% | 8.6% | **−6.5%** | −1.4% (t −2.1) | ~25-35% | FAILS |
+| SPY | 14.5% | 23.4% | 8.9% | | | |
+
+**Sharp dips in individual strong stocks did not recover often enough to pay.** This matches the bot's
+own dip strategies (mean_reversion −0.51 and extreme_reversal −0.75 Sharpe in 2022-24). A dip buyer's
+success in recent years is better explained by buying while the whole market rose. The index-level
+results show that effect, and its dependence on the era.
