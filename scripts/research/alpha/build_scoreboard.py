@@ -355,17 +355,20 @@ FIXES = [
 ]
 
 NEXT = [
-    {"rank": 1, "action": "Send the bot's database export from Wednesday 21 October (NZ time)",
-     "who": "Harry (5 minutes)", "why": "The only evidence on the bot's real filters. Free. Analysis runs the moment it lands.",
-     "how": "docs/BOT-DB-IMPORT.md (upload in chat; never commit it: the repo is public)"},
-    {"rank": 2, "action": "Review the two bot data fixes (delisting and spin-offs)",
-     "who": "Harry", "why": "Makes the bot's own backtests and outcome statistics honest. Not merged without you.",
-     "how": "Draft PR #3: https://github.com/HarryKelly-Git/quantlab/pull/3"},
-    {"rank": 3, "action": "Keep O1 as a record-only shadow", "who": "Lab",
-     "why": "The only positive options rule; needs forward evidence before any money or orders.",
-     "how": "Score it on excess over buying every straddle on the same dates"},
-    {"rank": 4, "action": "Do not add strategies, data feeds or news features to the bot yet", "who": "Both",
-     "why": "About 60 ideas tested, none passes. More machinery without an edge only adds cost.", "how": ""},
+    {"rank": 1, "action": "Options learning trade during US market hours (before 9am NZ)", "who": "Harry (5 minutes)",
+     "why": "You asked for options no matter what. The bot's options book is off by design and only you can switch it on.",
+     "how": "Steps in the 'What I need from you' list"},
+    {"rank": 2, "action": "Send the bot's database export from Wednesday 21 October (NZ time)", "who": "Harry (5 minutes)",
+     "why": "The only evidence on the bot's real filters. Free. Analysis runs the moment it lands.",
+     "how": "docs/BOT-DB-IMPORT.md (upload in chat)"},
+    {"rank": 3, "action": "Let the safety check wait 60 seconds before pausing", "who": "Harry",
+     "why": "Yesterday's pause was a false alarm from an order still filling; the check retries after only 3 seconds.",
+     "how": "config/local.yaml on the PC: paper -> runner -> reconcile_retry_seconds: 60, then restart the bot"},
+    {"rank": 4, "action": "Decide on the quality tilt and on leverage for the real-money ETF core", "who": "Harry",
+     "why": "The one tilt that passed (profitability) and the risk arithmetic; real money follows your Upside Engine v2 rules.",
+     "how": "docs/IMPROVEMENT-PROGRAM.md Part D, docs/RISK-AND-SIZING.md"},
+    {"rank": 5, "action": "Keep insider clusters and O1 straddles as record-only shadows", "who": "Lab",
+     "why": "Positive but not proven; forward records cost nothing.", "how": ""},
 ]
 
 
@@ -384,7 +387,19 @@ def findings() -> list[dict]:
                             f"{sd.get('momentum_trend', 0) * 100:.0f}-{sd.get('relative_strength', 0) * 100:.0f}% below entry (median), "
                             f"and {tl['stops_at_or_below_zero']} were at or below zero. Screening out volatile stocks did not fix it (Area F).",
                     "source": "research/alpha/results/new_areas/bot_tail_losses.json"})
-    out += [{"text": "QuantLab's real, tested skill is forecasting how much a stock will move, not which way. Option prices "
+    out += [{"text": "Overnight 2026-10-08: a profitability (quality) tilt of the whole market passed its pre-registered test: "
+                     "16.3%/yr vs 14.5% in 2013-24 with a better Sharpe in every period. A candidate for the real-money ETF core "
+                     "(via the Upside Engine v2 doctrine), not proven.", "source": "research/alpha/results/improvement/M_etf_core.json"},
+            {"text": "Dip buying: buying the whole market's short dips worked in 2013-24 (73% winners) but lost in 1963-99, so it is "
+                     "an era effect. Buying sharp dips in individual strong stocks lost to SPY (2022-24: -10%/yr vs +9%).",
+                     "source": "docs/DIP-BUYING-PREREG.md"},
+            {"text": "Risking more: on the market, 1.5x returned 12.3%/yr vs 10.7% (1963-2024) but fell 73% at worst; beyond ~1.5x "
+                     "extra risk adds almost nothing. On the bot's own picks (edge about zero) more risk only adds swings.",
+                     "source": "docs/RISK-AND-SIZING.md"},
+            {"text": "Other AI trading bots: none found with a verified multi-year record of beating the index after costs; the "
+                     "longest public one (AIEQ) badly trails the S&P 500. What survives is risk control, not prediction.",
+                     "source": "docs/AI-TRADING-BOTS-REVIEW.md"},
+            {"text": "QuantLab's real, tested skill is forecasting how much a stock will move, not which way. Option prices "
                      "already know most of it.", "source": "research/alpha/results/sprint/P2_vol_forecast.json"},
             {"text": "After big news jumps the average stock lags the market, and prices finish reacting to a headline within "
                      "about 15 minutes. Chasing news is not an edge for this bot.", "source": "docs/WHAT-THE-BOT-NEEDS.md"}]

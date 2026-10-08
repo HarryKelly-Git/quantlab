@@ -434,6 +434,13 @@ dl.terms dd { margin: 0; color: var(--ink); }
     $("#sum-tiles").replaceChildren(...tiles.map(([a, b, s]) => h("div", { class: "tile" }, h("span", { class: "label" }, a), h("span", { class: "value " + (a.startsWith("Bot") ? cls(L.bot_pl) : "") }, b), h("span", { class: "sub" }, s))));
     $("#findings").replaceChildren(...(SB.findings || []).map(f => h("li", {}, h("span", {}, f.text), h("span", { class: "src" }, f.source))));
     const needs = [
+      { id: "options", title: "Options learning trade (US market hours: before 9am NZ)", meta: "The bot's options book is OFF by design; switching it on is your decision. The bot's own rules then pick the trade, and may decline if no option beats the stock. Max $500 premium per trade, defined risk only.",
+        steps: ["In PowerShell: cd \"C:\\Users\\harry\\Downloads\\Businesspilot\\quantlab\"",
+                "Open config\\local.yaml in Notepad (notepad config\\local.yaml) and add these two lines at the end, then save:  options:  (newline, two spaces)  paper_trading: true",
+                "Dry run first (no order): .\\.venv\\Scripts\\python.exe -m quantlab.cli options evaluate --symbol UBER --horizon 25",
+                "Place it: .\\.venv\\Scripts\\python.exe -m quantlab.cli options evaluate --symbol UBER --horizon 25 --paper --qty 1",
+                "If it says STOCK or NO_TRADE, try another liquid name (e.g. --symbol AAPL or --symbol SPY). Check with: .\\.venv\\Scripts\\python.exe -m quantlab.cli options status",
+                "If config\\local.yaml already has an options: section, add paper_trading: true under it instead of a second options: line."] },
       { id: "private", title: "Make the GitHub repository private (30 seconds)", meta: "Claude's cloud access is not allowed to change repository settings, so this one is yours.",
         steps: ["Open github.com/HarryKelly-Git/quantlab and click Settings (top row of tabs).",
                 "Stay on General, scroll to the bottom: Danger Zone.",
