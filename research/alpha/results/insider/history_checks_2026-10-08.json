@@ -1,0 +1,289 @@
+{
+ "GME": {
+  "recent_buyers": 5,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 1.9,
+  "other_open_market_buys_prior_2y": 8,
+  "history_from": "2024-10-07",
+  "rows": 39
+ },
+ "BSX": {
+  "recent_buyers": 4,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [
+   "Ludwig Edward J",
+   "Mahoney Michael F"
+  ],
+  "insider_sales_prior_12m_$M": 42.32,
+  "other_open_market_buys_prior_2y": 4,
+  "history_from": "2024-11-01",
+  "rows": 57
+ },
+ "CDNL": {
+  "recent_buyers": 7,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 0.0,
+  "other_open_market_buys_prior_2y": 6,
+  "history_from": "2025-12-11",
+  "rows": 13
+ },
+ "APTV": {
+  "recent_buyers": 4,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [
+   "Mahoney Sean O"
+  ],
+  "insider_sales_prior_12m_$M": 7.88,
+  "other_open_market_buys_prior_2y": 2,
+  "history_from": "2025-03-10",
+  "rows": 21
+ },
+ "DKS": {
+  "recent_buyers": 7,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [
+   "Gupta Navdeep"
+  ],
+  "insider_sales_prior_12m_$M": 56.55,
+  "other_open_market_buys_prior_2y": 2,
+  "history_from": "2024-12-02",
+  "rows": 22
+ },
+ "ACI": {
+  "recent_buyers": 3,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 9.05,
+  "other_open_market_buys_prior_2y": 0,
+  "history_from": "2025-04-29",
+  "rows": 11
+ },
+ "AMRZ": {
+  "recent_buyers": 11,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 0.0,
+  "other_open_market_buys_prior_2y": 32,
+  "history_from": "2025-08-08",
+  "rows": 43
+ },
+ "AMRC": {
+  "recent_buyers": 4,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [
+   "Miller Jennifer L"
+  ],
+  "insider_sales_prior_12m_$M": 3.27,
+  "other_open_market_buys_prior_2y": 7,
+  "history_from": "2024-11-13",
+  "rows": 38
+ },
+ "BABA": {
+  "recent_buyers": 2,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 72.28,
+  "other_open_market_buys_prior_2y": 0,
+  "history_from": "2026-03-25",
+  "rows": 15
+ },
+ "INBX": {
+  "recent_buyers": 3,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 11.29,
+  "other_open_market_buys_prior_2y": 1,
+  "history_from": "2024-11-19",
+  "rows": 10
+ },
+ "SBLK": {
+  "recent_buyers": 8,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [
+   "Karellis Nikolaos",
+   "Plakantonaki Charis",
+   "Reskos Nikolaos",
+   "Zagari Raffaele"
+  ],
+  "insider_sales_prior_12m_$M": 4.19,
+  "other_open_market_buys_prior_2y": 1,
+  "history_from": "2026-03-31",
+  "rows": 27
+ },
+ "PFE": {
+  "recent_buyers": 3,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 0.05,
+  "other_open_market_buys_prior_2y": 2,
+  "history_from": "2024-10-30",
+  "rows": 8
+ },
+ "CELH": {
+  "recent_buyers": 3,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [
+   "Fieldly John"
+  ],
+  "insider_sales_prior_12m_$M": 54.06,
+  "other_open_market_buys_prior_2y": 5,
+  "history_from": "2024-12-12",
+  "rows": 28
+ },
+ "XENE": {
+  "recent_buyers": 2,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [
+   "Mortimer Ian"
+  ],
+  "insider_sales_prior_12m_$M": 21.91,
+  "other_open_market_buys_prior_2y": 0,
+  "history_from": "2024-11-22",
+  "rows": 20
+ },
+ "TTMI": {
+  "recent_buyers": 2,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 35.63,
+  "other_open_market_buys_prior_2y": 1,
+  "history_from": "2024-11-06",
+  "rows": 71
+ },
+ "HOG": {
+  "recent_buyers": 3,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 0.72,
+  "other_open_market_buys_prior_2y": 4,
+  "history_from": "2024-10-30",
+  "rows": 20
+ },
+ "REZI": {
+  "recent_buyers": 3,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 4.11,
+  "other_open_market_buys_prior_2y": 12,
+  "history_from": "2024-11-13",
+  "rows": 25
+ },
+ "ONON": {
+  "recent_buyers": 2,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 0.94,
+  "other_open_market_buys_prior_2y": 3,
+  "history_from": "2026-03-23",
+  "rows": 14
+ },
+ "COO": {
+  "recent_buyers": 3,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 0.0,
+  "other_open_market_buys_prior_2y": 10,
+  "history_from": "2025-09-02",
+  "rows": 14
+ },
+ "ELV": {
+  "recent_buyers": 2,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 1.74,
+  "other_open_market_buys_prior_2y": 3,
+  "history_from": "2024-10-18",
+  "rows": 14
+ },
+ "TSCO": {
+  "recent_buyers": 3,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [
+   "Lawton III Harry A"
+  ],
+  "insider_sales_prior_12m_$M": 19.48,
+  "other_open_market_buys_prior_2y": 0,
+  "history_from": "2025-02-03",
+  "rows": 27
+ },
+ "DY": {
+  "recent_buyers": 3,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 1.26,
+  "other_open_market_buys_prior_2y": 0,
+  "history_from": "2024-12-18",
+  "rows": 6
+ },
+ "ENOV": {
+  "recent_buyers": 2,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 0.05,
+  "other_open_market_buys_prior_2y": 14,
+  "history_from": "2025-08-13",
+  "rows": 18
+ },
+ "EQPT": {
+  "recent_buyers": 2,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 0.0,
+  "other_open_market_buys_prior_2y": 5,
+  "history_from": "2026-01-26",
+  "rows": 12
+ },
+ "LINE": {
+  "recent_buyers": 2,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 0.0,
+  "other_open_market_buys_prior_2y": 15,
+  "history_from": "2025-02-28",
+  "rows": 17
+ },
+ "ABCL": {
+  "recent_buyers": 3,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 0.0,
+  "other_open_market_buys_prior_2y": 8,
+  "history_from": "2025-03-06",
+  "rows": 12
+ },
+ "CCB": {
+  "recent_buyers": 3,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [
+   "Hovde Steven D",
+   "Sprink Eric M"
+  ],
+  "insider_sales_prior_12m_$M": 15.47,
+  "other_open_market_buys_prior_2y": 0,
+  "history_from": "2024-10-09",
+  "rows": 35
+ },
+ "BTDR": {
+  "recent_buyers": 2,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [],
+  "insider_sales_prior_12m_$M": 0.0,
+  "other_open_market_buys_prior_2y": 0,
+  "history_from": "2026-08-12",
+  "rows": 2
+ },
+ "GRAB": {
+  "recent_buyers": 2,
+  "routine_buyers": [],
+  "recent_buyers_who_sold_in_prior_12m": [
+   "Hungate Alexander Charles",
+   "Tan Anthony Ping Yeow"
+  ],
+  "insider_sales_prior_12m_$M": 6.58,
+  "other_open_market_buys_prior_2y": 0,
+  "history_from": "2026-03-20",
+  "rows": 30
+ }
+}

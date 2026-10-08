@@ -1,0 +1,162 @@
+{
+ "family": "H20_earnings_announcement_premium",
+ "variants": {
+  "EAP_n1_pre": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 0
+    },
+    "VALIDATION": {
+     "n_events": 0
+    }
+   },
+   "train_2x_costs_mean_bps": null
+  },
+  "EAP_n1_through": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 15796,
+     "mean_bps": -50.31517352385533,
+     "median_bps": -47.95324634633532,
+     "hit_rate": 0.4377690554570777,
+     "weekly_t_nw": -5.17036050909192,
+     "n_weeks": 102,
+     "mean_bps_without_top5pct": -112.2220793976595
+    },
+    "VALIDATION": {
+     "n_events": 8137,
+     "mean_bps": -5.29433967081966,
+     "median_bps": -12.899268692263325,
+     "hit_rate": 0.4845766252918766,
+     "weekly_t_nw": -0.9619615190436924,
+     "n_weeks": 51,
+     "mean_bps_without_top5pct": -76.7295991225835
+    }
+   },
+   "train_2x_costs_mean_bps": -72.20729811235876
+  },
+  "EAP_n3_pre": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 15746,
+     "mean_bps": -13.163030788340894,
+     "median_bps": -14.359844905831569,
+     "hit_rate": 0.47364410008891145,
+     "weekly_t_nw": -2.146404150514433,
+     "n_weeks": 103,
+     "mean_bps_without_top5pct": -63.4147570550958
+    },
+    "VALIDATION": {
+     "n_events": 8127,
+     "mean_bps": -29.689997268387103,
+     "median_bps": -16.360317838281205,
+     "hit_rate": 0.4728682170542636,
+     "weekly_t_nw": -3.3046322232518146,
+     "n_weeks": 52,
+     "mean_bps_without_top5pct": -74.40985920401786
+    }
+   },
+   "train_2x_costs_mean_bps": -35.08491571149598
+  },
+  "EAP_n3_through": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 15746,
+     "mean_bps": -23.227108774070565,
+     "median_bps": -36.59777211731066,
+     "hit_rate": 0.4703416740759558,
+     "weekly_t_nw": -2.6785564009939016,
+     "n_weeks": 103,
+     "mean_bps_without_top5pct": -130.97191739506576
+    },
+    "VALIDATION": {
+     "n_events": 8127,
+     "mean_bps": -26.585473953205224,
+     "median_bps": 7.679826807243367,
+     "hit_rate": 0.5057216685123662,
+     "weekly_t_nw": -1.7717166801483777,
+     "n_weeks": 52,
+     "mean_bps_without_top5pct": -132.63759748765986
+    }
+   },
+   "train_2x_costs_mean_bps": -45.14899369722564
+  },
+  "EAP_n5_pre": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 15776,
+     "mean_bps": -0.547590192683348,
+     "median_bps": -16.4248547156056,
+     "hit_rate": 0.4817444219066937,
+     "weekly_t_nw": -0.5537436946408557,
+     "n_weeks": 103,
+     "mean_bps_without_top5pct": -74.7033254472583
+    },
+    "VALIDATION": {
+     "n_events": 8129,
+     "mean_bps": -12.81277234460538,
+     "median_bps": 6.448236347077838,
+     "hit_rate": 0.5070734407676221,
+     "weekly_t_nw": -1.2792153373895185,
+     "n_weeks": 51,
+     "mean_bps_without_top5pct": -77.13021537025746
+    }
+   },
+   "train_2x_costs_mean_bps": -22.458467474630613
+  },
+  "EAP_n5_through": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 15776,
+     "mean_bps": -13.017253080908656,
+     "median_bps": -29.091219088654384,
+     "hit_rate": 0.47857505070993916,
+     "weekly_t_nw": -1.355605039636713,
+     "n_weeks": 103,
+     "mean_bps_without_top5pct": -133.37285677120158
+    },
+    "VALIDATION": {
+     "n_events": 8129,
+     "mean_bps": -9.562465357579608,
+     "median_bps": 32.84254982148004,
+     "hit_rate": 0.5186369787181695,
+     "weekly_t_nw": -0.3189258152320501,
+     "n_weeks": 51,
+     "mean_bps_without_top5pct": -125.66897085511052
+    }
+   },
+   "train_2x_costs_mean_bps": -34.92813036285592
+  }
+ },
+ "selected": "EAP_n5_pre",
+ "oos": {
+  "selected": "EAP_n5_pre",
+  "n_events": 16593,
+  "mean_bps": -12.17822549862471,
+  "median_bps": -23.801276607267962,
+  "hit_rate": 0.4657988308322787,
+  "weekly_t_nw": -0.15089847568024145,
+  "n_weeks": 103,
+  "mean_bps_without_top5pct": -68.2081260408616,
+  "oos_2x_costs_mean_bps": -34.05962126792502,
+  "oos_rerun_reason": "audit-2026-10: ticker->company by date incl. symbol changes (C2/M1: delisted companies had been dropped, recycled tickers mis-joined), twin de-dup, delisting-aware exits, panel v3; same pre-registered variants and selection rule; first-run OOS rows kept and reported"
+ },
+ "bh_train_rejections": 0,
+ "n_oos_evaluations_in_ledger": 3,
+ "evidence": {
+  "data_ok": true,
+  "dev_t_net": -1.2792153373895185,
+  "dev_t_gross": null,
+  "oos_t_net": -0.15089847568024145,
+  "oos_mean_net": -0.001217822549862471,
+  "oos_years_positive_frac": null,
+  "deflated_sharpe_prob": null,
+  "spa_p": null,
+  "pbo": null,
+  "survives_2x_costs": false,
+  "survives_top5_removal": false,
+  "regime_conditional_pass": null
+ },
+ "classification": "E",
+ "classification_reason": "no significant net edge in development; OOS t -0.15 (event study: DSR/SPA not applicable; BH across variants on TRAIN)"
+}

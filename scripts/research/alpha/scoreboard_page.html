@@ -1,0 +1,631 @@
+<title>QuantLab Scoreboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: a research notebook's scoreboard. Sticky tab bar; each tab answers one question, summary before detail. */
+:root {
+  --bg: #f3f5f4; --surface: #ffffff; --ink: #17201f; --muted: #5d6967; --line: #d6dddb; --soft: #e8eeec;
+  --accent: #0e6b70; --accent-soft: #d6ecec;
+  --fail: #b23a2c; --fail-soft: #f7e3df; --neutral: #5f6b72; --neutral-soft: #e6eaec;
+  --watch: #9a6200; --watch-soft: #f6ebd3; --useful: #2457a6; --useful-soft: #e0e9f7;
+  --good: #1d7a46; --good-soft: #dcefe3;
+  --spy: #8a8f96; --c1: #0e6b70; --c2: #c2410c; --c3: #6d4bb8;
+  --font-display: "Schibsted Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Schibsted Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1514; --surface: #161e1d; --ink: #e4ebe9; --muted: #98a6a3; --line: #2a3533; --soft: #1d2726;
+  --accent: #4fc1c4; --accent-soft: #163536;
+  --fail: #f08a7a; --fail-soft: #3a1f1b; --neutral: #a3afb6; --neutral-soft: #252d31; --watch: #e8b250; --watch-soft: #3a2d12;
+  --useful: #8ab4f5; --useful-soft: #1a2a44; --good: #6fd39a; --good-soft: #15321f;
+  --spy: #7d858c; --c1: #4fc1c4; --c2: #f4884f; --c3: #b39af0; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1514; --surface: #161e1d; --ink: #e4ebe9; --muted: #98a6a3; --line: #2a3533; --soft: #1d2726;
+  --accent: #4fc1c4; --accent-soft: #163536;
+  --fail: #f08a7a; --fail-soft: #3a1f1b; --neutral: #a3afb6; --neutral-soft: #252d31; --watch: #e8b250; --watch-soft: #3a2d12;
+  --useful: #8ab4f5; --useful-soft: #1a2a44; --good: #6fd39a; --good-soft: #15321f;
+  --spy: #7d858c; --c1: #4fc1c4; --c2: #f4884f; --c3: #b39af0; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-body); margin: 0; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 15px; font-weight: 700; }
+p { margin: 0; }
+.num, .mono { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+.top-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding-block: 14px 8px; }
+.brand { font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.02em; }
+.badge { font: 600 11px/1 var(--font-data); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); background: var(--accent-soft); padding: 5px 7px; border-radius: 4px; }
+.asof { font-size: 13px; color: var(--muted); margin-left: auto; }
+nav.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+nav.tabs button { font: 600 14px var(--font-body); color: var(--muted); background: none; border: 0; padding: 9px 12px 11px; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+nav.tabs button:hover { color: var(--ink); }
+
+section.tab { display: grid; gap: 22px; padding-top: 22px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-width: 0; }
+.verdict { display: grid; gap: 8px; border-left: 4px solid var(--fail); }
+.verdict .big { font-family: var(--font-display); font-size: clamp(19px, 3.2vw, 25px); font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; max-width: 46ch; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.tile .label { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.tile .value { font: 600 26px/1.15 var(--font-data); font-variant-numeric: tabular-nums; }
+.tile .sub { font-size: 13px; color: var(--muted); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.stack { display: grid; gap: 12px; min-width: 0; }
+.section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 12px/1 var(--font-body); padding: 5px 9px; border-radius: 999px; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.v-FAILED { color: var(--fail); background: var(--fail-soft); }
+.v-NO_IMPROVEMENT { color: var(--neutral); background: var(--neutral-soft); }
+.v-WATCH { color: var(--watch); background: var(--watch-soft); }
+.v-USEFUL { color: var(--useful); background: var(--useful-soft); }
+.v-BLOCKED { color: var(--neutral); background: var(--neutral-soft); }
+.v-RISK_ONLY { color: var(--accent); background: var(--accent-soft); }
+.v-RUNNING { color: var(--accent); background: var(--accent-soft); }
+.v-FIXED { color: var(--good); background: var(--good-soft); }
+.v-PROPOSED { color: var(--watch); background: var(--watch-soft); }
+
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: s; }
+ol.steps li { display: grid; grid-template-columns: 30px 1fr; gap: 10px; counter-increment: s; }
+ol.steps li::before { content: counter(s); font: 600 13px/28px var(--font-data); text-align: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.step-title { font-weight: 600; }
+.step-meta { font-size: 13px; color: var(--muted); }
+
+.checklist { display: grid; gap: 8px; }
+.checklist .need { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); min-width: 0; }
+.checklist label { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; cursor: pointer; }
+.checklist input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--accent); }
+.howto { margin: 8px 0 0 32px; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; overflow-wrap: anywhere; }
+.howto li::marker { color: var(--muted); }
+.checklist label.done .step-title { text-decoration: line-through; color: var(--muted); }
+
+.mixbar { display: grid; gap: 10px; }
+.mixrow { display: grid; grid-template-columns: minmax(120px, 210px) 1fr 34px; gap: 10px; align-items: center; font-size: 13px; }
+.bar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--soft); }
+.bar span { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.chart { width: 100%; min-width: 0; position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font: 11px var(--font-data); fill: var(--muted); }
+.chart .grid line { stroke: var(--line); stroke-width: 1; }
+.chart .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: 12px/1.45 var(--font-data); box-shadow: 0 4px 14px rgb(0 0 0 / 0.12); white-space: nowrap; }
+.toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+.toggle { font: 600 12px var(--font-body); border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 5px 10px 5px 8px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.toggle i { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+.toggle[aria-pressed="false"] { opacity: 0.45; }
+
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.03em; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th.sortable { cursor: pointer; }
+th.sortable:hover { color: var(--ink); }
+td { padding: 8px 10px; border-bottom: 1px solid var(--soft); vertical-align: middle; }
+td.r, th.r { text-align: right; }
+.pos { color: var(--good); } .neg { color: var(--fail); }
+.plbar { position: relative; height: 10px; width: 90px; background: var(--soft); border-radius: 3px; }
+.plbar span { position: absolute; top: 0; height: 100%; border-radius: 3px; }
+.plbar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { font: 600 13px var(--font-body); border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip .n { font-family: var(--font-data); opacity: 0.7; margin-left: 4px; }
+select, input[type="search"] { font: 14px var(--font-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+input[type="search"] { flex: 1 1 200px; min-width: 0; }
+.ideas { display: grid; gap: 10px; }
+.idea { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 6px 16px; }
+.idea .meta { display: grid; gap: 6px; align-content: start; }
+.idea .area { font-size: 12px; color: var(--muted); }
+.idea .name { font-weight: 700; }
+.idea .q { color: var(--muted); font-size: 14px; }
+.idea .key { font: 13px/1.5 var(--font-data); background: var(--soft); border-radius: 6px; padding: 6px 9px; margin-top: 6px; }
+.idea .mean { margin-top: 6px; }
+.idea .src { font: 12px var(--font-data); color: var(--muted); margin-top: 6px; word-break: break-all; }
+.empty { padding: 24px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; }
+
+ul.findings { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+ul.findings li { display: grid; gap: 2px; padding-left: 14px; border-left: 3px solid var(--accent); max-width: 90ch; }
+ul.findings .src { font: 12px var(--font-data); color: var(--muted); word-break: break-all; }
+.fix { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 6px 16px; padding: 14px 0; border-bottom: 1px solid var(--soft); }
+.fix:last-child { border-bottom: 0; }
+.note { font-size: 14px; color: var(--muted); max-width: 75ch; }
+.callout { background: var(--accent-soft); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; }
+dl.terms { display: grid; grid-template-columns: minmax(130px, 200px) 1fr; gap: 12px 20px; margin: 0; }
+dl.terms dt { font-weight: 700; }
+dl.terms dd { margin: 0; color: var(--ink); }
+
+@media (max-width: 640px) {
+  .idea, .fix { grid-template-columns: 1fr; }
+  .mixrow { grid-template-columns: 1fr 34px; }
+  .mixrow .mixlabel { grid-column: 1 / -1; }
+  dl.terms { grid-template-columns: 1fr; gap: 2px 0; }
+  dl.terms dd { margin-bottom: 10px; }
+  .asof { margin-left: 0; width: 100%; }
+}
+@media (prefers-reduced-motion: no-preference) { section.tab { animation: fade 160ms ease-out; } }
+@keyframes fade { from { opacity: 0.6; } to { opacity: 1; } }
+</style>
+
+<script id="data" type="application/json">/*__DATA__*/</script>
+
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <span class="brand">QuantLab Scoreboard</span>
+      <span class="badge">Paper only</span>
+      <span class="asof" id="asof"></span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" id="t-summary" aria-controls="summary">Summary</button>
+      <button role="tab" id="t-bot" aria-controls="bot">Paper bot</button>
+      <button role="tab" id="t-ideas" aria-controls="ideas">Ideas tested</button>
+      <button role="tab" id="t-market" aria-controls="market">Your ETF core</button>
+      <button role="tab" id="t-fixes" aria-controls="fixes">Fixes</button>
+      <button role="tab" id="t-terms" aria-controls="terms">Terms</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- SUMMARY -->
+  <section class="tab" id="summary" role="tabpanel" aria-labelledby="t-summary">
+    <div class="card verdict">
+      <span class="pill v-FAILED" id="verdict-pill"></span>
+      <p class="big" id="headline"></p>
+      <p class="muted" id="holdout"></p>
+    </div>
+    <div class="tiles" id="sum-tiles"></div>
+    <div class="card stack">
+      <h2>What the evidence says</h2>
+      <ul class="findings" id="findings"></ul>
+    </div>
+    <div class="cols">
+      <div class="card stack">
+        <div class="section-head"><h2>What I need from you</h2><span class="muted" style="font-size:13px">Ticks are saved in this browser only</span></div>
+        <div class="checklist" id="needs"></div>
+      </div>
+      <div class="card stack">
+        <h2>Next steps, ranked by value</h2>
+        <ol class="steps" id="next"></ol>
+      </div>
+    </div>
+    <div class="card stack">
+      <div class="section-head"><h2>Where the ideas landed</h2><button class="chip" data-goto="ideas">See every idea</button></div>
+      <div class="legend" id="mix-legend"></div>
+      <div class="mixbar" id="mix"></div>
+    </div>
+  </section>
+
+  <!-- BOT -->
+  <section class="tab" id="bot" role="tabpanel" aria-labelledby="t-bot" hidden>
+    <div class="tiles" id="bot-tiles"></div>
+    <div class="card stack">
+      <div class="section-head">
+        <h2>Account value vs SPY since funding</h2>
+        <div class="toggles" id="bot-toggles"></div>
+      </div>
+      <div class="chart" id="bot-chart"></div>
+      <p class="note" id="bot-note"></p>
+    </div>
+    <div class="card stack">
+      <div class="section-head"><h2>Open positions</h2><span class="muted" id="pos-sum" style="font-size:13px"></span></div>
+      <div class="tablewrap"><table id="pos"></table></div>
+    </div>
+    <div class="card stack">
+      <h2>How the bot's orders actually fill</h2>
+      <div id="exec"></div>
+      <div class="tablewrap"><table id="fills"></table></div>
+    </div>
+  </section>
+
+  <!-- IDEAS -->
+  <section class="tab" id="ideas" role="tabpanel" aria-labelledby="t-ideas" hidden>
+    <div class="stack">
+      <div class="section-head"><h2>Every idea tested</h2><span class="muted" id="ideas-count" style="font-size:13px"></span></div>
+      <p class="note">Each idea was written down before its result was seen, tested on 2016-24 data that includes companies that later disappeared, and judged after trading costs. The deciding number is the one that settled the verdict.</p>
+      <div class="filters" id="chips"></div>
+      <div class="filters">
+        <select id="area" aria-label="Area"></select>
+        <input type="search" id="q" placeholder="Search ideas, e.g. momentum, straddle, news" aria-label="Search ideas">
+      </div>
+    </div>
+    <div class="ideas" id="idea-list"></div>
+  </section>
+
+  <!-- MARKET -->
+  <section class="tab" id="market" role="tabpanel" aria-labelledby="t-market" hidden>
+    <div class="callout">
+      <h3>Can a simple rule beat just holding the US market?</h3>
+      <p>Tested on 61 years of data (1963-2024), rules fixed in advance, judged on 2013-24. <strong>No rule beat holding.</strong> The trend rule is the only one with a use: it cut the 2000-12 fall from 55% to 22%, and it cost about 2.5 points a year in 2013-24 when markets rose.</p>
+      <p class="muted" style="font-size:13px">Research, not advice. Real-money decisions follow your Upside Engine rules.</p>
+    </div>
+    <div class="card stack">
+      <div class="section-head"><h2>Growth of $1 (log scale)</h2><div class="toggles" id="mk-toggles"></div></div>
+      <div class="chart" id="mk-chart"></div>
+    </div>
+    <div class="card stack">
+      <h2>Fall from the previous high</h2>
+      <div class="chart" id="dd-chart"></div>
+    </div>
+    <div class="card stack">
+      <div class="section-head"><h2>By period</h2>
+        <div class="filters" id="period-chips"></div></div>
+      <div class="tablewrap"><table id="mk-table"></table></div>
+    </div>
+  </section>
+
+  <!-- FIXES -->
+  <section class="tab" id="fixes" role="tabpanel" aria-labelledby="t-fixes" hidden>
+    <div class="callout">
+      <h3>Research that fixes things</h3>
+      <p>Most of the value so far is in what was wrong, not in a new strategy. Fixed problems change the numbers every later test relies on. Proposed fixes touch the live paper bot, so they wait for your approval and are never merged by me.</p>
+    </div>
+    <div class="card" id="fix-list"></div>
+  </section>
+
+  <!-- TERMS -->
+  <section class="tab" id="terms" role="tabpanel" aria-labelledby="t-terms" hidden>
+    <div class="card">
+      <dl class="terms" id="glossary"></dl>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById("data").textContent);
+  const SB = D.scoreboard, L = D.live;
+  const $ = (s, el = document) => el.querySelector(s);
+  const h = (tag, attrs = {}, ...kids) => {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") e.className = v; else if (k === "html") e.innerHTML = v;
+      else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (v !== null && v !== undefined) e.setAttribute(k, v);
+    }
+    for (const k of kids.flat()) if (k !== null && k !== undefined) e.append(k.nodeType ? k : document.createTextNode(k));
+    return e;
+  };
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("qls:" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem("qls:" + k, JSON.stringify(v)); } catch (e) {} }
+  };
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const money = (x, sign = true) => (sign && x > 0 ? "+" : x < 0 ? "−" : "") + "$" + Math.abs(x).toLocaleString("en-US", { maximumFractionDigits: Math.abs(x) >= 1000 ? 0 : 2, minimumFractionDigits: Math.abs(x) >= 1000 ? 0 : 2 });
+  const pc = (x, d = 1, sign = true) => (x === null || x === undefined || isNaN(x)) ? "UNKNOWN" : ((sign && x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x * 100).toFixed(d) + "%");
+  const cls = (x) => x > 0 ? "pos" : x < 0 ? "neg" : "";
+
+  const VL = { FAILED: "Failed", NO_IMPROVEMENT: "No improvement", WATCH: "Watch only", USEFUL: "Useful, not money", RISK_ONLY: "Less risk, less return", BLOCKED: "Blocked", RUNNING: "Running" };
+  const VORDER = ["FAILED", "NO_IMPROVEMENT", "RISK_ONLY", "WATCH", "USEFUL", "BLOCKED", "RUNNING"];
+  const VCOLOR = { FAILED: "--fail", NO_IMPROVEMENT: "--neutral", WATCH: "--watch", USEFUL: "--useful", RISK_ONLY: "--accent", BLOCKED: "--line", RUNNING: "--accent" };
+  const pill = (code, label) => h("span", { class: "pill v-" + code }, label || VL[code] || code);
+
+  /* ---------- tabs ---------- */
+  const tabs = ["summary", "bot", "ideas", "market", "fixes", "terms"];
+  const drawn = {};
+  function show(id) {
+    if (!tabs.includes(id)) id = "summary";
+    for (const t of tabs) {
+      $("#" + t).hidden = t !== id;
+      $("#t-" + t).setAttribute("aria-selected", String(t === id));
+      $("#t-" + t).tabIndex = t === id ? 0 : -1;
+    }
+    if (!drawn[id] && DRAW[id]) { DRAW[id](); drawn[id] = true; }
+    store.set("tab", id);
+  }
+  for (const t of tabs) $("#t-" + t).addEventListener("click", () => { show(t); history.replaceState(null, "", "#" + t); });
+  $("nav.tabs").addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const i = tabs.indexOf(document.activeElement.id.slice(2)); if (i < 0) return;
+    const n = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+    show(n); $("#t-" + n).focus();
+  });
+  document.addEventListener("click", (e) => { const g = e.target.closest("[data-goto]"); if (g) { show(g.dataset.goto); window.scrollTo({ top: 0 }); } });
+
+  $("#asof").textContent = "Research " + SB.generated_at + " · Account " + L.fetched_at_et;
+
+  /* ---------- line chart ---------- */
+  function lineChart(el, series, opt = {}) {
+    el.innerHTML = "";
+    const W = el.clientWidth || 700, H = opt.height || Math.max(220, Math.min(340, W * 0.45));
+    const m = { l: opt.left || 56, r: 14, t: 12, b: 28 };
+    const vis = series.filter(s => s.on !== false && s.pts.length);
+    if (!vis.length) { el.append(h("div", { class: "empty" }, "Turn on a line to see the chart.")); return; }
+    const xs = vis.flatMap(s => s.pts.map(p => p.x)), ys = vis.flatMap(s => s.pts.map(p => p.y));
+    let x0 = Math.min(...xs), x1 = Math.max(...xs);
+    let y0 = opt.yMin !== undefined ? opt.yMin : Math.min(...ys), y1 = opt.yMax !== undefined ? opt.yMax : Math.max(...ys);
+    const tf = opt.log ? Math.log10 : (v) => v;
+    let ty0 = tf(y0), ty1 = tf(y1); const pad = (ty1 - ty0) * 0.06 || 1; if (opt.yMax === undefined) ty1 += pad; if (opt.yMin === undefined) ty0 -= pad;
+    const X = (x) => m.l + (x - x0) / (x1 - x0 || 1) * (W - m.l - m.r);
+    const Y = (y) => m.t + (1 - (tf(y) - ty0) / (ty1 - ty0)) * (H - m.t - m.b);
+    const NS = "http://www.w3.org/2000/svg";
+    const s = (tag, a) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); return e; };
+    const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": opt.label || "chart" });
+    const g = s("g", { class: "grid" });
+    let ticks = [];
+    if (opt.log) { for (let e = Math.floor(ty0); e <= Math.ceil(ty1); e++) for (const k of [1, 2, 5]) { const v = k * 10 ** e; if (tf(v) >= ty0 && tf(v) <= ty1) ticks.push(v); } }
+    else { const span = ty1 - ty0, raw = span / 5, mag = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 2.5, 5, 10].map(k => k * mag).find(k => span / k <= 6);
+      for (let v = Math.ceil(ty0 / step) * step; v <= ty1 + 1e-9; v += step) ticks.push(+v.toFixed(10)); }
+    if (opt.log && ticks.length > 7) ticks = ticks.filter(v => /^1|^5/.test(String(v)) || v < 1);
+    for (const v of ticks) {
+      g.append(s("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }));
+      const t = s("text", { x: m.l - 8, y: Y(v) + 4, "text-anchor": "end" }); t.textContent = opt.yFmt ? opt.yFmt(v) : v; g.append(t);
+    }
+    if (opt.zero !== undefined) g.append(s("line", { x1: m.l, x2: W - m.r, y1: Y(opt.zero), y2: Y(opt.zero), style: `stroke:${css("--muted")};stroke-dasharray:3 3` }));
+    // x ticks
+    const xt = opt.xTicks ? opt.xTicks(x0, x1) : [];
+    for (const v of xt) { const t = s("text", { x: X(v), y: H - 8, "text-anchor": "middle" }); t.textContent = opt.xFmt(v); g.append(t); }
+    svg.append(g);
+    for (const b of (opt.bands || [])) {
+      const r = s("rect", { x: X(b.from), y: m.t, width: Math.max(0, X(b.to) - X(b.from)), height: H - m.t - m.b, fill: css("--soft") });
+      svg.insertBefore(r, g);
+      const t = s("text", { x: X(b.from) + 6, y: m.t + 14 }); t.textContent = b.label; svg.append(t);
+    }
+    for (const sr of vis) {
+      const d = sr.pts.map((p, i) => (i ? "L" : "M") + X(p.x).toFixed(1) + " " + Y(p.y).toFixed(1)).join("");
+      if (sr.area) {
+        const base = Y(opt.areaBase !== undefined ? opt.areaBase : y0);
+        svg.append(s("path", { d: d + `L${X(sr.pts.at(-1).x).toFixed(1)} ${base}L${X(sr.pts[0].x).toFixed(1)} ${base}Z`, fill: sr.color, opacity: 0.12 }));
+      }
+      svg.append(s("path", { d, fill: "none", stroke: sr.color, "stroke-width": sr.width || 2, "stroke-linejoin": "round", "stroke-dasharray": sr.dash || "" }));
+      const last = sr.pts.at(-1);
+      svg.append(s("circle", { cx: X(last.x), cy: Y(last.y), r: 3.5, fill: sr.color }));
+    }
+    const cross = s("line", { y1: m.t, y2: H - m.b, style: `stroke:${css("--muted")};opacity:0` });
+    svg.append(cross);
+    const dots = vis.map(sr => { const c = s("circle", { r: 4, fill: sr.color, opacity: 0 }); svg.append(c); return c; });
+    const tip = h("div", { class: "tip", hidden: "" });
+    el.append(svg, tip);
+    const near = (pts, x) => { let lo = 0, hi = pts.length - 1; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (pts[mid].x < x) lo = mid; else hi = mid; } return Math.abs(pts[lo].x - x) < Math.abs(pts[hi].x - x) ? pts[lo] : pts[hi]; };
+    function move(ev) {
+      const rect = svg.getBoundingClientRect(), sx = (ev.clientX - rect.left) * (W / rect.width);
+      if (sx < m.l || sx > W - m.r) return leave();
+      const x = x0 + (sx - m.l) / (W - m.l - m.r) * (x1 - x0);
+      const rows = vis.map((sr, i) => { const p = near(sr.pts, x); dots[i].setAttribute("cx", X(p.x)); dots[i].setAttribute("cy", Y(p.y)); dots[i].setAttribute("opacity", 1); return [sr, p]; });
+      const px = X(rows[0][1].x); cross.setAttribute("x1", px); cross.setAttribute("x2", px); cross.style.opacity = 0.6;
+      tip.innerHTML = `<div style="color:${css("--muted")}">${opt.xFmt(rows[0][1].x, true)}</div>` + rows.map(([sr, p]) => `<div><span style="color:${sr.color}">■</span> ${sr.name}: <b>${opt.tipFmt ? opt.tipFmt(p.y, sr) : p.y}</b></div>`).join("");
+      tip.hidden = false;
+      const cw = el.clientWidth, left = (px / W) * cw;
+      tip.style.left = Math.min(cw - tip.offsetWidth - 4, Math.max(4, left + 12)) + "px"; tip.style.top = "8px";
+    }
+    function leave() { tip.hidden = true; cross.style.opacity = 0; dots.forEach(d => d.setAttribute("opacity", 0)); }
+    svg.addEventListener("pointermove", move); svg.addEventListener("pointerleave", leave);
+  }
+  const redraws = [];
+  let rT; window.addEventListener("resize", () => { clearTimeout(rT); rT = setTimeout(() => redraws.forEach(f => f()), 150); });
+
+  function toggles(el, series, redraw, key) {
+    const saved = store.get(key, null);
+    el.innerHTML = "";
+    for (const sr of series) {
+      if (saved && saved[sr.name] !== undefined) sr.on = saved[sr.name];
+      const b = h("button", { class: "toggle", "aria-pressed": String(sr.on !== false), type: "button" }, h("i", { style: `background:${sr.color}` }), sr.name);
+      b.addEventListener("click", () => { sr.on = sr.on === false; b.setAttribute("aria-pressed", String(sr.on)); store.set(key, Object.fromEntries(series.map(x => [x.name, x.on !== false]))); redraw(); });
+      el.append(b);
+    }
+  }
+
+  /* ---------- SUMMARY ---------- */
+  const DRAW = {};
+  DRAW.summary = function () {
+    const c = SB.counts;
+    const passed = 0;
+    $("#verdict-pill").textContent = `${passed} of ${c.ideas} ideas passed`;
+    $("#headline").textContent = SB.headline;
+    $("#holdout").textContent = "Paper research only. " + SB.holdout + " " + c.ledger_runs.toLocaleString() + " test runs are logged and none were deleted.";
+    const fixed = SB.fixes.filter(f => f.status === "FIXED").length, proposed = SB.fixes.filter(f => f.status === "PROPOSED").length;
+    const tiles = [
+      ["Ideas tested", String(c.ideas), "Every one written down before its result"],
+      ["Proven money-makers", "0", "1 positive options rule on watch only"],
+      ["Problems found", String(fixed + proposed), `${fixed} fixed in research, ${proposed} proposed for the bot`],
+      ["Bot's open trades", money(L.bot_pl), `Same money in SPY: ${money(L.spy_matched_pl)}`]
+    ];
+    $("#sum-tiles").replaceChildren(...tiles.map(([a, b, s]) => h("div", { class: "tile" }, h("span", { class: "label" }, a), h("span", { class: "value " + (a.startsWith("Bot") ? cls(L.bot_pl) : "") }, b), h("span", { class: "sub" }, s))));
+    $("#findings").replaceChildren(...(SB.findings || []).map(f => h("li", {}, h("span", {}, f.text), h("span", { class: "src" }, f.source))));
+    const needs = [
+      { id: "options", title: "Options learning trade (US market hours: before 9am NZ)", meta: "The bot's options book is OFF by design; switching it on is your decision. The bot's own rules then pick the trade, and may decline if no option beats the stock. Max $500 premium per trade, defined risk only.",
+        steps: ["In PowerShell: cd \"C:\\Users\\harry\\Downloads\\Businesspilot\\quantlab\"",
+                "Open config\\local.yaml in Notepad (notepad config\\local.yaml) and add these two lines at the end, then save:  options:  (newline, two spaces)  paper_trading: true",
+                "Dry run first (no order): .\\.venv\\Scripts\\python.exe -m quantlab.cli options evaluate --symbol UBER --horizon 25",
+                "Place it: .\\.venv\\Scripts\\python.exe -m quantlab.cli options evaluate --symbol UBER --horizon 25 --paper --qty 1",
+                "If it says STOCK or NO_TRADE, try another liquid name (e.g. --symbol AAPL or --symbol SPY). Check with: .\\.venv\\Scripts\\python.exe -m quantlab.cli options status",
+                "If config\\local.yaml already has an options: section, add paper_trading: true under it instead of a second options: line."] },
+      { id: "private", title: "Make the GitHub repository private (30 seconds)", meta: "Claude's cloud access is not allowed to change repository settings, so this one is yours.",
+        steps: ["Open github.com/HarryKelly-Git/quantlab and click Settings (top row of tabs).",
+                "Stay on General, scroll to the bottom: Danger Zone.",
+                "Click Change visibility, then Change to private, and confirm (GitHub may ask you to type the repository name).",
+                "Afterwards, git on the PC may ask you to sign in to GitHub once when it next pulls. That is normal."] },
+      { id: "pr", title: "Approve the two bot data fixes (about 10 minutes)", meta: "Do it on a Sunday (NZ), or on a weekday between 9:30am and 11:30am NZ time, when the bot is idle. Draft PR #3: 985 tests pass.",
+        steps: ["Open github.com/HarryKelly-Git/quantlab/pull/3 and read the summary at the top.",
+                "Click Ready for review, then Merge pull request, then Confirm merge.",
+                "On the PC, open PowerShell in the QuantLab folder: in File Explorer open the QuantLab folder (the one containing .venv and scripts), click the address bar, type powershell, press Enter. Or in any PowerShell window: cd \"<path to quantlab>\".",
+                "Stop the bot: .\\.venv\\Scripts\\python.exe -m quantlab.cli paper stop   then check: .\\.venv\\Scripts\\python.exe -m quantlab.cli paper status  (should say STOPPED).",
+                "Get the update: git pull origin master   (if it shows an error or a conflict, stop and paste the message to Claude).",
+                "Refresh past corporate actions so the fix can see them: .\\.venv\\Scripts\\python.exe -m quantlab.cli ingest --kinds corporate_actions --start 2016-01-01 --end YYYY-MM-DD   (yesterday's date; a few minutes).",
+                "Restart the bot: run .\\scripts\\run_paper.cmd (or double-click it), then check paper status says RUNNING."] },
+      { id: "db", title: "Send the bot's database (from Wednesday 21 October, NZ time)", meta: `${L.trading_days} of about 20 trading days recorded so far. The copy is safe to make while the bot runs; the bot's own file is not changed.`,
+        steps: ["On the PC, open PowerShell in the QuantLab folder (as above). Commands must start with .\\ in PowerShell.",
+                "Paste: .\\.venv\\Scripts\\python.exe -c \"import sqlite3; sqlite3.connect('var/quantlab.db').backup(sqlite3.connect('var/quantlab_export.db'))\"",
+                "In the Claude chat, click the attach button, pick QuantLab\\var\\quantlab_export.db, and send it with the words: bot db.",
+                "If it is too big to attach, tell Claude the file size: there is a smaller export ready."] }
+    ];
+    const done = store.get("needs", {});
+    $("#needs").replaceChildren(...needs.map(n => {
+      const cb = h("input", { type: "checkbox", id: "need-" + n.id });
+      cb.checked = !!done[n.id];
+      const lab = h("label", { for: "need-" + n.id, class: done[n.id] ? "done" : "" }, cb, h("span", { style: "min-width:0" }, h("div", { class: "step-title" }, n.title), h("div", { class: "step-meta" }, n.meta)));
+      cb.addEventListener("change", () => { done[n.id] = cb.checked; lab.classList.toggle("done", cb.checked); store.set("needs", done); });
+      return h("div", { class: "need" }, lab, n.steps ? h("ol", { class: "howto" }, ...n.steps.map(t => h("li", {}, t))) : null);
+    }));
+    $("#next").replaceChildren(...SB.next_steps.map(n => h("li", {}, h("div", {}, h("div", { class: "step-title" }, n.action), h("div", { class: "step-meta" }, n.why + (n.who ? " · " + n.who : ""))))));
+    // verdict mix per area
+    const used = VORDER.filter(v => SB.ideas.some(i => i.verdict === v));
+    $("#mix-legend").replaceChildren(...used.map(v => pill(v)));
+    $("#mix").replaceChildren(...Object.entries(SB.areas).map(([k, title]) => {
+      const rows = SB.ideas.filter(i => i.area === k); if (!rows.length) return null;
+      const bar = h("div", { class: "bar", role: "img", "aria-label": title + ": " + used.map(v => rows.filter(r => r.verdict === v).length + " " + VL[v]).join(", ") });
+      for (const v of used) { const n = rows.filter(r => r.verdict === v).length; if (n) bar.append(h("span", { style: `width:${n / rows.length * 100}%;background:var(${VCOLOR[v]})`, title: `${n} ${VL[v]}` })); }
+      const row = h("div", { class: "mixrow" }, h("span", { class: "mixlabel" }, title), bar, h("span", { class: "num muted" }, String(rows.length)));
+      row.style.cursor = "pointer"; row.addEventListener("click", () => { ideaState.area = k; ideaState.v = "ALL"; show("ideas"); renderIdeas(); window.scrollTo({ top: 0 }); });
+      return row;
+    }).filter(Boolean));
+  };
+
+  /* ---------- BOT ---------- */
+  DRAW.bot = function () {
+    const start = L.start_capital, last = L.equity_curve.at(-1).v;
+    const tiles = [
+      ["Account value", money(last, false), `${pc(last / start - 1, 2)} since funding on ${L.account_created}`],
+      ["Invested", money(L.invested, false), `${(L.invested / last * 100).toFixed(0)}% of the account · ${L.positions.length} stocks`],
+      ["Bot's open trades", money(L.bot_pl), `${pc(L.bot_pl / L.bot_cost, 2)} on ${money(L.bot_cost, false)} · SPY same dates ${money(L.spy_matched_pl)}`],
+      ["Days of record", `${L.trading_days} / 20`, "Needed before the bot's own filters can be judged"]
+    ];
+    $("#bot-tiles").replaceChildren(...tiles.map(([a, b, s], i) => h("div", { class: "tile" }, h("span", { class: "label" }, a), h("span", { class: "value " + (i === 2 ? cls(L.bot_pl) : "") }, b), h("span", { class: "sub" }, s))));
+    const t = (d) => new Date(d + "T12:00:00Z").getTime();
+    const base = L.spy_curve.find(p => p.d === L.equity_curve[0].d) || L.spy_curve[0];
+    const series = [
+      { name: "Account", color: css("--c1"), width: 2.5, area: true, pts: L.equity_curve.map(p => ({ x: t(p.d), y: p.v / start - 1 })) },
+      { name: "SPY", color: css("--spy"), dash: "5 4", pts: L.spy_curve.filter(p => p.d >= L.equity_curve[0].d).map(p => ({ x: t(p.d), y: p.v / base.v - 1 })) }
+    ];
+    const fmtD = (x, long) => new Date(x).toLocaleDateString("en-US", long ? { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" } : { month: "short", day: "numeric", timeZone: "UTC" });
+    const draw = () => lineChart($("#bot-chart"), series, {
+      label: "Account value versus SPY", yFmt: (v) => pc(v, 1), tipFmt: (v) => pc(v, 2), zero: 0, areaBase: 0, xFmt: fmtD,
+      xTicks: (a, b) => { const out = []; const n = 5; for (let i = 0; i <= n; i++) out.push(a + (b - a) * i / n); return out; }, height: 260 });
+    toggles($("#bot-toggles"), series, draw, "bot-series"); draw(); redraws.push(draw);
+    $("#bot-note").textContent = "The account is mostly cash (about 73%), so its line moves far less than SPY's. " + L.manual_tests + " They explain the dip in the first week. The bot's first order was on " + L.first_bot_order + ".";
+    // positions
+    const cols = [["symbol", "Stock"], ["entry_day", "Bought"], ["qty", "Shares", 1], ["entry", "Paid", 1], ["price", "Now", 1], ["value", "Value", 1], ["pl", "Profit", 1], ["pl_pct", "%", 1], ["bar", ""], ["spy_ret", "SPY same days", 1]];
+    let sortK = store.get("pos-sort", "pl"), dir = store.get("pos-dir", -1);
+    const maxAbs = Math.max(...L.positions.map(p => Math.abs(p.pl_pct)));
+    function renderPos() {
+      const rows = [...L.positions].sort((a, b) => ((a[sortK] > b[sortK]) - (a[sortK] < b[sortK])) * dir);
+      const head = h("tr", {}, ...cols.map(([k, lab, r]) => { const th = h("th", { class: (r ? "r " : "") + (k !== "bar" ? "sortable" : ""), scope: "col" }, lab + (k === sortK ? (dir > 0 ? " ▲" : " ▼") : ""));
+        if (k !== "bar") th.addEventListener("click", () => { dir = sortK === k ? -dir : -1; sortK = k; store.set("pos-sort", k); store.set("pos-dir", dir); renderPos(); }); return th; }));
+      const body = rows.map(p => {
+        const w = Math.abs(p.pl_pct) / maxAbs * 45;
+        return h("tr", {}, h("td", { class: "num" }, h("b", {}, p.symbol)), h("td", { class: "num muted" }, p.entry_day ? p.entry_day.slice(5) : "UNKNOWN"),
+          h("td", { class: "num r" }, String(p.qty)), h("td", { class: "num r" }, p.entry.toFixed(2)), h("td", { class: "num r" }, p.price.toFixed(2)),
+          h("td", { class: "num r" }, money(p.value, false)), h("td", { class: "num r " + cls(p.pl) }, money(p.pl)), h("td", { class: "num r " + cls(p.pl_pct) }, pc(p.pl_pct, 1)),
+          h("td", {}, h("div", { class: "plbar" }, h("span", { style: `left:${p.pl_pct >= 0 ? 50 : 50 - w}%;width:${w}%;background:var(${p.pl_pct >= 0 ? "--good" : "--fail"})` }))),
+          h("td", { class: "num r muted" }, pc(p.spy_ret, 1)));
+      });
+      $("#pos").replaceChildren(h("thead", {}, head), h("tbody", {}, ...body));
+    }
+    renderPos();
+    const winners = L.positions.filter(p => p.pl > 0).length;
+    $("#pos-sum").textContent = `${winners} up, ${L.positions.length - winners} down or flat · tap a column to sort`;
+    // execution
+    const E = L.execution;
+    $("#exec").replaceChildren(
+      h("p", { class: "note" }, `The bot sends market-on-open orders before the open. In Alpaca's paper account none of its ${E.opg_orders} opening orders filled completely (${E.opg_partial} filled in part). Its fallback then buys with a limit order, filled within about 5 minutes of the open.`),
+      h("div", { class: "tiles" },
+        h("div", { class: "tile" }, h("span", { class: "label" }, "Price paid vs official open"), h("span", { class: "value" }, E.fill_vs_open_bps_mean === null ? "UNKNOWN" : (E.fill_vs_open_bps_mean > 0 ? "+" : "") + (E.fill_vs_open_bps_mean / 100).toFixed(2) + "%"), h("span", { class: "sub" }, `Average of ${E.fill_vs_open_n} entries. The backtest already charges 0.07-0.30% per side, so this is inside the assumed cost.`)),
+        h("div", { class: "tile" }, h("span", { class: "label" }, "Entries lost"), h("span", { class: "value" }, String(E.lost_entries.length)), h("span", { class: "sub" }, E.lost_entries.length ? E.lost_entries.join(", ") + ": opening order expired and no fallback order was sent." : "None")),
+        h("div", { class: "tile" }, h("span", { class: "label" }, "Under-filled"), h("span", { class: "value" }, String(E.partial.length)), h("span", { class: "sub" }, E.partial.length ? E.partial.join("; ") + ". Partly filled at the open and never topped up. The bot's current code buys the remainder in this case." : "None"))
+      ));
+    $("#fills").replaceChildren(h("thead", {}, h("tr", {}, ...["Day", "Stock", "How it filled", "Price", "Open", "vs open"].map((x, i) => h("th", { class: i > 2 ? "r" : "" }, x)))),
+      h("tbody", {}, ...E.fills.map(f => h("tr", {}, h("td", { class: "num muted" }, f.day.slice(5)), h("td", { class: "num" }, h("b", {}, f.symbol)),
+        h("td", {}, f.tif === "opg" ? `opening auction, ${f.filled} of ${f.wanted}` : "fallback after the open"),
+        h("td", { class: "num r" }, f.fill_px.toFixed(2)), h("td", { class: "num r" }, f.open.toFixed(2)),
+        h("td", { class: "num r " + cls(-f.fill_vs_open_bps) }, (f.fill_vs_open_bps > 0 ? "+" : "") + (f.fill_vs_open_bps / 100).toFixed(2) + "%")))));
+  };
+
+  /* ---------- IDEAS ---------- */
+  const ideaState = { v: store.get("idea-v", "ALL"), area: store.get("idea-area", "ALL"), q: "" };
+  function renderIdeas() {
+    const chips = $("#chips"); chips.innerHTML = "";
+    for (const v of ["ALL", ...VORDER.filter(v => SB.ideas.some(i => i.verdict === v))]) {
+      const n = v === "ALL" ? SB.ideas.length : SB.ideas.filter(i => i.verdict === v).length;
+      const b = h("button", { class: "chip", "aria-pressed": String(ideaState.v === v), type: "button" }, v === "ALL" ? "All" : VL[v], h("span", { class: "n" }, String(n)));
+      b.addEventListener("click", () => { ideaState.v = v; store.set("idea-v", v); renderIdeas(); }); chips.append(b);
+    }
+    const sel = $("#area");
+    if (!sel.options.length) {
+      sel.append(h("option", { value: "ALL" }, "All areas"), ...Object.entries(SB.areas).map(([k, t]) => h("option", { value: k }, t)));
+      sel.addEventListener("change", () => { ideaState.area = sel.value; store.set("idea-area", sel.value); renderIdeas(); });
+      $("#q").addEventListener("input", (e) => { ideaState.q = e.target.value.toLowerCase(); renderIdeas(); });
+    }
+    sel.value = ideaState.area;
+    const rows = SB.ideas.filter(i => (ideaState.v === "ALL" || i.verdict === ideaState.v) && (ideaState.area === "ALL" || i.area === ideaState.area)
+      && (!ideaState.q || [i.name, i.question, i.meaning, i.key_number, i.id].join(" ").toLowerCase().includes(ideaState.q)));
+    $("#ideas-count").textContent = `${rows.length} of ${SB.ideas.length} shown`;
+    $("#idea-list").replaceChildren(...(rows.length ? rows.map(i => h("article", { class: "idea" },
+      h("div", { class: "meta" }, pill(i.verdict), h("span", { class: "area" }, SB.areas[i.area]), h("span", { class: "num muted", style: "font-size:12px" }, i.id)),
+      h("div", { style: "min-width:0" }, h("div", { class: "name" }, i.name), h("div", { class: "q" }, i.question), h("div", { class: "key" }, i.key_number), h("p", { class: "mean" }, i.meaning), h("div", { class: "src" }, i.source))))
+      : [h("div", { class: "empty" }, "No idea matches these filters. Clear the search or pick All.")]));
+  }
+  DRAW.ideas = renderIdeas;
+
+  /* ---------- MARKET ---------- */
+  DRAW.market = function () {
+    const M = SB.charts.market, T = M._table;
+    const names = { BH: "Hold the market", TR10: "Trend rule (10-month)", VM1: "Calm-market sizing" };
+    const colors = { BH: css("--c1"), TR10: css("--c2"), VM1: css("--c3") };
+    const t = (d) => new Date(d + "T12:00:00Z").getTime();
+    const series = Object.keys(names).map(k => ({ key: k, name: names[k], color: colors[k], width: k === "BH" ? 2.5 : 2, pts: Object.entries(M[k]).map(([d, v]) => ({ x: t(d), y: v })) }));
+    const yr = (x) => new Date(x).getUTCFullYear();
+    const xT = (a, b) => { const out = []; for (let y = Math.ceil(yr(a) / 10) * 10; y <= yr(b); y += 10) out.push(Date.UTC(y, 0, 1)); return out; };
+    const bands = [{ from: Date.UTC(2000, 0, 1), to: Date.UTC(2012, 11, 31), label: "2000-12" }, { from: Date.UTC(2013, 0, 1), to: Date.UTC(2024, 11, 31), label: "Judged" }];
+    const fmtX = (x, long) => long ? new Date(x).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }) : String(yr(x));
+    const dd = series.map(s => { let pk = -Infinity; return { ...s, area: true, pts: s.pts.map(p => { pk = Math.max(pk, p.y); return { x: p.x, y: p.y / pk - 1 }; }) }; });
+    const draw = () => {
+      lineChart($("#mk-chart"), series, { log: true, label: "Growth of one dollar", yFmt: (v) => "$" + (v >= 1 ? v.toLocaleString("en-US") : v), tipFmt: (v) => "$" + v.toFixed(2), xFmt: fmtX, xTicks: xT, bands, height: 320 });
+      dd.forEach((d, i) => d.on = series[i].on);
+      lineChart($("#dd-chart"), dd, { label: "Drawdown", yFmt: (v) => pc(v, 0), tipFmt: (v) => pc(v, 1), xFmt: fmtX, xTicks: xT, yMax: 0, areaBase: 0, bands, height: 220 });
+    };
+    toggles($("#mk-toggles"), series, draw, "mk-series"); draw(); redraws.push(draw);
+    const P = { OOS: "2013-24 (judged)", VAL: "2000-12", TRAIN: "1963-99" };
+    let per = store.get("mk-period", "OOS");
+    const ruleNames = { BH: "Hold the market", VM1: "Calm-market sizing", VM15: "Calm-market sizing, up to 1.5x", TR10: "Trend rule (10-month)", "VM1+TR10": "Both together" };
+    function table() {
+      $("#period-chips").replaceChildren(...Object.entries(P).map(([k, lab]) => { const b = h("button", { class: "chip", "aria-pressed": String(per === k), type: "button" }, lab); b.addEventListener("click", () => { per = k; store.set("mk-period", k); table(); }); return b; }));
+      const bh = T.BH[per];
+      $("#mk-table").replaceChildren(h("thead", {}, h("tr", {}, ...["Rule", "Return / yr", "Sharpe", "Worst fall", "Time in market", "Verdict"].map((x, i) => h("th", { class: i && i < 5 ? "r" : "" }, x)))),
+        h("tbody", {}, ...Object.keys(ruleNames).map(k => { const r = T[k][per];
+          return h("tr", {}, h("td", {}, h("b", {}, ruleNames[k])), h("td", { class: "num r " + (k !== "BH" ? cls(r.cagr - bh.cagr) : "") }, pc(r.cagr, 1, false)),
+            h("td", { class: "num r " + (k !== "BH" ? cls(r.sharpe - bh.sharpe) : "") }, r.sharpe.toFixed(2)), h("td", { class: "num r " + (k !== "BH" ? cls(r.max_drawdown - bh.max_drawdown) : "") }, pc(r.max_drawdown, 0)),
+            h("td", { class: "num r" }, (r.avg_exposure * 100).toFixed(0) + "%"), h("td", {}, k === "BH" ? h("span", { class: "muted" }, "Baseline") : pill("NO_IMPROVEMENT"))); })));
+    }
+    table();
+  };
+
+  /* ---------- FIXES ---------- */
+  DRAW.fixes = function () {
+    const order = { PROPOSED: 0, FIXED: 1 };
+    $("#fix-list").replaceChildren(...[...SB.fixes].sort((a, b) => order[a.status] - order[b.status]).map(f => h("div", { class: "fix" },
+      h("div", {}, pill(f.status, f.status === "FIXED" ? "Fixed" : "Proposed")),
+      h("div", { style: "min-width:0" }, h("h3", {}, f.title), h("div", { class: "muted", style: "font-size:13px;margin:2px 0 6px" }, f.where), h("p", {}, f.detail), (/^https:\/\//.test(f.source) ? h("a", { class: "src mono", style: "font-size:12px;margin-top:6px;display:block", href: f.source.split(" ")[0], target: "_blank", rel: "noopener" }, f.source) : h("div", { class: "src mono muted", style: "font-size:12px;margin-top:6px" }, f.source))))));
+  };
+
+  /* ---------- TERMS ---------- */
+  DRAW.terms = function () {
+    const G = [
+      ["Paper", "Simulated money in Alpaca's paper account. No real orders, ever."],
+      ["Sharpe", "Return per unit of risk. Holding the US market scored 0.50 in 1963-99 and 0.79 in 2013-24. Above 1 for years is rare; about 0 means no edge."],
+      ["Out of sample", "Data the idea never saw while being designed. Here usually 2022-24. Only out-of-sample results count."],
+      ["Survivorship-free", "Includes companies that later went bust or were bought. Testing only today's survivors adds 1-5 points a year of fake return."],
+      ["Worst fall (drawdown)", "The biggest drop from a previous high before recovering."],
+      ["Pre-registered", "The rule and the pass mark were written down and committed before the result was computed, so the bar cannot move after the fact."],
+      ["Straddle", "Buying a call and a put at the same strike: it pays if the stock moves a lot in either direction."],
+      ["Basis point", "0.01%. 22 basis points = 0.22%."],
+      ["Holdout", "2025 onward is sealed. It can be used once, for a final check of a single idea that passed everything else."],
+      ["Watch only", "Positive so far but not proven. Recorded going forward with no orders."]
+    ];
+    $("#glossary").replaceChildren(...G.flatMap(([a, b]) => [h("dt", {}, a), h("dd", {}, b)]));
+  };
+
+  const start = (location.hash || "").slice(1) || store.get("tab", "summary");
+  show(start);
+})();
+</script>

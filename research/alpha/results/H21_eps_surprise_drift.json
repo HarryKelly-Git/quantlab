@@ -1,0 +1,82 @@
+{
+ "family": "H21_eps_surprise_drift",
+ "variants": {
+  "SUE_hold21": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 5472,
+     "mean_bps": 62.1947131790301,
+     "median_bps": 27.727152375005907,
+     "hit_rate": 0.5060307017543859,
+     "weekly_t_nw": 0.3117781525329517,
+     "n_weeks": 101,
+     "mean_bps_without_top5pct": -292.46785230439076
+    },
+    "VALIDATION": {
+     "n_events": 2973,
+     "mean_bps": 103.6321459873909,
+     "median_bps": 153.1291819966341,
+     "hit_rate": 0.5368314833501514,
+     "weekly_t_nw": 0.05826327635285756,
+     "n_weeks": 50,
+     "mean_bps_without_top5pct": -178.26280067364593
+    }
+   },
+   "train_2x_costs_mean_bps": 17.18301727259734
+  },
+  "SUE_hold63": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 5468,
+     "mean_bps": 187.60328765156254,
+     "median_bps": 186.21672690376903,
+     "hit_rate": 0.5257863935625458,
+     "weekly_t_nw": 0.7577470957537453,
+     "n_weeks": 101,
+     "mean_bps_without_top5pct": -545.9779129063699
+    },
+    "VALIDATION": {
+     "n_events": 2971,
+     "mean_bps": 128.04072257908993,
+     "median_bps": 145.63583053469014,
+     "hit_rate": 0.5210366879838438,
+     "weekly_t_nw": 1.069688656709272,
+     "n_weeks": 50,
+     "mean_bps_without_top5pct": -376.64727100792203
+    }
+   },
+   "train_2x_costs_mean_bps": 142.58426790028233
+  }
+ },
+ "selected": "SUE_hold63",
+ "oos": {
+  "selected": "SUE_hold63",
+  "n_events": 4982,
+  "mean_bps": 29.27433890299003,
+  "median_bps": 44.39633073600298,
+  "hit_rate": 0.5058209554395825,
+  "weekly_t_nw": -0.6170365964235022,
+  "n_weeks": 89,
+  "mean_bps_without_top5pct": -541.6317402619318,
+  "oos_2x_costs_mean_bps": -21.260787552248857,
+  "oos_rerun_reason": "audit-2026-10: ticker->company by date incl. symbol changes (C2/M1: delisted companies had been dropped, recycled tickers mis-joined), twin de-dup, delisting-aware exits, panel v3; same pre-registered variants and selection rule; first-run OOS rows kept and reported"
+ },
+ "bh_train_rejections": 0,
+ "n_oos_evaluations_in_ledger": 3,
+ "evidence": {
+  "data_ok": true,
+  "dev_t_net": 0.7577470957537453,
+  "dev_t_gross": null,
+  "oos_t_net": -0.6170365964235022,
+  "oos_mean_net": 0.002927433890299003,
+  "oos_years_positive_frac": null,
+  "deflated_sharpe_prob": null,
+  "spa_p": null,
+  "pbo": null,
+  "survives_2x_costs": false,
+  "survives_top5_removal": false,
+  "regime_conditional_pass": null
+ },
+ "classification": "E",
+ "classification_reason": "no significant net edge in development; OOS t -0.62 (event study: DSR/SPA not applicable; BH across variants on TRAIN)"
+}
