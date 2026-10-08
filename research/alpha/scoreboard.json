@@ -1,17 +1,17 @@
 {
- "generated_at": "2026-10-08 09:45 UTC",
+ "generated_at": "2026-10-08 09:58 UTC",
  "headline": "No money-making rule has been proven yet. The paper bot runs, but its strategies earn about zero on honest 2016-24 data.",
  "paper_only": true,
  "holdout": "2025+ data is sealed and untouched (0 of 1 uses).",
  "counts": {
-  "ideas": 46,
-  "ledger_runs": 847,
-  "FAILED": 30,
-  "NO_IMPROVEMENT": 7,
+  "ideas": 61,
+  "ledger_runs": 856,
+  "FAILED": 36,
+  "NO_IMPROVEMENT": 9,
   "BLOCKED": 1,
-  "USEFUL": 3,
-  "WATCH": 1,
-  "RISK_ONLY": 4
+  "USEFUL": 4,
+  "WATCH": 2,
+  "RISK_ONLY": 9
  },
  "findings": [
   {
@@ -499,6 +499,156 @@
    "key_number": "2022-24: -0.8%/yr after costs",
    "meaning": "Loses money after costs.",
    "source": "research/alpha/results/new_areas/C_spy_overnight.json"
+  },
+  {
+   "id": "IP-M1",
+   "area": "market",
+   "name": "Profitability tilt (Hi 30 operating profitability)",
+   "question": "Does this tilt beat holding the whole US market (1963-2024)?",
+   "verdict": "USEFUL",
+   "key_number": "2013-24: 16.3%/yr vs 14.5%; Sharpe 1.01 vs 0.89; worst fall -25% vs -25%",
+   "meaning": "The first pass of the program: more return with a better Sharpe in all three periods. A candidate for the real-money ETF core (via the Upside Engine v2 doctrine), not proven: one pass in six tests.",
+   "source": "research/alpha/results/improvement/M_etf_core.json"
+  },
+  {
+   "id": "IP-M2",
+   "area": "market",
+   "name": "Value tilt (Hi 30 book-to-market)",
+   "question": "Does this tilt beat holding the whole US market (1963-2024)?",
+   "verdict": "NO_IMPROVEMENT",
+   "key_number": "2013-24: 12.5%/yr vs 14.5%; Sharpe 0.62 vs 0.89; worst fall -38% vs -25%",
+   "meaning": "Did not beat holding the market consistently.",
+   "source": "research/alpha/results/improvement/M_etf_core.json"
+  },
+  {
+   "id": "IP-M3",
+   "area": "market",
+   "name": "Momentum tilt (top 3 deciles of prior 12-2 return)",
+   "question": "Does this tilt beat holding the whole US market (1963-2024)?",
+   "verdict": "NO_IMPROVEMENT",
+   "key_number": "2013-24: 13.9%/yr vs 14.5%; Sharpe 0.84 vs 0.89; worst fall -26% vs -25%",
+   "meaning": "Did not beat holding the market consistently.",
+   "source": "research/alpha/results/improvement/M_etf_core.json"
+  },
+  {
+   "id": "IP-M4",
+   "area": "market",
+   "name": "Equal blend of M1-M3",
+   "question": "Does this tilt beat holding the whole US market (1963-2024)?",
+   "verdict": "RISK_ONLY",
+   "key_number": "2013-24: 14.5%/yr vs 14.5%; Sharpe 0.86 vs 0.89; worst fall -24% vs -25%",
+   "meaning": "Did not beat holding the market consistently.",
+   "source": "research/alpha/results/improvement/M_etf_core.json"
+  },
+  {
+   "id": "IP-M5",
+   "area": "market",
+   "name": "Industry momentum (top 10 of 49 by prior 12-2 return)",
+   "question": "Does this tilt beat holding the whole US market (1963-2024)?",
+   "verdict": "RISK_ONLY",
+   "key_number": "2013-24: 15.5%/yr vs 14.5%; Sharpe 0.86 vs 0.89; worst fall -22% vs -25%",
+   "meaning": "Did not beat holding the market consistently.",
+   "source": "research/alpha/results/improvement/M_etf_core.json"
+  },
+  {
+   "id": "IP-M6",
+   "area": "market",
+   "name": "2x market only above its 10-month average",
+   "question": "Does this tilt beat holding the whole US market (1963-2024)?",
+   "verdict": "RISK_ONLY",
+   "key_number": "2013-24: 18.5%/yr vs 14.5%; Sharpe 0.80 vs 0.89; worst fall -36% vs -25%",
+   "meaning": "Risking more on the market (2x, only in uptrends) earned more but fell further; no better per unit of risk.",
+   "source": "research/alpha/results/improvement/M_etf_core.json"
+  },
+  {
+   "id": "DIP-I1",
+   "area": "market",
+   "name": "Buy the market's short dips (RSI(2) below 10 in an uptrend)",
+   "question": "Does buying index dips pay, per unit of time?",
+   "verdict": "FAILED",
+   "key_number": "2013-24: 100 trades, 73% winners, +0.37% per trade in 3.4 days; but 1963-99 trades lost on average",
+   "meaning": "An era effect: strong in the recent bull market, negative in 1963-99.",
+   "source": "research/alpha/results/dips/I_index.json"
+  },
+  {
+   "id": "DIP-I2",
+   "area": "market",
+   "name": "Hold the market, 2x during dips",
+   "question": "Does adding exposure on dips beat holding?",
+   "verdict": "RISK_ONLY",
+   "key_number": "2013-24: 17.2%/yr vs 14.5%; worst fall -38%",
+   "meaning": "More return in 2013-24, but it lost to plain holding in an earlier period.",
+   "source": "research/alpha/results/dips/I_index.json"
+  },
+  {
+   "id": "DIP-I3",
+   "area": "market",
+   "name": "Hold the market, 1.5x for a year after a 10% correction",
+   "question": "Does adding exposure on dips beat holding?",
+   "verdict": "RISK_ONLY",
+   "key_number": "2013-24: 16.5%/yr vs 14.5%; worst fall -45%",
+   "meaning": "More return in 2013-24, but it lost to plain holding in an earlier period.",
+   "source": "research/alpha/results/dips/I_index.json"
+  },
+  {
+   "id": "DIP-S1",
+   "area": "bot",
+   "name": "Buy sharp dips in strong stocks",
+   "question": "Do 8% five-day drops in uptrending stocks bounce back profitably?",
+   "verdict": "FAILED",
+   "key_number": "2022-24: -10.4%/yr vs SPY 8.9%",
+   "meaning": "Only 1 in 4-5 dips recovered within 20 days; the rest dragged. Matches the bot's own dip strategies.",
+   "source": "research/alpha/results/dips/S_stocks.json"
+  },
+  {
+   "id": "DIP-S2",
+   "area": "bot",
+   "name": "Buy sharp dips in strong large caps",
+   "question": "Do 8% five-day drops in uptrending stocks bounce back profitably?",
+   "verdict": "FAILED",
+   "key_number": "2022-24: -6.5%/yr vs SPY 8.9%",
+   "meaning": "Only 1 in 4-5 dips recovered within 20 days; the rest dragged. Matches the bot's own dip strategies.",
+   "source": "research/alpha/results/dips/S_stocks.json"
+  },
+  {
+   "id": "INS-A",
+   "area": "news",
+   "name": "Follow any officer/director purchase",
+   "question": "Do insider purchases predict the next 3 months (liquid stocks, 2016-24)?",
+   "verdict": "FAILED",
+   "key_number": "60-day excess vs SPY: -0.80%, +1.22%, -0.46% (7,950 events)",
+   "meaning": "No reliable edge in tradeable stocks after costs.",
+   "source": "research/alpha/results/insider/insider_study.json"
+  },
+  {
+   "id": "INS-B",
+   "area": "news",
+   "name": "Follow CEO/CFO purchases",
+   "question": "Do insider purchases predict the next 3 months (liquid stocks, 2016-24)?",
+   "verdict": "FAILED",
+   "key_number": "60-day excess vs SPY: -0.84%, +1.57%, -0.57% (2,568 events)",
+   "meaning": "No reliable edge in tradeable stocks after costs.",
+   "source": "research/alpha/results/insider/insider_study.json"
+  },
+  {
+   "id": "INS-C",
+   "area": "news",
+   "name": "Follow clusters of insider buying",
+   "question": "Do insider purchases predict the next 3 months (liquid stocks, 2016-24)?",
+   "verdict": "WATCH",
+   "key_number": "60-day excess vs SPY: +0.06%, +0.81%, +0.64% (1,943 events)",
+   "meaning": "Positive in every period but too small to trust: record-only shadow.",
+   "source": "research/alpha/results/insider/insider_study.json"
+  },
+  {
+   "id": "INS-D",
+   "area": "news",
+   "name": "Insider buys after a 20% fall",
+   "question": "Do insider purchases predict the next 3 months (liquid stocks, 2016-24)?",
+   "verdict": "FAILED",
+   "key_number": "60-day excess vs SPY: -0.27%, +3.40%, +0.23% (2,343 events)",
+   "meaning": "No reliable edge in tradeable stocks after costs.",
+   "source": "research/alpha/results/insider/insider_study.json"
   }
  ],
  "fixes": [

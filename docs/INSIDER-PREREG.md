@@ -55,3 +55,35 @@ read are counted and dropped; none are guessed.
 
 Four signals are tested, so a single SURVIVES is still a candidate for forward shadowing, not a trading
 rule.
+
+---
+
+## Results (added 2026-10-08, after the run; the rules above were not changed)
+
+File: `research/alpha/results/insider/insider_study.json`; ledger `INS_A`..`INS_D`; code
+`scripts/research/alpha/insider_study.py`.
+
+**Data.**
+- 32,629 qualifying purchases (36 quarterly queries, none hit the 5,000-row page cap).
+- 2,316 could not be matched to a company in the store.
+- 15,881 were in stocks outside the liquid universe on the signal day.
+- **14,432 usable.**
+
+**Net excess return vs SPY over 60 sessions** (date-clustered t in brackets):
+
+| Signal | Events | 2016-19 | 2020-21 | 2022-24 | Verdict |
+|---|---|---|---|---|---|
+| A any officer/director buy | 7,950 | −0.80% (−2.0) | +1.22% (1.3) | −0.46% (−1.0) | FAILS |
+| B CEO or CFO buy | 2,568 | −0.84% (−1.0) | +1.57% (1.2) | −0.57% (−0.8) | FAILS |
+| C cluster (2+ insiders in 10 days) | 1,943 | +0.06% (0.1) | +0.81% (0.5) | +0.64% (0.7) | PROMISING (forward shadow only) |
+| D CEO/CFO or cluster after a 20%+ fall | 2,343 | −0.27% (−0.3) | +3.40% (2.1) | +0.23% (0.3) | FAILS |
+
+**Reading.**
+- In the stocks the bot can actually trade, insider purchases did not beat SPY after costs over the
+  following three months, apart from 2020-21.
+- Clusters were positive in all three periods, but too small to separate from noise.
+- Half of all purchases are in small, illiquid stocks. The published effect is concentrated there, and
+  it was not tested here because the bot cannot trade them at its liquidity standard.
+- For Uber specifically: a CEO purchase in a liquid large cap has, on average, not been a reliable
+  60-day edge in 2016-24. It remains one data point in a real-money decision, which follows the Upside
+  Engine v2 doctrine.

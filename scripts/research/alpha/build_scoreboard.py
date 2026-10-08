@@ -184,6 +184,63 @@ def bot_rows() -> tuple[list[dict], dict]:
     return rows, chart
 
 
+def overnight_rows() -> list[dict]:
+    """Tests run 2026-10-08 night: ETF-core tilts (M), index and single-stock dips (I, S), insider buying (INS)."""
+    rows = []
+    m = _j("improvement/M_etf_core.json")
+    vm = {"ABSOLUTE IMPROVEMENT": "USEFUL", "RISK-ADJUSTED IMPROVEMENT": "USEFUL", "RISK REDUCTION ONLY": "RISK_ONLY",
+          "HIGHER RETURN, HIGHER RISK": "RISK_ONLY", "NO IMPROVEMENT": "NO_IMPROVEMENT"}
+    if m:
+        bh = m["rules"]["BH"]["splits"]["OOS"]
+        for k in ("M1", "M2", "M3", "M4", "M5", "M6"):
+            v = m["rules"][k]
+            o = v["splits"]["OOS"]
+            meaning = {"M1": "The first pass of the program: more return with a better Sharpe in all three periods. A candidate for "
+                             "the real-money ETF core (via the Upside Engine v2 doctrine), not proven: one pass in six tests.",
+                       "M6": "Risking more on the market (2x, only in uptrends) earned more but fell further; no better per unit of risk."
+                       }.get(k, "Did not beat holding the market consistently.")
+            rows.append(idea(f"IP-{k}", "market", v["name"], "Does this tilt beat holding the whole US market (1963-2024)?",
+                             vm.get(v["verdict"], "NO_IMPROVEMENT"),
+                             f"2013-24: {o['cagr'] * 100:.1f}%/yr vs {bh['cagr'] * 100:.1f}%; Sharpe {o['sharpe']:.2f} vs {bh['sharpe']:.2f}; "
+                             f"worst fall {o['max_drawdown'] * 100:.0f}% vs {bh['max_drawdown'] * 100:.0f}%", meaning,
+                             "research/alpha/results/improvement/M_etf_core.json"))
+    di = _j("dips/I_index.json")
+    if di:
+        t = di["I1_trades"]["OOS"]
+        rows.append(idea("DIP-I1", "market", "Buy the market's short dips (RSI(2) below 10 in an uptrend)",
+                         "Does buying index dips pay, per unit of time?", "FAILED",
+                         f"2013-24: {t['n']} trades, {t['hit_rate'] * 100:.0f}% winners, {t['mean_ret'] * 100:+.2f}% per trade in "
+                         f"{t['avg_days']:.1f} days; but 1963-99 trades lost on average",
+                         "An era effect: strong in the recent bull market, negative in 1963-99.", "research/alpha/results/dips/I_index.json"))
+        for k, nm in (("I2", "Hold the market, 2x during dips"), ("I3", "Hold the market, 1.5x for a year after a 10% correction")):
+            o = di["rules"][k]["splits"]["OOS"]
+            rows.append(idea(f"DIP-{k}", "market", nm, "Does adding exposure on dips beat holding?", "RISK_ONLY",
+                             f"2013-24: {o['cagr'] * 100:.1f}%/yr vs 14.5%; worst fall {o['max_drawdown'] * 100:.0f}%",
+                             "More return in 2013-24, but it lost to plain holding in an earlier period.",
+                             "research/alpha/results/dips/I_index.json"))
+    ds = _j("dips/S_stocks.json")
+    if ds:
+        for k, nm in (("S1", "Buy sharp dips in strong stocks"), ("S2", "Buy sharp dips in strong large caps")):
+            o = ds["variants"][k]["splits"]["OOS"]
+            rows.append(idea(f"DIP-{k}", "bot", nm, "Do 8% five-day drops in uptrending stocks bounce back profitably?", "FAILED",
+                             f"2022-24: {o['cagr'] * 100:.1f}%/yr vs SPY {ds['SPY']['OOS']['cagr'] * 100:.1f}%",
+                             "Only 1 in 4-5 dips recovered within 20 days; the rest dragged. Matches the bot's own dip strategies.",
+                             "research/alpha/results/dips/S_stocks.json"))
+    ins = _j("insider/insider_study.json")
+    if ins:
+        names = {"A_any": "Follow any officer/director purchase", "B_ceo_cfo": "Follow CEO/CFO purchases",
+                 "C_cluster": "Follow clusters of insider buying", "D_top_or_cluster_after_fall": "Insider buys after a 20% fall"}
+        for k, v in ins["signals"].items():
+            h = v["h60"]
+            verdict = "WATCH" if v["verdict"].startswith("PROMISING") else "FAILED"
+            rows.append(idea(f"INS-{k[0]}", "news", names[k], "Do insider purchases predict the next 3 months (liquid stocks, 2016-24)?",
+                             verdict, f"60-day excess vs SPY: {h['TRAIN']['mean'] * 100:+.2f}%, {h['VAL']['mean'] * 100:+.2f}%, "
+                             f"{h['OOS']['mean'] * 100:+.2f}% ({v['n']:,} events)",
+                             "Positive in every period but too small to trust: record-only shadow." if verdict == "WATCH"
+                             else "No reliable edge in tradeable stocks after costs.", "research/alpha/results/insider/insider_study.json"))
+    return rows
+
+
 def static_rows() -> list[dict]:
     s = "docs/ALPHA-DISCOVERY-REPORT-2026-10.md"
     return [
@@ -337,7 +394,7 @@ def findings() -> list[dict]:
 def main() -> None:
     m_rows, m_chart = market_rows()
     b_rows, f_chart = bot_rows()
-    ideas = b_rows + static_rows() + m_rows
+    ideas = b_rows + static_rows() + m_rows + overnight_rows()
     counts: dict[str, int] = {}
     for r in ideas:
         counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
