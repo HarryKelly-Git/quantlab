@@ -28,10 +28,20 @@ all 13 delisted trades in the bot's book (S1) were cash acquisitions at or above
 | Master's −30% on every delisting | −8.0% | −0.77 | −29% | −0.9% |
 | 0% for acquisitions, −30% distressed | −0.3% | +0.01 | −11% | −0.2% |
 
-That research classified acquisitions from its own data, not from Alpaca's merger records. Whether
-Alpaca has a merger record for each of those 13 deals is **UNKNOWN**: it was not checked here,
-because the stored records are under `var/`. This must be verified before the effect above is
-expected from this change.
+That research classified acquisitions from its own data, not from Alpaca's merger records.
+
+**Coverage, checked 2026-10-08** against the research store's full Alpaca corporate-action download
+(2016-2024, `var/alpha/external/corporate_actions.parquet` on the alpha-discovery side):
+
+- **9 of the 13 deals have a merger record:** CSPR, TPTX, BHVN, TWTR, CCXI, ALBO, PRVB, BLU, NWLI. All
+  are 2022-24.
+- **4 have none:** CORI, ARII, DOVA (2018-19) and AKUS (2022).
+- **Alpaca's merger records barely exist before 2020:** 2 records in 2017 and 36 in 2019, against
+  668-972 a year in 2020-24.
+
+So this change fixes most takeovers going forward, which is what the live bot sees. A backtest
+reaching back before 2020 still books most early takeovers at −30%. The full effect in the table
+above needs a complete merger history.
 
 ### Fix
 1. **Provider** (`data/providers/alpaca_data.py`). Master already requested `cash_merger`,
