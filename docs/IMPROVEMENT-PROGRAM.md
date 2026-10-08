@@ -182,3 +182,33 @@ On this evidence the bot's strategies subtract value relative to simply holding 
 
 **Not run yet: M1-M6** (ETF core). The script is ready (`scripts/research/alpha/improvement_etf.py`) and was
 paused when the priorities changed.
+
+## Part D. Batch 1 results: ETF-core tests (added 2026-10-08, after the run; Part B unchanged)
+
+Source: `research/alpha/results/improvement/M_etf_core.json`; ledger `IP_M1_profitability` .. `IP_M6_trend_2x`.
+Monthly data 1963-07..2024-12. Every tilt is charged 0.25%/yr. Sharpe is monthly, excess of T-bills. BH
+monthly Sharpe 2013-24 = 0.89.
+
+| Rule | 2013-24 return/yr (BH 14.5%) | Sharpe vs BH: 1963-99 / 2000-12 / 2013-24 | 2013-24 worst fall (BH −25%) | 2008 fall (BH −50%) | Verdict |
+|---|---|---|---|---|---|
+| M1 profitability tilt | **16.3%** | +0.03 / +0.11 / **+0.12** (90% CI +0.06 to +0.18) | −25% | −41% | **ABSOLUTE IMPROVEMENT** |
+| M2 value tilt | 12.5% | +0.18 / +0.21 / −0.27 | −38% | | NO IMPROVEMENT |
+| M3 momentum tilt | 13.9% | +0.20 / +0.11 / −0.05 | −26% | | NO IMPROVEMENT |
+| M4 blend M1-M3 | 14.5% | +0.17 / +0.16 / −0.03 | −24% | | RISK REDUCTION ONLY |
+| M5 industry momentum | 15.5% | +0.17 / +0.29 / −0.04 | −22% | −53% | RISK REDUCTION ONLY |
+| M6 2x market in uptrends | **18.5%** | −0.07 / +0.22 / −0.09 | **−36%** | −11% | HIGHER RETURN, HIGHER RISK |
+
+**M1 is the first pass of the program, and it is reported as a candidate, not proven.**
+- One pass in six tests could be luck. Its 1963-99 edge is tiny (CI includes 0).
+- It beat the market in only 56% of 2013-24 months.
+- The Ken French "Hi 30 operating profitability" portfolio is not an ETF. Quality and profitability ETFs
+  differ in construction and cost.
+- It is relevant to the real-money ETF core and must go through the Upside Engine v2 doctrine before
+  any real-money use.
+
+**M6 answers "should we risk more?"**
+- Leverage on the one asset with a proven premium (the market), switched off in downtrends, raised
+  2013-24 returns by 4 points a year.
+- It did so with a deeper worst fall (−36% in 2020's crash, when the monthly trend signal was too slow)
+  and no better return per unit of risk.
+- Leverage on the bot's own strategies would only scale up their roughly zero to negative edge.
