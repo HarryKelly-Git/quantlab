@@ -131,6 +131,9 @@ input[type="search"] { flex: 1 1 200px; min-width: 0; }
 .idea .src { font: 12px var(--font-data); color: var(--muted); margin-top: 6px; word-break: break-all; }
 .empty { padding: 24px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; }
 
+ul.findings { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+ul.findings li { display: grid; gap: 2px; padding-left: 14px; border-left: 3px solid var(--accent); max-width: 90ch; }
+ul.findings .src { font: 12px var(--font-data); color: var(--muted); word-break: break-all; }
 .fix { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 6px 16px; padding: 14px 0; border-bottom: 1px solid var(--soft); }
 .fix:last-child { border-bottom: 0; }
 .note { font-size: 14px; color: var(--muted); max-width: 75ch; }
@@ -180,6 +183,10 @@ dl.terms dd { margin: 0; color: var(--ink); }
       <p class="muted" id="holdout"></p>
     </div>
     <div class="tiles" id="sum-tiles"></div>
+    <div class="card stack">
+      <h2>What the evidence says</h2>
+      <ul class="findings" id="findings"></ul>
+    </div>
     <div class="cols">
       <div class="card stack">
         <div class="section-head"><h2>What I need from you</h2><span class="muted" style="font-size:13px">Ticks are saved in this browser only</span></div>
@@ -421,6 +428,7 @@ dl.terms dd { margin: 0; color: var(--ink); }
       ["Bot's open trades", money(L.bot_pl), `Same money in SPY: ${money(L.spy_matched_pl)}`]
     ];
     $("#sum-tiles").replaceChildren(...tiles.map(([a, b, s]) => h("div", { class: "tile" }, h("span", { class: "label" }, a), h("span", { class: "value " + (a.startsWith("Bot") ? cls(L.bot_pl) : "") }, b), h("span", { class: "sub" }, s))));
+    $("#findings").replaceChildren(...(SB.findings || []).map(f => h("li", {}, h("span", {}, f.text), h("span", { class: "src" }, f.source))));
     const needs = [
       { id: "db", title: "Export the bot's database after 20 trading days", meta: `About 2026-10-22. ${L.trading_days} of 20 days done. Upload it in chat, never commit it: the repository is public. Steps: docs/BOT-DB-IMPORT.md.` },
       { id: "pr", title: "Review the two bot data fixes", meta: "Takeovers no longer booked as −30% losses; spin-off days no longer booked as crashes. Branch proposal/delisting-and-spinoffs. Merge only if you agree." },

@@ -278,6 +278,28 @@ NEXT = [
 ]
 
 
+def findings() -> list[dict]:
+    """The few facts that matter most, each with its evidence file."""
+    out = [{"text": "The bot's six replayable strategies earn about zero on honest 2016-24 data (2022-24 Sharpe +0.01).",
+            "source": "research/alpha/results/sprint/P7_leaderboard.json"}]
+    tl = _j("new_areas/bot_tail_losses.json")
+    if tl:
+        b = tl["big_losers"]
+        sd = tl["stop_distance_median_by_strategy"]
+        out.append({"text": f"Its losses are concentrated: {b['n']} of {tl['trades']:,} replayed trades ({b['share'] * 100:.0f}%) lost "
+                            f"more than 25% each. Together they lost ${-b['pnl']:,.0f}, while all trades together made ${tl['total_pnl']:,.0f}. "
+                            f"The worst were speculative names such as {', '.join(w['symbol'].split('@')[0] for w in b['worst'][:4])} "
+                            f"(de-SPACs, meme, crypto and small biotech stocks). The bot's stops on its momentum strategies sit "
+                            f"{sd.get('momentum_trend', 0) * 100:.0f}-{sd.get('relative_strength', 0) * 100:.0f}% below entry (median), "
+                            f"and {tl['stops_at_or_below_zero']} were at or below zero. Screening out volatile stocks did not fix it (Area F).",
+                    "source": "research/alpha/results/new_areas/bot_tail_losses.json"})
+    out += [{"text": "QuantLab's real, tested skill is forecasting how much a stock will move, not which way. Option prices "
+                     "already know most of it.", "source": "research/alpha/results/sprint/P2_vol_forecast.json"},
+            {"text": "After big news jumps the average stock lags the market, and prices finish reacting to a headline within "
+                     "about 15 minutes. Chasing news is not an edge for this bot.", "source": "docs/WHAT-THE-BOT-NEEDS.md"}]
+    return out
+
+
 def main() -> None:
     m_rows, m_chart = market_rows()
     b_rows, f_chart = bot_rows()
@@ -293,6 +315,7 @@ def main() -> None:
         "paper_only": True,
         "holdout": "2025+ data is sealed and untouched (0 of 1 uses).",
         "counts": {"ideas": len(ideas), "ledger_runs": len([x for x in ledger if x.strip()]), **counts},
+        "findings": findings(),
         "areas": AREAS, "ideas": ideas, "fixes": FIXES, "next_steps": NEXT,
         "charts": {"market": m_chart, "lowvol": f_chart},
     }

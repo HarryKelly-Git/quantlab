@@ -34,6 +34,8 @@ def test_scoreboard_is_complete_and_cites_evidence():
         assert r["key_number"] and r["meaning"], r["id"]
         src = r["source"].split(" ")[0]
         assert (root / src).exists(), f"{r['id']}: evidence file {src} missing"
+    for f in sb.get("findings", []):
+        assert (root / f["source"]).exists(), f"finding cites missing file {f['source']}"
 
 
 def test_alpha_page_shows_plain_english_scoreboard(config):

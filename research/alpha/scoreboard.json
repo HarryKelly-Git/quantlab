@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-08 04:05 UTC",
+ "generated_at": "2026-10-08 04:17 UTC",
  "headline": "No money-making rule has been proven yet. The paper bot runs, but its strategies earn about zero on honest 2016-24 data.",
  "paper_only": true,
  "holdout": "2025+ data is sealed and untouched (0 of 1 uses).",
@@ -12,6 +12,24 @@
   "USEFUL": 3,
   "WATCH": 1
  },
+ "findings": [
+  {
+   "text": "The bot's six replayable strategies earn about zero on honest 2016-24 data (2022-24 Sharpe +0.01).",
+   "source": "research/alpha/results/sprint/P7_leaderboard.json"
+  },
+  {
+   "text": "Its losses are concentrated: 69 of 1,325 replayed trades (5%) lost more than 25% each. Together they lost $46,369, while all trades together made $5,574. The worst were speculative names such as SKYH, RIOT, AMC, ANVS (de-SPACs, meme, crypto and small biotech stocks). The bot's stops on its momentum strategies sit 26-29% below entry (median), and 11 were at or below zero. Screening out volatile stocks did not fix it (Area F).",
+   "source": "research/alpha/results/new_areas/bot_tail_losses.json"
+  },
+  {
+   "text": "QuantLab's real, tested skill is forecasting how much a stock will move, not which way. Option prices already know most of it.",
+   "source": "research/alpha/results/sprint/P2_vol_forecast.json"
+  },
+  {
+   "text": "After big news jumps the average stock lags the market, and prices finish reacting to a headline within about 15 minutes. Chasing news is not an edge for this bot.",
+   "source": "docs/WHAT-THE-BOT-NEEDS.md"
+  }
+ ],
  "areas": {
   "bot": "The paper bot's own strategies",
   "stocks": "Stock-picking patterns",

@@ -20,6 +20,8 @@ details{margin:14px 0}summary{cursor:pointer;font-weight:600}
 {% for code, label in sb.verdict_labels.items() %}{% if sb.counts[code] %}<span class="pill v-{{ code }}">{{ sb.counts[code] }} {{ label }}</span>{% endif %}{% endfor %}
 <span class="pill">{{ sb.counts.ledger_runs }} logged runs</span></div>
 </div>
+{% if sb.findings %}<h2>What the evidence says</h2>
+<ul>{% for f in sb.findings %}<li>{{ f.text }} <span class="muted">({{ f.source }})</span></li>{% endfor %}</ul>{% endif %}
 <h2>What to do next</h2>
 <table class="sb"><thead><tr><th>#</th><th>Action</th><th>Who</th><th>Why</th><th>How</th></tr></thead><tbody>
 {% for n in sb.next_steps %}<tr><td>{{ n.rank }}</td><td>{{ n.action }}</td><td>{{ n.who }}</td><td>{{ n.why }}</td><td class="muted">{{ n.how }}</td></tr>{% endfor %}
