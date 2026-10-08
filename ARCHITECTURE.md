@@ -83,7 +83,8 @@ tests/<subsystem>/test_*.py
 10. **Survivorship.** The universe is built only from securities with data. Coverage of
     delisted names depends on the provider, so reports must state the survivorship status
     (`UNKNOWN` until verified). Positions in a symbol that stops trading are closed at the last
-    close x (1 + `costs.delisting_return`).
+    close x (1 + `costs.delisting_return`), or x (1 + `costs.delisting_return_merger`) when a
+    merger record takes effect on/before the delisting session (`CostModel.delisting_exit_return`).
 
 ## 3. Data contracts (`data/schemas.py`)
 
@@ -99,7 +100,9 @@ experiment. `store.load_bundle(benchmarks, ...)` builds the `DataBundle`. Synthe
 are never mixed.
 
 `Panel` (`data/panel.py`): wide `sessions x symbols` frames. The raw fields are `open high low close
-volume`. The derived fields are `ret tri aopen ahigh alow aclose dollar_volume split_ratio dividend`.
+volume`. The derived fields are `ret tri aopen ahigh alow aclose dollar_volume split_ratio dividend`,
+plus the bool event flags `merger` and `spin_off` (a recorded spin-off's drop is a neutral `ret` step;
+see `build_panel`).
 `panel.forward_returns(h)` is a **label** helper only; it uses future data by design.
 
 ## 4. Feature catalog (`features/`, names are a contract)
@@ -212,7 +215,8 @@ only the low counts, and only when the entry was above it. The exit engine's clo
 always the backstop. Any exit first releases a resting stop and waits for a CONFIRMED cancel, so the
 same shares are never sold twice. Broker stops are OFF: the disaster stop's pre-registered test was
 NO-GO (research/2026-10-01-new-data-tests). A time exit comes after
-`holding_sessions` sessions. Delisting applies `costs.delisting_return`. Costs come from
+`holding_sessions` sessions. Delisting applies `costs.delisting_return` (`costs.delisting_return_merger`
+with a known merger record). Costs come from
 `core.costs.CostModel` (a half-spread tier by 20-session median dollar volume, plus slippage and
 commission). Unknown liquidity is charged the worst tier. The backtester, shadow outcomes,
 counterfactuals, human-decision evaluation and EV calibration all call `simulate_plan()` or a

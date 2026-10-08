@@ -15,7 +15,9 @@ EXECUTION SEMANTICS (identical in backtest and live paper trading):
   * Time exit: after ``holding_sessions`` sessions held (entry session counts as 1), exit at the
     next open.
   * A held symbol with no bar for ``costs.delisting_missing_sessions`` consecutive sessions (while
-    the market trades) is DELISTED on that session: exit value = last close x (1 + delisting_return).
+    the market trades) is DELISTED on that session: exit value = last close x (1 + delisting_return),
+    or x (1 + delisting_return_merger) when the panel's ``merger`` field shows a merger record
+    effective on/before that session (``CostModel.delisting_exit_return``).
     Decided only from sessions already seen (no peeking for bars that may come back). If the data
     ends before that -> still OPEN (or END_OF_TEST when forced).
   * All computations run in tri-scaled ("a") prices so splits/dividends during the hold are handled
@@ -140,6 +142,8 @@ def simulate_plan(
     ahigh = panel.ahigh[symbol].to_numpy()
     alow = panel.alow[symbol].to_numpy()
     aclose = panel.aclose[symbol].to_numpy()
+    mg = panel.fields.get("merger")                   # absent on hand-built panels: no merger data
+    merger = mg[symbol].to_numpy(dtype=bool) if mg is not None else None
     if not (np.isfinite(close_raw[i0]) and np.isfinite(aclose[i0]) and close_raw[i0] > 0):
         return out
 
@@ -194,8 +198,9 @@ def simulate_plan(
             missing += 1
             if missing >= costs.delisting_missing_sessions:
                 exit_i, reason = j, ExitReason.DELISTED
-                exit_a = aclose[last_valid] * (1 + costs.delisting_return)
-                exit_raw = close_raw[last_valid] * (1 + costs.delisting_return)
+                dr = costs.delisting_exit_return(merger, last_valid, j)   # merger rows <= j only
+                exit_a = aclose[last_valid] * (1 + dr)
+                exit_raw = close_raw[last_valid] * (1 + dr)
                 out.status = "delisted"
                 break
             continue

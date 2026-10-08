@@ -14,14 +14,22 @@ SEMANTICS (identical to :func:`quantlab.core.tradesim.simulate_plan`, tested aga
     only when the entry was on the right side of the stop. Targets and time exits are unchanged.
   * A held symbol with no bar for ``costs.delisting_missing_sessions`` consecutive sessions is
     DELISTED on that session: exit value = last close x (1 + costs.delisting_return), still charged
-    the sell cost. Decided only from sessions already seen; a gap still open at ``end`` is closed as
+    the sell cost; x (1 + costs.delisting_return_merger) instead when the panel's ``merger`` field
+    shows a merger record effective on/before that session (``CostModel.delisting_exit_return``).
+    Decided only from sessions already seen; a gap still open at ``end`` is closed as
     END_OF_TEST at the last close (no haircut, no peeking).
   * Positions still open at ``end`` are closed at the ``end`` close (END_OF_TEST), sell cost
     charged, so every reported number is net of the full round trip.
 
 ACCOUNTING: cash + positions held in SHARES. On a split's effective session shares *= ratio; a
 cash dividend credits shares x amount (per pre-split share, ex-date basis) — both only for shares
-held at the previous close, as in reality. Positions are marked to market on the RAW close
+held at the previous close, as in reality. On a session where the panel applied the neutral
+SPIN-OFF step (``spin_off`` field, see data.panel.build_panel) the distributed shares are credited
+like a cash dividend, valued at that session's close at the amount that makes the step neutral
+(previous close minus today's close/split/dividend value; counted in ``dividends``). As with a cash
+dividend, the credit is held as cash (simulate_plan's tri path reinvests it in the stock and charges
+the sell cost on it), so the two differ only by those second-order terms on such trades.
+Positions are marked to market on the RAW close
 (last known close while a bar is missing). equity = cash + sum(shares x close) holds every day.
 
 POINT IN TIME: signals are consumed only for the session they are dated; sizing uses equity and
@@ -136,6 +144,30 @@ class Portfolio:
             r = split_ratio[i, lot.col]
             if r != 1.0 and np.isfinite(r) and r > 0:
                 lot.shares *= r
+
+    def credit_spin_off(self, lot: Lot, i: int, spin_off: np.ndarray, close: np.ndarray,
+                        split_ratio: np.ndarray, dividend: np.ndarray, to_cash: bool = True) -> float:
+        """Neutral spin-off credit on session i for a lot held at the previous close (data.panel:
+        ``spin_off``). Per pre-split share it is prev close - (close x split + dividend), > 0 exactly
+        where the panel set ret to 0. It uses session i's close, so it is computed BEFORE
+        ``last_close`` is updated (still the previous close, as the panel's prev_close).
+        ``to_cash=False`` books it to the lot only and returns it, for the caller to add to cash at
+        the close (a lot sold at this open keeps its entitlement, but cash usable at this open must
+        not depend on this close). Returns the amount credited."""
+        if lot.entry_idx >= i or not spin_off[i, lot.col] or not np.isfinite(close[i, lot.col]):
+            return 0.0
+        r = split_ratio[i, lot.col]
+        r = r if (np.isfinite(r) and r > 0) else 1.0
+        d = dividend[i, lot.col]
+        v = lot.last_close - (close[i, lot.col] * r + (d if np.isfinite(d) else 0.0))
+        if not v > 0:
+            return 0.0
+        amt = (lot.shares / r) * v      # lot.shares is already post-split here (apply_actions)
+        lot.flow += amt
+        lot.dividends += amt            # a distribution, booked like a dividend
+        if to_cash:
+            self.cash += amt
+        return amt
 
     def positions_value(self) -> tuple[float, float]:
         """(net market value, gross market value) at each lot's last known raw close."""
@@ -260,6 +292,11 @@ class BacktestEngine:
                 "split": p.split_ratio.to_numpy(dtype="float64"), "div": p.dividend.to_numpy(dtype="float64"),
                 "adv": adv.to_numpy(dtype="float64"),
             }
+            # dated event flags (data.panel.build_panel); absent on hand-built panels = no events
+            for key, name in (("merger", "merger"), ("spin", "spin_off")):
+                fr = p.fields.get(name)
+                self._arrays[key] = (fr.to_numpy(dtype=bool) if fr is not None
+                                     else np.zeros(self._arrays["close"].shape, dtype=bool))
         return self._arrays
 
     def _feature_set(self, fs):
@@ -308,8 +345,9 @@ class BacktestEngine:
         eq_rows: list[dict[str, Any]] = []
         diag = {k: 0 for k in ("signals_seen", "no_free_slot", "already_held", "filtered_out", "plan_error",
                                "no_valid_stop", "size_zero", "cash_capped", "cancelled_cash_at_fill",
-                               "cancelled_end_of_test", "short_not_allowed", "entries", "delistings")}
-        dr = self.costs.delisting_return
+                               "cancelled_end_of_test", "short_not_allowed", "entries", "delistings",
+                               "delistings_merger")}
+        spin_args = (A["spin"], close, A["split"], A["div"])
 
         for i in range(i0, i1 + 1):
             # (1) corporate actions for shares held at the previous close; resize pending orders
@@ -319,6 +357,7 @@ class BacktestEngine:
                 if r != 1.0 and np.isfinite(r) and r > 0:
                     pe.qty = pf.round_qty(pe.qty * r) if not self.fractional else pe.qty * r
             # (2) exits triggered at earlier closes fill at this session's open (close if no open)
+            spin_cash = 0.0      # spin-off credit of lots sold at this open: to cash at the close (4)
             for sym in sorted(pf.lots):
                 lot = pf.lots[sym]
                 if lot.pending_exit is None:
@@ -326,6 +365,7 @@ class BacktestEngine:
                 px, apx = self._exec_price(A, i, lot.col)
                 if px is None:
                     continue
+                spin_cash += pf.credit_spin_off(lot, i, *spin_args, to_cash=False)
                 trades.append(self._close(pf, lot, i, px, apx, lot.pending_exit, dates, i))
             # (3) entries decided at the previous close
             still: list[_PendingEntry] = []
@@ -341,7 +381,10 @@ class BacktestEngine:
                 if lot is not None:
                     diag["entries"] += 1
             pending = still
-            # (4) close: excursions, triggers, delistings
+            # (4) close: neutral spin-off credits (they use this close), excursions, triggers, delistings
+            pf.cash += spin_cash
+            for lot in pf.lots.values():
+                pf.credit_spin_off(lot, i, *spin_args)
             for sym in sorted(pf.lots):
                 lot = pf.lots[sym]
                 c = close[i, lot.col]
@@ -356,6 +399,9 @@ class BacktestEngine:
                 elif i - lot.last_valid >= self.costs.delisting_missing_sessions:
                     diag["delistings"] += 1
                     lv = lot.last_valid
+                    # merger record effective in [lv - lookback, i] (rows <= i only) -> merger haircut
+                    diag["delistings_merger"] += int(self.costs.merger_delisting(A["merger"][:, lot.col], lv, i))
+                    dr = self.costs.delisting_exit_return(A["merger"][:, lot.col], lv, i)
                     # booked on THIS session (when the rule fires), valued at the last close x (1+dr)
                     trades.append(self._close(pf, lot, i, lot.last_close * (1 + dr),
                                               A["aclose"][lv, lot.col] * (1 + dr), ExitReason.DELISTED.value, dates, i))

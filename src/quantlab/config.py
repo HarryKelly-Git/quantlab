@@ -90,6 +90,9 @@ class CostsSection(_Section):
     slippage_bps: float
     commission_per_share: float
     delisting_return: float
+    # delisting of a symbol with a known merger record (core.costs.CostModel.delisting_exit_return)
+    delisting_return_merger: float = 0.0
+    delisting_merger_lookback_sessions: int = 5
 
     @field_validator("slippage_bps", "commission_per_share")
     @classmethod
