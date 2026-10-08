@@ -112,6 +112,28 @@ round trip), vs SPY.
 
 A retail-speed bot reading this feed is too late to capture moves like Vistra's.
 
+## 2c. Checks on what the bot already does (2026-10-08)
+
+**Low-volatility screen (pre-registered Area F, [NEW-AREAS-PREREG.md](NEW-AREAS-PREREG.md)): NO IMPROVEMENT.**
+- 46% of the replayed book's trades are in the most volatile fifth of the liquid universe (about 90% of
+  momentum_trend and relative_strength trades). Those trades averaged −0.8% against +0.4% for the rest.
+- Dropping them still lowered the book's Sharpe in 2016-19 (−0.27) and 2022-24 (−0.34). Only 2020-21
+  improved (+1.10). Nothing changes in the bot.
+
+**Live order fills (read-only look at the paper account, 2026-09-29 to 10-07):**
+
+| Check | Result |
+|---|---|
+| Opening-auction (`opg`) entry orders | 17 sent; none filled completely in Alpaca's paper account; 2 filled in part |
+| Fallback limit orders after the open | Filled within about 5 minutes of the open |
+| Price paid vs the official SIP open | +0.22% on average, median +0.06% (15 entries). Inside the backtest's assumed 0.07-0.30% per side |
+| Entries lost | 2, both on 09-29: the opening order expired and no fallback was sent |
+| Under-fills | The 2 part-filled orders were never topped up. Master's runner now buys the remainder of a part-filled opening order |
+
+The early lost entries and under-fills are covered by master's current fallback code, and the fallback
+costs about what the backtest already charges. Position-level detail stays in the private dashboard
+(`scripts/research/alpha/scoreboard_page.py`), not in this public repository.
+
 ## 3. What the bot does not have, ranked by expected value
 
 | # | Missing | Evidence it matters | Cost | Verdict |
