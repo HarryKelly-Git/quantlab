@@ -5,7 +5,10 @@ Design (why it is PIT-exact):
     so a future reverse split can never make a historical penny stock look like a $5 stock.
   * Daily total return is computed locally from raw data and the actions effective THAT day:
         ret_t = (close_t * split_ratio_t + dividend_t) / prev_close - 1
-    It depends on nothing after t.
+    It depends on nothing after t. On a recorded SPIN-OFF's effective session a negative ret_t is
+    set to 0 (see :func:`build_panel`).
+  * ``merger`` / ``spin_off`` (bool) mark the session a merger record takes effect / a spin-off's
+    neutral step was applied. Both are dated events (row <= t), so they truncate like any field.
   * ``tri`` (total-return index) is the cumulative product of (1 + ret). Its scale is arbitrary,
     so only SCALE-INVARIANT quantities (ratios, returns, distances-from-MA in %, ATR / price) may
     be derived from tri-based fields ``aopen/ahigh/alow/aclose``. Those are exactly what a
@@ -27,7 +30,10 @@ from quantlab.data import schemas
 
 RAW_FIELDS = ("open", "high", "low", "close", "volume")
 SMALL_SPLIT_RATIO = 1.15      # |ratio| within +-15%: not confirmable from prices (stock dividends)
-DERIVED_FIELDS = ("ret", "tri", "aopen", "ahigh", "alow", "aclose", "dollar_volume", "split_ratio", "dividend")
+DERIVED_FIELDS = ("ret", "tri", "aopen", "ahigh", "alow", "aclose", "dollar_volume", "split_ratio", "dividend",
+                  "merger", "spin_off")
+MERGER_ACTION_TYPES = ("cash_merger", "stock_merger", "stock_and_cash_merger")
+SPIN_OFF_ACTION_TYPE = "spin_off"
 
 
 @dataclass
@@ -171,7 +177,24 @@ def build_panel(
     calendar: TradingCalendar | None = None,
     symbols: list[str] | None = None,
 ) -> Panel:
-    """Build a PIT panel from RAW bars + corporate actions (both in canonical schema)."""
+    """Build a PIT panel from RAW bars + corporate actions (both in canonical schema).
+
+    Besides splits and cash dividends:
+      * SPIN-OFF (action_type ``spin_off``, placed like a dividend on the parent's first traded
+        session >= ex_date): the parent's raw price drops by about the value of the distributed
+        shares, which holders keep. A NEGATIVE ret on that session is set to 0, a NEUTRAL step as if
+        a distribution of equal value had been paid; a positive ret is left unchanged. tri and
+        aopen/ahigh/alow/aclose follow from ret. This is an approximation: the distributed shares'
+        exact value is unknown (and the parent's own move that session is lost with the drop).
+        Spin-offs missing from the vendor's list (Alpaca lists only some) are still booked as raw
+        drops. ``spin_off`` (bool) marks the sessions where the neutral step was applied; the raw
+        fields, ``dividend`` and ``split_ratio`` are untouched (the paper ledger reads those).
+      * MERGER (``cash_merger`` / ``stock_merger`` / ``stock_and_cash_merger`` on the acquiree):
+        ``merger`` (bool) is True on the first session of the panel >= the record's ex_date
+        (effective date). The acquiree usually never trades again, so this is a CALENDAR session,
+        not a traded one. Used only to price a delisting (CostModel.delisting_exit_return); a record
+        effective after the panel's last session is not placed (not yet known: point-in-time).
+    """
     bars = schemas.conform("bars", bars)
     if symbols is not None:
         bars = bars[bars["symbol"].isin(symbols)]
@@ -184,10 +207,19 @@ def build_panel(
 
     split_ratio = pd.DataFrame(1.0, index=index, columns=columns)
     dividend = pd.DataFrame(0.0, index=index, columns=columns)
+    merger = np.zeros(close.shape, dtype=bool)
+    spin_on = np.zeros(close.shape, dtype=bool)
     if actions is not None and len(actions):
         acts = schemas.conform("corporate_actions", actions)
         acts = acts[acts["symbol"].isin(columns)]
         splits = reconcile_splits(f["open"], close, acts[acts["action_type"] == "split"]).dropna(subset=["eff_date"])
+        # mergers: first CALENDAR session >= effective date (the acquiree has no later bar)
+        mg = acts[acts["action_type"].isin(MERGER_ACTION_TYPES) & acts["ex_date"].notna()]
+        if len(mg):
+            pos = index.searchsorted(pd.DatetimeIndex(mg["ex_date"]), side="left")
+            cix = columns.get_indexer(mg["symbol"])
+            ok = pos < len(index)
+            merger[pos[ok], cix[ok]] = True
         acts = _effective_action_dates(close, acts[acts["action_type"] != "split"])
         for (d, s), r in splits.groupby(["eff_date", "symbol"])["ratio"].prod().items():
             if d in split_ratio.index and np.isfinite(r) and r > 0:
@@ -196,10 +228,19 @@ def build_panel(
         for (d, s), a in divs.groupby(["eff_date", "symbol"])["amount"].sum().items():
             if d in dividend.index and np.isfinite(a):
                 dividend.loc[d, s] += a
+        spins = acts[acts["action_type"] == SPIN_OFF_ACTION_TYPE]
+        if len(spins):
+            rix = index.get_indexer(pd.DatetimeIndex(spins["eff_date"]))
+            cix = columns.get_indexer(spins["symbol"])
+            ok = rix >= 0
+            spin_on[rix[ok], cix[ok]] = True
 
     prev_close = close.ffill().shift(1)
     ret = (close * split_ratio + dividend) / prev_close - 1.0
     ret = ret.where(close.notna() & prev_close.notna())
+    # spin-off neutral step (see docstring): only a DROP on the spin-off session is neutralized
+    spin_off = pd.DataFrame(spin_on, index=index, columns=columns) & (ret < 0)
+    ret = ret.mask(spin_off, 0.0)
 
     tri = (1.0 + ret.fillna(0.0)).cumprod()
     tri = tri.where(close.notna())
@@ -214,6 +255,8 @@ def build_panel(
         dollar_volume=close * f["volume"],
         split_ratio=split_ratio,
         dividend=dividend,
+        merger=pd.DataFrame(merger, index=index, columns=columns),
+        spin_off=spin_off,
     )
     # NOTE: never store full-history facts (e.g. a symbol's last bar = future delisting) in meta —
     # meta survives truncate(). Derive such facts from the (possibly truncated) frames instead.

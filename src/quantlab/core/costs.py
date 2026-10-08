@@ -33,6 +33,12 @@ class CostModel:
     # reference (intraday model only): 1.0 = AT the plan stop; 1.75 = a wider DISASTER stop (3.5 ATR
     # for a 2-ATR plan stop) while the plan stop itself stays close-based (exit next open).
     broker_stop_distance: float = 1.0
+    # A DELISTED symbol with a known MERGER record (panel field ``merger``: cash / stock /
+    # stock-and-cash merger) is an acquisition: holders are paid about the last close (the deal
+    # price), not a -30% haircut. The record counts when it takes effect on a session in
+    # [last bar - delisting_merger_lookback_sessions, delisting session]. See delisting_exit_return.
+    delisting_return_merger: float = 0.0
+    delisting_merger_lookback_sessions: int = 5
 
     def __post_init__(self) -> None:
         if self.stop_model not in ("close", "intraday"):
@@ -55,7 +61,26 @@ class CostModel:
                    float(config.get("validation.data.suspicious_open.threshold", 0.25)),
                    float(config.get("validation.data.suspicious_open.min_reversion", 0.5)),
                    str(config.get("execution.stop_model", "close")),
-                   float(config.get("execution.protective_stop.distance", 1.0)))
+                   float(config.get("execution.protective_stop.distance", 1.0)),
+                   delisting_return_merger=float(c.get("delisting_return_merger", 0.0)),
+                   delisting_merger_lookback_sessions=int(c.get("delisting_merger_lookback_sessions", 5)))
+
+    def merger_delisting(self, merger_flags: np.ndarray | None, last_valid: int, i: int) -> bool:
+        """Is a DELISTED exit booked on session index ``i`` (symbol's last bar at ``last_valid``) an
+        acquisition? ``merger_flags`` is that symbol's column of the panel's ``merger`` field (None =
+        no merger data). True when a merger record takes effect on a session in
+        [last_valid - delisting_merger_lookback_sessions, i]. Reads rows <= i only, so a merger
+        dated after the delisting session is never used (point-in-time)."""
+        if merger_flags is None:
+            return False
+        lo = max(0, last_valid - self.delisting_merger_lookback_sessions)
+        return bool(np.any(merger_flags[lo:i + 1]))
+
+    def delisting_exit_return(self, merger_flags: np.ndarray | None, last_valid: int, i: int) -> float:
+        """Haircut for that DELISTED exit: ``delisting_return_merger`` for an acquisition
+        (:meth:`merger_delisting`), otherwise the conservative ``delisting_return``."""
+        return (self.delisting_return_merger if self.merger_delisting(merger_flags, last_valid, i)
+                else self.delisting_return)
 
     def half_spread_bps(self, median_dollar_volume: float | None) -> float:
         """Unknown liquidity is charged the WORST tier (conservative)."""

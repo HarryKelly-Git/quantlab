@@ -43,6 +43,11 @@ providers:
     feed_fallback: iex            # used only if SIP is refused (403); dataset is flagged feed=iex
     asof: "-"                     # pin symbol mapping for reproducibility ("-" = no rename mapping); see docs
     max_requests_per_minute: 180
+    # Map spin_offs (action_type spin_off: neutral return step in data.panel.build_panel) and cash /
+    # stock / stock_and_cash mergers (delisting at costs.delisting_return_merger) instead of only
+    # logging them as unmapped. false = the old split/dividend-only mapping. Stored corporate-action
+    # datasets predate this: re-ingest corporate_actions for history to see these records.
+    map_spin_offs_and_mergers: true
   sec_edgar:
     user_agent_env: QUANTLAB_SEC_USER_AGENT
     max_requests_per_second: 8    # SEC fair-access limit is 10/s (shared with sec_form4 below: one limiter)
@@ -122,6 +127,12 @@ costs:
   slippage_bps: 5.0
   # Return assumed when a held security stops trading without a known exit price (delisting bias).
   delisting_return: -0.30
+  # ... unless a MERGER record (cash / stock / stock-and-cash merger, providers.alpaca.
+  # map_spin_offs_and_mergers) takes effect between delisting_merger_lookback_sessions sessions before
+  # the last bar and the delisting session: an acquisition pays holders about the last close (the
+  # deal price). Only records dated on/before the delisting session count (point-in-time).
+  delisting_return_merger: 0.0
+  delisting_merger_lookback_sessions: 5
 
 execution:
   # How simulations fill a STOP (core.tradesim, via CostModel.stop_model):

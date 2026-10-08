@@ -21,6 +21,10 @@ BARS_KEY = ["symbol", "date"]
 
 # action_type: "split" -> ratio = new shares per old share (2.0 for 2-for-1, 0.1 for 1-for-10 reverse)
 #              "cash_dividend" -> amount = USD per share (pre-split basis on the ex-date)
+#              "spin_off" -> symbol = the PARENT; ratio = new shares per parent share (informational)
+#              "cash_merger" | "stock_merger" | "stock_and_cash_merger" -> symbol = the ACQUIREE,
+#                  ex_date = effective date; amount = cash per share, ratio = acquirer shares per
+#                  acquiree share (informational). Used as dated events only (data.panel.build_panel).
 CORPORATE_ACTIONS = [
     "symbol", "ex_date", "action_type", "ratio", "amount", "declared_date",
     "available_at", "pit_status", "source_id", "provider", "retrieved_at",

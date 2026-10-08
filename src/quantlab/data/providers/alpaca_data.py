@@ -22,8 +22,12 @@ Point-in-time and completeness decisions (facts: docs/EXTERNAL-SERVICES.md, Alpa
   * Corporate actions carry no declaration timestamp and records are corrected after publication.
     So ``available_at`` = ex-date 09:30 ET with ``pit_status=PIT_CONSERVATIVE``: we never claim
     to have known a split before the market could see it in prices. Types we do not map
-    (spin-offs, mergers, stock dividends...) are counted and returned in ``attrs`` so ingestion
-    can log them. They are never dropped without a trace.
+    (stock dividends, unit splits, name changes...) are counted and returned in ``attrs`` so
+    ingestion can log them. They are never dropped without a trace. Spin-offs and cash / stock /
+    stock-and-cash mergers are mapped (action_type ``spin_off`` on the parent ``source_symbol``;
+    ``cash_merger`` / ``stock_merger`` / ``stock_and_cash_merger`` on the ``acquiree_symbol`` with
+    ex_date = ``effective_date``) only when ``providers.alpaca.map_spin_offs_and_mergers`` is true;
+    otherwise they are counted as unmapped like the rest.
   * News: ``created_at`` is the availability time. If ``updated_at`` is later than
     ``created_at`` + tolerance, the REST payload may be a revised version (headline/summary/
     symbols), so the row is PIT_CONSERVATIVE, otherwise PIT.
@@ -64,9 +68,14 @@ NY = ZoneInfo("America/New_York")
 # Corporate-action response keys we map into the canonical schema.
 _SPLIT_KEYS = ("forward_splits", "reverse_splits")
 _DIVIDEND_KEYS = ("cash_dividends",)
+# Mapped only with providers.alpaca.map_spin_offs_and_mergers (response key -> canonical action_type).
+_SPIN_OFF_KEYS = ("spin_offs",)
+_MERGER_KEYS = {"cash_mergers": "cash_merger", "stock_mergers": "stock_merger",
+                "stock_and_cash_mergers": "stock_and_cash_merger"}
 DEFAULT_CA_TYPES = [
     "forward_split", "reverse_split", "cash_dividend",
-    # requested only so that price-relevant actions we cannot map are logged, not invisible:
+    # requested so that price-relevant actions we do not map are logged, not invisible (spin_off and
+    # the three merger types are mapped when providers.alpaca.map_spin_offs_and_mergers is true):
     "unit_split", "stock_dividend", "spin_off", "cash_merger", "stock_merger", "stock_and_cash_merger",
     "name_change", "worthless_removal",
 ]
@@ -128,6 +137,8 @@ class AlpacaDataProvider(PriceProvider, CorporateActionProvider, NewsProvider):
         self.ca_max_days = int(config.get("providers.alpaca.corporate_actions_max_days", 90))
         self.ca_pad_days = int(config.get("providers.alpaca.corporate_actions_pad_days", 30))
         self.ca_types = list(config.get("providers.alpaca.corporate_action_types", DEFAULT_CA_TYPES))
+        # default False keeps the old split/dividend-only mapping for configs that do not opt in
+        self.map_events = bool(config.get("providers.alpaca.map_spin_offs_and_mergers", False))
         self.news_per_request = int(config.get("providers.alpaca.news_symbols_per_request", 50))
         self.news_revision_tolerance = pd.Timedelta(
             seconds=float(config.get("providers.alpaca.news_revision_tolerance_seconds", 60)))
@@ -314,7 +325,7 @@ class AlpacaDataProvider(PriceProvider, CorporateActionProvider, NewsProvider):
                         raise ProviderResponseError("alpaca: 'corporate_actions' is not a mapping")
                     for key, records in groups.items():
                         for rec in records or []:
-                            row, why = self._map_action(key, rec)
+                            row, why = self._map_action(key, rec, map_events=self.map_events)
                             if row is not None:
                                 mapped.append(row)
                             elif why == "unmapped_type":
@@ -358,7 +369,9 @@ class AlpacaDataProvider(PriceProvider, CorporateActionProvider, NewsProvider):
         return out
 
     @staticmethod
-    def _map_action(key: str, rec: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+    def _map_action(key: str, rec: dict[str, Any], map_events: bool = False) -> tuple[dict[str, Any] | None, str]:
+        if map_events and (key in _SPIN_OFF_KEYS or key in _MERGER_KEYS):
+            return AlpacaDataProvider._map_event(key, rec)
         if key not in _SPLIT_KEYS and key not in _DIVIDEND_KEYS:
             return None, "unmapped_type"
         sym, ex, rid = rec.get("symbol"), rec.get("ex_date"), rec.get("id")
@@ -389,6 +402,37 @@ class AlpacaDataProvider(PriceProvider, CorporateActionProvider, NewsProvider):
             return None, "invalid dividend rate"
         return {"symbol": str(sym).upper(), "ex_date": ex_date, "action_type": "cash_dividend",
                 "ratio": np.nan, "amount": rate, "source_id": str(rid)}, ""
+
+    @staticmethod
+    def _map_event(key: str, rec: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+        """Spin-off -> ``spin_off`` on the parent (``source_symbol``, ``ex_date``); ratio = new
+        shares per parent share when given. Merger -> its own type on the acquiree
+        (``acquiree_symbol``) dated at ``effective_date`` (ex_date if absent); amount = cash per share
+        (``rate``) and ratio = acquirer shares per acquiree share when given. Field names:
+        docs/EXTERNAL-SERVICES.md (Alpaca, corporate-action date fields). The rates are recorded for
+        audit only: the panel uses spin-offs and mergers as dated events, never their values."""
+        def num(a: Any, b: Any = 1.0) -> float:
+            try:
+                x, y = float(a), float(b)
+            except (TypeError, ValueError):
+                return np.nan
+            return x / y if np.isfinite(x) and np.isfinite(y) and x >= 0 and y > 0 else np.nan
+
+        rid = rec.get("id")
+        if key in _SPIN_OFF_KEYS:
+            sym, ex, kind = rec.get("source_symbol"), rec.get("ex_date"), "spin_off"
+            ratio, amount = num(rec.get("new_rate"), rec.get("source_rate")), np.nan
+        else:
+            sym, ex, kind = rec.get("acquiree_symbol"), rec.get("effective_date") or rec.get("ex_date"), _MERGER_KEYS[key]
+            ratio, amount = num(rec.get("acquirer_rate"), rec.get("acquiree_rate")), num(rec.get("rate"))
+        if not sym or not ex or not rid:
+            return None, "missing symbol/date/id"
+        try:
+            ex_date = pd.Timestamp(str(ex)).normalize()
+        except (ValueError, TypeError):
+            return None, f"unparseable date {ex!r}"
+        return {"symbol": str(sym).upper(), "ex_date": ex_date, "action_type": kind,
+                "ratio": ratio, "amount": amount, "source_id": str(rid)}, ""
 
     # ------------------------------------------------------------------------------------------
     # News
