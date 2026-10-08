@@ -80,3 +80,40 @@ candidate; the number kept this way is reported.
 - the TRAIN and VAL Sharpe differences both above 0.
 
 **Variants:** one variant per area as listed. No thresholds are tuned.
+
+---
+
+## Results (added 2026-10-08, after the runs; the rules above were not changed)
+
+Results: `research/alpha/results/new_areas/`. Ledger: `NA_A_market_overlays`, `NA_C_spy_overnight`, `NA_F_lowvol_screen`.
+
+**A. Market overlays: every rule NO IMPROVEMENT.**
+
+| Rule | 2013-24 return/yr | Sharpe | Worst fall | 2000-12 worst fall |
+|---|---|---|---|---|
+| BH | 14.5% | 0.79 | −34% | −55% |
+| VM1 | 10.9% | 0.68 | −34% | −34% |
+| VM15 | 12.3% | 0.67 | −41% | −35% |
+| TR10 | 12.0% | 0.75 | −34% | **−22%** |
+| VM1+TR10 | 9.4% | 0.62 | −34% | −19% |
+
+TR10 is the only rule with a use: it is insurance against a long bear market (2000-12), paid for with about
+2.5 points a year in rising markets. It is a risk choice for real money, outside QuantLab's paper scope.
+
+**C. SPY overnight / intraday: both DO NOT BEAT buy-and-hold.** Overnight-only made −0.7%/yr after costs in
+2022-24 (buy-and-hold +8.9%); intraday-only −0.8%.
+
+**F. Low-volatility screen on the bot's book: NO IMPROVEMENT** (corrected delisting convention).
+
+| Period | Sharpe, current book | Sharpe, screened | Difference (90% CI) |
+|---|---|---|---|
+| 2016-19 | +0.25 | −0.02 | −0.27 (−1.01, +0.47) |
+| 2020-21 | +0.06 | +1.17 | +1.10 (−0.01, +2.13) |
+| 2022-24 | +0.01 | −0.35 | −0.34 (−0.95, +0.34) |
+
+- 87,537 of 330,660 candidate-days were dropped; 448 had no forecast and were kept.
+- Descriptive: 46% of the current book's trades sit in the most volatile fifth of the liquid universe
+  (momentum_trend and relative_strength about 90%). Those trades averaged −0.8% against +0.4% for the rest,
+  2016-24. Removing them still made the book worse in two of three periods: the slots they free are taken by
+  other candidates that did not do better.
+- Under master's −30% delisting rule the screen is worse in every period (2022-24 difference −1.04).

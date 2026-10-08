@@ -1,6 +1,43 @@
-{% extends "base.html" %}{% from "_macros.html" import table %}{% block title %}alpha discovery{% endblock %}{% block body %}
+{% extends "base.html" %}{% from "_macros.html" import table %}{% block title %}alpha discovery{% endblock %}
+{% block head %}<style>
+.sb-head{border:1px solid var(--line);padding:12px 14px;margin:10px 0 14px}
+.sb-head p{margin:4px 0;max-width:75ch}.sb-head .big{font-size:16px;font-weight:600}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid currentColor;white-space:nowrap}
+.v-FAILED{color:var(--bad)}.v-NO_IMPROVEMENT{color:var(--muted)}.v-WATCH{color:#b07a12}.v-USEFUL{color:var(--accent)}
+.v-BLOCKED{color:var(--muted)}.v-RUNNING{color:var(--accent)}.v-FIXED{color:var(--ok)}.v-PROPOSED{color:#b07a12}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+table.sb td{white-space:normal;vertical-align:top}table.sb td.k{min-width:16ch}
+details{margin:14px 0}summary{cursor:pointer;font-weight:600}
+</style>{% endblock %}
+{% block body %}
 <h2>Alpha discovery</h2>
-<p>Research only (paper). {{ a.n_hypotheses }} hypotheses: {{ a.n_done }} tested, {{ a.n_queued }} queued.
+{% set sb = a.scoreboard %}
+{% if sb %}
+<div class="sb-head">
+<p class="big">{{ sb.headline }}</p>
+<p class="muted">Paper research only. {{ sb.holdout }} Updated {{ sb.generated_at }}.</p>
+<div class="pills"><span class="pill">{{ sb.counts.ideas }} ideas tested</span>
+{% for code, label in sb.verdict_labels.items() %}{% if sb.counts[code] %}<span class="pill v-{{ code }}">{{ sb.counts[code] }} {{ label }}</span>{% endif %}{% endfor %}
+<span class="pill">{{ sb.counts.ledger_runs }} logged runs</span></div>
+</div>
+<h2>What to do next</h2>
+<table class="sb"><thead><tr><th>#</th><th>Action</th><th>Who</th><th>Why</th><th>How</th></tr></thead><tbody>
+{% for n in sb.next_steps %}<tr><td>{{ n.rank }}</td><td>{{ n.action }}</td><td>{{ n.who }}</td><td>{{ n.why }}</td><td class="muted">{{ n.how }}</td></tr>{% endfor %}
+</tbody></table>
+<h2>Problems found and fixed</h2>
+<table class="sb"><thead><tr><th>Status</th><th>Problem</th><th>Where</th><th>Detail</th></tr></thead><tbody>
+{% for f in sb.fixes %}<tr><td><span class="pill v-{{ f.status }}">{{ f.status|lower }}</span></td><td>{{ f.title }}</td><td>{{ f.where }}</td><td>{{ f.detail }}</td></tr>{% endfor %}
+</tbody></table>
+{% for g in sb.groups %}
+<h2>{{ g.title }}</h2>
+<table class="sb"><thead><tr><th>Verdict</th><th>Idea</th><th>The deciding number</th><th>What it means</th></tr></thead><tbody>
+{% for r in g.ideas %}<tr><td><span class="pill v-{{ r.verdict }}">{{ r.verdict_label }}</span></td><td class="k">{{ r.name }}<br><span class="muted">{{ r.question }}</span></td>
+<td>{{ r.key_number }}</td><td>{{ r.meaning }}<br><span class="muted">{{ r.source }}</span></td></tr>{% endfor %}
+</tbody></table>
+{% endfor %}
+{% else %}<p class="muted">No scoreboard yet: run scripts/research/alpha/build_scoreboard.py.</p>{% endif %}
+<details><summary>Technical detail: families, audit, options and data quality</summary>
+<p>{{ a.n_hypotheses }} hypotheses: {{ a.n_done }} tested, {{ a.n_queued }} queued.
 {{ a.n_runs }} ledger runs, {{ a.n_configs }} distinct configurations tried, {{ a.n_oos_evaluations }} out-of-sample evaluations.
 Classes: {% for k, v in a.classes.items() %}{{ k }}={{ v }} {% endfor %}
 (A strong, B promising, C regime-dependent, D implementation problem, E no edge, F data-limited, G overfit).</p>
@@ -12,4 +49,5 @@ Classes: {% for k, v in a.classes.items() %}{{ k }}={{ v }} {% endfor %}
 <h2>Portfolio of strategy streams</h2>{{ table(a.portfolio) }}
 <h2>Research health: data quality</h2>{{ table(a.quality) }}
 <h2>Research queue</h2>{{ table(a.queue) }}
+</details>
 {% endblock %}

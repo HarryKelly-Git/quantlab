@@ -14,6 +14,24 @@ def _load(name: str) -> Any:
     return json.loads(p.read_text()) if p.exists() else None
 
 
+VERDICT_LABELS = {"FAILED": "Failed", "NO_IMPROVEMENT": "No improvement", "WATCH": "Watch (record only)",
+                  "USEFUL": "Useful, not money", "BLOCKED": "Blocked", "RUNNING": "Running"}
+
+
+def scoreboard() -> dict[str, Any] | None:
+    """The plain-English scoreboard (scripts/research/alpha/build_scoreboard.py), ideas grouped by area."""
+    sb = _load("scoreboard.json")
+    if not sb:
+        return None
+    groups = []
+    for key, title in sb.get("areas", {}).items():
+        rows = [dict(r, verdict_label=VERDICT_LABELS.get(r["verdict"], r["verdict"])) for r in sb.get("ideas", [])
+                if r.get("area") == key]
+        if rows:
+            groups.append({"key": key, "title": title, "ideas": rows})
+    return {**sb, "groups": groups, "verdict_labels": VERDICT_LABELS}
+
+
 def alpha_state() -> dict[str, Any]:
     queue = _load("queue.json") or []
     ledger_lines = (ROOT / "ledger.jsonl").read_text().splitlines() if (ROOT / "ledger.jsonl").exists() else []
@@ -69,6 +87,7 @@ def alpha_state() -> dict[str, Any]:
                  "high_move_high_iv_iron_fly_at_bid": (v.get("high_move_high_iv_iron_fly_at_bid") or {}).get("mean"),
                  "t_fly": (v.get("high_move_high_iv_iron_fly_at_bid") or {}).get("t_nw")} for k, v in p49.items()]
     return {
+        "scoreboard": scoreboard(),
         "n_hypotheses": len(queue), "n_done": sum(1 for h in queue if h.get("status") == "DONE"),
         "n_queued": sum(1 for h in queue if h.get("status") == "QUEUED"), "classes": classes,
         "n_runs": len(ledger), "n_configs": len({r.get("spec_hash") for r in ledger}),

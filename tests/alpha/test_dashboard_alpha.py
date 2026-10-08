@@ -19,3 +19,29 @@ def test_alpha_page_renders(config):
     r = client.get("/alpha")
     assert r.status_code == 200
     assert "Alpha discovery" in r.text
+
+
+def test_scoreboard_is_complete_and_cites_evidence():
+    from pathlib import Path
+
+    from quantlab.dashboard.alpha import VERDICT_LABELS, scoreboard
+    sb = scoreboard()
+    assert sb is not None, "run scripts/research/alpha/build_scoreboard.py"
+    root = Path(__file__).resolve().parents[2]
+    assert sb["counts"]["ideas"] == len(sb["ideas"]) == sum(len(g["ideas"]) for g in sb["groups"])
+    for r in sb["ideas"]:
+        assert r["verdict"] in VERDICT_LABELS, r["id"]
+        assert r["key_number"] and r["meaning"], r["id"]
+        src = r["source"].split(" ")[0]
+        assert (root / src).exists(), f"{r['id']}: evidence file {src} missing"
+
+
+def test_alpha_page_shows_plain_english_scoreboard(config):
+    from quantlab.context import AppContext
+    from quantlab.dashboard.app import create_app
+    ctx = AppContext.create(config=config)
+    ctx.db.migrate() if hasattr(ctx.db, "migrate") else None
+    r = TestClient(create_app(ctx)).get("/alpha")
+    assert r.status_code == 200
+    assert "What to do next" in r.text and "Problems found and fixed" in r.text
+    assert "ideas tested" in r.text
