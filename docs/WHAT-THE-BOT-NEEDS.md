@@ -83,12 +83,41 @@ All CIs include 0, so the verdict is **NO IMPROVEMENT**. Inside the bot's book, 
 (mostly breakouts) did slightly better than its other trades: +0.8% against −0.6% per trade. Nothing in
 the bot changes.
 
+## 2b. Reacting the same day: intraday news study (2026-10-08)
+
+Pre-registration: [INTRADAY-NEWS-PREREG.md](INTRADAY-NEWS-PREREG.md). Results:
+`research/alpha/results/intraday/intraday_news.json`.
+
+**Sample:**
+- **Days:** 503 random trading days, 2017-2024.
+- **News:** 371,792 Benzinga articles, giving 48,773 qualifying single-stock headlines in regular hours.
+- **Prices:** SIP 1-minute bars.
+
+**Trade:** buy 15 minutes after a headline when the stock has already moved at least 2% (787 cases). Hold
+to the close (IN1) or the next close (IN2). Results are net of doubled post-news spreads (median 0.18%
+round trip), vs SPY.
+
+| Test | 2017-19 | 2020-21 | 2022-24 |
+|---|---|---|---|
+| IN1: long to the close | +0.58% (t 1.0) | −0.66% (t −1.4) | −0.03% (t −0.1) |
+| IN2: long to the next close | +1.39% (t 1.9) | −0.68% | +0.36% (t 0.8) |
+
+**Verdict: both FAIL.**
+
+- **The move is done within ~15 minutes.** After that, the remaining drift to the close, before costs,
+  is a few hundredths of a percent. The strongest up-reactions (top decile, +1.5% reaction) add +0.08%;
+  the strongest down-reactions add a 0.04% further drop. Both are smaller than the cost of trading.
+- **Benzinga often trails the original wire.** Only 1.6% of headlines still showed a 2% move after their
+  timestamp, because the price had usually reacted before the headline arrived.
+
+A retail-speed bot reading this feed is too late to capture moves like Vistra's.
+
 ## 3. What the bot does not have, ranked by expected value
 
 | # | Missing | Evidence it matters | Cost | Verdict |
 |---|---|---|---|---|
 | 1 | **A validated edge.** About 50 hypotheses have failed (30 earlier, about 20 in October, the sprint, E1-E4). The bot's six replayable strategies earn about 0 on survivorship-free data. | Every report | Research time | The binding constraint. More data or machinery without an edge just adds costs. |
-| 2 | **Same-day reaction to news.** Vistra's +10.8% happened DURING Oct 6 (it opened +4.5%). A close-to-next-open bot only sees day 2, and on average the day-2+ drift is negative. | Section 2 | Engineering: Alpaca's news stream plus minute bars. Both exist; a backtest is possible because QuantLab has 2016+ minute bars and Benzinga timestamps. | The only untested direction with a plausible edge. Professionals compete hard on news latency, so expect a small edge if any. Worth one pre-registered intraday study before any build. |
+| 2 | **Same-day reaction to news.** Vistra's +10.8% happened DURING Oct 6 (it opened +4.5%). A close-to-next-open bot only sees day 2, and on average the day-2+ drift is negative. | Sections 2 and 2b | Tested 2026-10-08: 48,773 headlines with minute bars | **FAILS.** Prices finish reacting within ~15 minutes of the Benzinga headline, and the leftover drift is below costs. Do not build. |
 | 3 | **News awareness as a RISK input.** The bot has no news feed at all (news_shock is disabled). | Takeover targets pin, binary events (FDA, earnings) gap | Free (Alpaca/Benzinga) | Useful for avoiding traps, such as buying a pinned takeover target or holding through a known binary event. Not proven as alpha. |
 | 4 | **A point-in-time earnings calendar.** 7,105 of 18,266 jumps are earnings-driven, and earnings drive option-period volatility. | Sprint P4/P6: the earnings-aware model forecasts option vol better | A paid calendar, or forward capture from Nasdaq | Needed before any serious earnings-volatility options test |
 | 5 | **Real option quotes for live and research.** The paper bot sees only Alpaca "indicative" quotes (OPRA needs a paid plan). There is no historical option volume, open interest or intraday quotes; research uses DoltHub end-of-day chains. | docs/OPTIONS.md (master); sprint P5 | Alpaca paid plan with OPRA; ThetaData $40-80/month | Buy only when an options rule passes validation at conservative fills. None does yet. |
@@ -139,7 +168,8 @@ Big moves like Vistra's are driven by news nobody could see in the price history
 - sector peers did not catch up;
 - calls were too expensive.
 
-The bot is not missing a pattern-matcher; it is missing an edge. The cheapest remaining places to look
-are:
-- its own forward record (P1);
-- a pre-registered INTRADAY news-reaction study using data QuantLab already has.
+The bot is not missing a pattern-matcher; it is missing an edge.
+
+Same-day reaction to Benzinga headlines was tested too (section 2b), and prices finish moving within ~15
+minutes. The cheapest remaining evidence is the bot's own forward record (P1). That needs at least 20
+trading days of bot history, about two more weeks from 2026-10-08.
