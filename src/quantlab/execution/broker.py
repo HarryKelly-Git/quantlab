@@ -209,3 +209,15 @@ class PaperBroker(ABC):
         """Advance a simulated broker to ``session_date`` (fills at its open). Real brokers fill on
         their own clock, so the default is a no-op."""
         return []
+
+    def asset_status(self, symbol: str) -> dict[str, Any] | None:
+        """The broker's current view of ``symbol``: ``{"status": "active"|"inactive", "tradable": bool}``,
+        or None when this broker cannot tell (the default) or does not know the symbol. Raises
+        BrokerError when the broker could not answer."""
+        return None
+
+    def fee_activities(self, since: str) -> list[dict[str, Any]]:
+        """Account-level fees the broker charged on or after ``since`` (YYYY-MM-DD, the fee's own
+        date): ``[{"id", "date", "net_amount" (signed, negative = charged), "description", "symbol"}]``.
+        A broker that charges none returns [] (the default). Raises BrokerError when unavailable."""
+        return []

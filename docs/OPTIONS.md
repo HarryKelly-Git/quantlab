@@ -39,9 +39,13 @@ The OPT book trades in the same paper account as the BOT book. Changes outside `
   on the trade stream or in the open-order list is not "unknown to QuantLab"; the reconciliation
   passes `cash_offset=cotenant_cash_offset(db, broker)`, which also counts broker fills on open OPT
   orders not yet applied by the OPT ledger (no race).
-* Still a mismatch, by design: an exercise/assignment that creates a stock position, or any option
-  fee the paper broker might charge (UNVERIFIED: the paper docs say regulatory fees are not
-  simulated). Both pause the stock runner (fail safe). OPT never holds into expiry.
+* Still a mismatch, by design: an exercise/assignment that creates a stock position (pauses the stock
+  runner, fail safe). OPT never holds into expiry.
+* Broker fees: Alpaca paper DOES charge option fees (ORF, OCC clearing, OPT REG/TAF) and stock fees
+  (CAT, REG) as FEE account activities (verified 2026-10-11, docs/EXTERNAL-SERVICES.md). The runner
+  books every FEE activity in the BOT ledger before the cash check (`paper.runner.book_broker_fees`),
+  so the BOT book carries the whole account's fees (cents); a single fee above
+  `paper.runner.broker_fee_max_auto` is not booked and still pauses for review.
 
 ## What is measured
 
@@ -61,7 +65,7 @@ expression. Marks use the day's last trade (close), which is not an executable b
 | Historical option bars only from Feb 2024 | Marking/learning only for evaluations after Feb 2024 (in practice: forward from now). | Same historical vendors as above. |
 | Open interest is current-only and often null | No point-in-time OI; null OI = `UNKNOWN` (configurable to fail). | OI history from ORATS / Cboe DataShop / ThetaData. |
 | Greeks/IV: present in the indicative snapshot for MOST contracts (TGT 2026-09-30: 916 of 1232); absent mainly for one-sided or deep ITM/OTM quotes | When absent, IV is computed from the quote MID by Black-Scholes for DESCRIPTION only (`iv_source=MODEL_FROM_MID`); if no IV exists the strike cannot enter the delta grid and a pre-expiry exit is `UNKNOWN` (structure ineligible). | OPRA data plus a vendor IV surface (ORATS) would replace the model. |
-| Paper option fills | Alpaca paper fills marketable limits against its quote, ignoring size; option fees UNVERIFIED in paper; tick-size rules for limits UNVERIFIED (limits are rounded to $0.01; a sub-tick price may be rejected, which is recorded, never assumed filled). Whether option DAY orders are accepted outside market hours is UNVERIFIED. | Verify with a deliberately tiny paper order once `paper_trading` is enabled by the operator. |
+| Paper option fills | Alpaca paper fills marketable limits against its quote, ignoring size; option fees are charged in paper (FEE activities, cents; verified 2026-10-11); tick-size rules for limits UNVERIFIED (limits are rounded to $0.01; a sub-tick price may be rejected, which is recorded, never assumed filled). Whether option DAY orders are accepted outside market hours is UNVERIFIED. | Verify with a deliberately tiny paper order once `paper_trading` is enabled by the operator. |
 
 Outside market hours every indicative quote is older than `max_quote_age_minutes` (30), so an
 evening `options evaluate` rejects every contract as `QUOTE_STALE` and can only choose STOCK or

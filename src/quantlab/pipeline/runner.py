@@ -330,6 +330,12 @@ class PaperRunner:
         self.fallback_poll_seconds = float(g("open_fill_fallback_poll_seconds", 30))
         self._last_fallback_scan: datetime | None = None
         self.max_job_attempts = int(g("max_job_attempts", 3))
+        # Alpaca paper charges regulatory/clearing fees (cents) as FEE activities; the ledger records
+        # them before each cash check so they never accumulate into a false mismatch. A single fee
+        # above broker_fee_max_auto is left unbooked: it still mismatches and pauses for review.
+        self.book_broker_fees = bool(g("book_broker_fees", True))
+        self.broker_fees_from = g("broker_fees_from", None)
+        self.broker_fee_max_auto = float(g("broker_fee_max_auto", 5.0))
         # broker-held protective stops (execution/protective_stops.py): a GTC stop-market sell rests at
         # the broker for every open long trade, so a stop fires intraday and while QuantLab is down
         ps = lambda k, d: self.cfg.get(f"execution.protective_stop.{k}", d)   # noqa: E731
@@ -657,6 +663,31 @@ class PaperRunner:
             self.event("INFO", "reconcile", f"reconciliation ok ({why})")
         return self.reconciled_ok
 
+    def _book_broker_fees(self) -> None:
+        """Record the broker's new FEE activities in the BOT ledger (once each). A fee list the
+        broker cannot deliver is a WARN only: the cash comparison that follows decides."""
+        if not self.book_broker_fees or self.ledger is None:
+            return
+        since = str(self.broker_fees_from) if self.broker_fees_from else self.ledger.initialized_on()
+        if not since:
+            return
+        last = self.ledger.latest_broker_fee_date()     # fetch only recent pages; booking stays idempotent
+        fetch_from = max(since, (date.fromisoformat(last) - timedelta(days=10)).isoformat()) if last else since
+        try:
+            fees = self.broker.fee_activities(fetch_from)
+        except BrokerError as exc:
+            self.event("WARN", "reconcile", f"broker fee activities unavailable: {exc}"[:300])
+            return
+        res = self.ledger.book_broker_fees(fees, since=since, max_each=self.broker_fee_max_auto)
+        if res["booked"]:
+            total = sum(f["net_amount"] for f in res["booked"])
+            self.event("INFO", "reconcile", f"booked {len(res['booked'])} broker fee(s), {total:+.2f} USD, "
+                       f"into the {BOOK} ledger", res)
+        if res["too_large"]:
+            self.event("WARN", "reconcile", f"{len(res['too_large'])} broker fee(s) above "
+                       f"paper.runner.broker_fee_max_auto ({self.broker_fee_max_auto:g} USD) left for human review",
+                       res)
+
     def _reconcile_once(self, why: str) -> list[str]:
         assert self.exec is not None and self.ledger is not None
         problems: list[str] = []
@@ -678,6 +709,7 @@ class PaperRunner:
                                      (BOOK, OrderStatus.UNKNOWN.value))
             if stuck:
                 problems.append(f"{len(stuck)} local order(s) still UNKNOWN")
+            self._book_broker_fees()
             rec = Reconciler(self.ledger, self.broker,
                              cash_offset=lambda: cotenant_cash_offset(self.db, self.broker)).reconcile(run_id=None)
             if rec.status == "broker_unavailable":

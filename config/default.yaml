@@ -439,6 +439,9 @@ paper:
     stale_heartbeat_seconds: 120  # a RUNNING session without a heartbeat for this long is presumed dead
     data_retry_seconds: 900       # retry a session whose bars are not available yet
     max_job_attempts: 3
+    book_broker_fees: true        # record Alpaca paper's FEE activities (CAT/REG/TAF/ORF/OCC, cents) in the BOT ledger
+    broker_fees_from: null        # YYYY-MM-DD; null = the ledger's start date (earlier fees are in its starting cash)
+    broker_fee_max_auto: 5.0      # USD; a single larger fee is NOT booked: it mismatches and pauses for review
     ingest_lookback_days: 10
   human:
     broker: sim                   # human book is always simulated internally (same fill model as bot)

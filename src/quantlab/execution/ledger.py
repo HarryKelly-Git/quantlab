@@ -19,8 +19,11 @@ a re-derivation of ``core.tradesim``'s cost formula. The two are only approximat
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
+
+import pandas as pd
 
 from quantlab.config import Config
 from quantlab.core.calendar import to_session
@@ -131,6 +134,60 @@ class Ledger:
         row = self.db.fetchone("SELECT COALESCE(SUM(amount), 0) AS total FROM ledger_cash_events WHERE book=?",
                                (self.book,))
         return float(row["total"]) if row else 0.0
+
+    # ------------------------------------------------------------------------------------------
+    # broker-charged fees
+    # ------------------------------------------------------------------------------------------
+    def initialized_on(self) -> str | None:
+        """The ET calendar date the book's starting cash was recorded (YYYY-MM-DD), or None."""
+        row = self.db.fetchone("SELECT created_at FROM ledger_cash_events WHERE book=? AND kind='starting_cash' "
+                               "ORDER BY id LIMIT 1", (self.book,))
+        if not row or not row["created_at"]:
+            return None
+        ts = pd.Timestamp(row["created_at"])
+        ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts
+        return ts.tz_convert("America/New_York").date().isoformat()
+
+    def latest_broker_fee_date(self) -> str | None:
+        row = self.db.fetchone("SELECT MAX(session_date) AS d FROM ledger_cash_events WHERE book=? AND kind='broker_fee'",
+                               (self.book,))
+        return row["d"] if row and row["d"] else None
+
+    def book_broker_fees(self, fees: Iterable[dict[str, Any]], *, since: str,
+                         max_each: float) -> dict[str, list[dict[str, Any]]]:
+        """Record fees the broker charged to the account (Alpaca paper: CAT/REG/TAF/ORF/OCC, cents
+        each) as ``broker_fee`` cash events, so the ledger keeps matching the broker's cash.
+
+        Each fee is recorded once (keyed by the broker's activity id). Fees dated before ``since``
+        (the starting cash already reflects them) and any single fee larger than ``max_each`` in
+        absolute value are NOT recorded: an unexpected charge still shows up as a reconciliation
+        mismatch and pauses the system for human review. Returns ``{"booked": [...], "too_large": [...]}``.
+        """
+        booked: list[dict[str, Any]] = []
+        too_large: list[dict[str, Any]] = []
+        with self.db.transaction():
+            for f in fees:
+                fid, day, amount = str(f["id"]), str(f["date"])[:10], float(f["net_amount"])
+                if day < since:
+                    continue
+                if not math.isfinite(amount) or abs(amount) > max_each:
+                    too_large.append({"id": fid, "date": day, "net_amount": amount})
+                    continue
+                if self.db.fetchone("SELECT 1 FROM ledger_cash_events WHERE book=? AND ref_type='broker_activity' "
+                                    "AND ref_id=?", (self.book, fid)):
+                    continue
+                self.db.insert("ledger_cash_events", {
+                    "book": self.book, "session_date": day, "kind": "broker_fee", "amount": amount,
+                    "symbol": f.get("symbol"), "trade_id": None, "ref_type": "broker_activity", "ref_id": fid,
+                    "details_json": to_json({"description": f.get("description"), "sub_type": f.get("sub_type"),
+                                             "note": "account-level fee as charged by the broker (all books)"}),
+                    "created_at": utcnow_iso(),
+                })
+                booked.append({"id": fid, "date": day, "net_amount": amount})
+        if booked:
+            log_event(log, "broker fees booked", book=self.book, n=len(booked),
+                      total=round(sum(b["net_amount"] for b in booked), 2))
+        return {"booked": booked, "too_large": too_large}
 
     def get_position(self, symbol: str) -> dict[str, Any] | None:
         return self.db.fetchone("SELECT * FROM positions WHERE book=? AND symbol=?", (self.book, symbol))

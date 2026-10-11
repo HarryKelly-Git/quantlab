@@ -17,8 +17,11 @@ Credentials (``APCA-API-KEY-ID`` / ``APCA-API-SECRET-KEY``) come only from
 from __future__ import annotations
 
 import json as _json
+import math
 import time
+from datetime import date, timedelta
 from typing import Any
+from urllib.parse import quote
 
 import requests
 
@@ -346,6 +349,46 @@ class AlpacaPaperBroker(PaperBroker):
         self._require_configured()
         raw = self._request("GET", "/v2/calendar", params={"start": str(start), "end": str(end)}) or []
         return [{"date": r.get("date"), "open": r.get("open"), "close": r.get("close")} for r in raw]
+
+    # -- assets / account activities (read-only) --------------------------------------------------
+    def asset_status(self, symbol: str) -> dict[str, Any] | None:
+        """GET /v2/assets/{symbol}: ``{"symbol", "status", "tradable"}``; None for an unknown symbol.
+        A company acquired for cash turns ``inactive`` / ``tradable: false`` (verified: WBD,
+        2026-10-11), and an order for it is refused."""
+        self._require_configured()
+        raw = self._request("GET", f"/v2/assets/{quote(str(symbol), safe='')}", not_found_ok=True)
+        if not isinstance(raw, dict):
+            return None
+        tradable = raw.get("tradable")
+        return {"symbol": raw.get("symbol"), "status": raw.get("status"),
+                "tradable": tradable if isinstance(tradable, bool) else None}
+
+    def fee_activities(self, since: str) -> list[dict[str, Any]]:
+        """GET /v2/account/activities/FEE (paged, oldest first) for fees dated on/after ``since``.
+        Alpaca paper charges CAT/REG/TAF/ORF/OCC fees as FEE activities (verified 2026-10-11; one
+        row per fee type per trade date, posted about 20:05 ET that evening)."""
+        self._require_configured()
+        first = date.fromisoformat(str(since)[:10])
+        params: dict[str, Any] = {"after": (first - timedelta(days=7)).isoformat(), "direction": "asc",
+                                  "page_size": 100}
+        out: list[dict[str, Any]] = []
+        for _ in range(1000):                      # bounded: 100,000 fee rows is far beyond any account
+            page = self._request("GET", "/v2/account/activities/FEE", params=params) or []
+            if not isinstance(page, list):
+                raise BrokerError("alpaca_paper: unexpected body from /v2/account/activities/FEE")
+            for a in page:
+                if a.get("activity_type") != "FEE" or str(a.get("date") or "")[:10] < first.isoformat():
+                    continue
+                amount = _num(a.get("net_amount"))
+                if amount is None or not math.isfinite(amount) or not a.get("id"):
+                    raise BrokerError(f"alpaca_paper: FEE activity without id/amount: {a.get('id')}")
+                out.append({"id": str(a["id"]), "date": str(a["date"])[:10], "net_amount": amount,
+                            "description": str(a.get("description") or ""), "symbol": a.get("symbol"),
+                            "sub_type": a.get("activity_sub_type")})
+            if len(page) < params["page_size"]:
+                return out
+            params["page_token"] = page[-1]["id"]
+        raise BrokerError("alpaca_paper: /v2/account/activities/FEE did not finish paging")
 
     def stream_url(self) -> str:
         """The PAPER trade_updates websocket. Checked against the paper REST host first."""

@@ -138,6 +138,20 @@ class PaperExecutionService:
         log_event(log, "execution refused", book=self.book, purpose=purpose, symbol=symbol, reason=reason)
         return {"refused": True, "reason": reason, "symbol": symbol, "qty": qty, "purpose": purpose}
 
+    def _untradable_at_broker(self, symbol: str) -> str | None:
+        """Why the broker cannot trade ``symbol`` now (asset inactive or not tradable, e.g. delisted
+        after a cash merger), else None. An unknown answer (a broker that cannot tell, an unknown
+        symbol, or a failed lookup) is None: the order goes to the broker as before."""
+        try:
+            a = self.broker.asset_status(symbol)
+        except BrokerError:
+            return None
+        if not a or (a.get("status") != "inactive" and a.get("tradable") is not False):
+            return None
+        return (f"broker reports {symbol} status={a.get('status')}, tradable={a.get('tradable')} (e.g. delisted "
+                "after a merger): exit not sent; the position stays as the broker holds it until the broker "
+                "settles it; the exit is re-evaluated every session")
+
     def _check_gates(self, purpose: str, symbol: str, qty: float, *, candidate_id: str | None,
                      decision_id: str | None, human_decision_id: str | None, trade_id: str | None,
                      session_date: str | None, ref_price: float | None) -> dict[str, Any] | None:
@@ -332,6 +346,13 @@ class PaperExecutionService:
                                           decision_id=trade["decision_id"],
                                           human_decision_id=trade["human_decision_id"], trade_id=trade_id,
                                           session_date=decision_session)
+        if refusal is None:
+            blocked = self._untradable_at_broker(trade["symbol"])
+            if blocked is not None:
+                refusal = self._refuse("exit", trade["symbol"], qty, blocked, candidate_id=trade["candidate_id"],
+                                       decision_id=trade["decision_id"], human_decision_id=trade["human_decision_id"],
+                                       trade_id=trade_id, session_date=decision_session)
+                self.journal.record_event(trade_id, "exit_blocked", {"reason": reason, "why": blocked})
         if refusal is None:
             # The broker holds the position's shares for a resting protective stop: selling them
             # again would be rejected at best and a double sell at worst. Release it first, and
