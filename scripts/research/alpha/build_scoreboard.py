@@ -325,17 +325,30 @@ FIXES = [
      "status": "FIXED", "detail": "Alpaca's adjusted prices showed fake falls such as NVS -82% (Alcon spin-off, real move "
      "-12%) and UHAL -90% (holders were actually up about 8%). 94 bad stock-days flagged and repaired; 2 tickers reused by "
      "a different company cut off.", "source": "src/quantlab/alpha/ca_fixes.py"},
+    {"title": "Broker fees missing from the bot's books", "where": "Bot runner (master)", "status": "PROPOSED",
+     "detail": "Found 2026-10-11: Alpaca's paper account charges small regulatory and clearing fees (cents per day, "
+     "more with options) that the bot's ledger never records. Its safety check pauses the bot when cash is $1 out, so the "
+     "gap was heading for a false pause within days. Fix: record each broker fee once before the cash check; a single "
+     "fee over $5 is still left to pause for review. Tests added; the full suite passes.",
+     "source": "branch proposal/fees-and-untradable-exits"},
+    {"title": "Exit orders for a stock that can no longer trade", "where": "Bot execution (master)", "status": "PROPOSED",
+     "detail": "WBD was bought out for cash on 6 Oct. The paper account still holds the shares but the broker no longer "
+     "trades them, and the bot's delisting exit fires on Monday 12 Oct. Sending that order would be refused and could "
+     "stop the night's run (pause, no new trades). Fix: check the broker first; if the stock can't trade, record a refused "
+     "exit, keep the position as the broker holds it, and re-check every session.",
+     "source": "branch proposal/fees-and-untradable-exits"},
     {"title": "Every delisting booked as a -30% loss", "where": "Bot backtester (master)",
-     "status": "PROPOSED", "detail": "All 13 delisted trades in the bot's replay were cash takeovers at or above the last "
+     "status": "FIXED", "detail": "All 13 delisted trades in the bot's replay were cash takeovers at or above the last "
      "price, yet the rule booked each as -30%. This flips the bot's backtest from about zero to clearly negative and "
      "skews its own outcome statistics. Fix: takeovers with an Alpaca merger record exit at the last close, others keep "
      "-30%. Alpaca has records for 9 of those 13 (all 2022-24; almost none before 2020), so it fixes most takeovers "
-     "from now on. 985 tests pass.",
-     "source": "https://github.com/HarryKelly-Git/quantlab/pull/3 (draft, not merged)"},
+     "from now on. 985 tests pass. Merged into the bot on 8 Oct.",
+     "source": "https://github.com/HarryKelly-Git/quantlab/pull/3 (merged)"},
     {"title": "Spin-off days booked as real losses in the bot's live data", "where": "Bot price data (master)",
-     "status": "PROPOSED", "detail": "The bot builds returns from raw prices, so a spin-off day looks like a crash. That can "
-     "trigger a stop or a false 'buy the dip' signal. Fix: use the spin-off records the data vendor does provide.",
-     "source": "https://github.com/HarryKelly-Git/quantlab/pull/3 (draft, not merged)"},
+     "status": "FIXED", "detail": "The bot builds returns from raw prices, so a spin-off day looks like a crash. That can "
+     "trigger a stop or a false 'buy the dip' signal. Fix: use the spin-off records the data vendor does provide. "
+     "Merged into the bot on 8 Oct.",
+     "source": "https://github.com/HarryKelly-Git/quantlab/pull/3 (merged)"},
     {"title": "Options matched to the wrong company", "where": "Research data", "status": "FIXED",
      "detail": "Old option chains were joined to whichever company holds the ticker today (e.g. old Caesars vs Eldorado). "
      "One options result showed +31%; corrected, it is +4%.", "source": "docs/ALPHA-DISCOVERY-REPORT-2026-10.md audit"},
@@ -355,19 +368,23 @@ FIXES = [
 ]
 
 NEXT = [
-    {"rank": 1, "action": "Options learning trade during US market hours (before 9am NZ)", "who": "Harry (5 minutes)",
-     "why": "You asked for options no matter what. The bot's options book is off by design and only you can switch it on.",
-     "how": "Steps in the 'What I need from you' list"},
+    {"rank": 1, "action": "Install the bot fix for broker fees and the WBD takeover before Tuesday 12pm NZ", "who": "Harry (10 minutes)",
+     "why": "Without it the bot will most likely pause itself this week: unrecorded fees approach its $1 cash check, and "
+     "its delisting exit for WBD fires on Monday's US run against a stock the broker no longer trades.",
+     "how": "Steps in the 'What I need from you' list (merge, stop, pull, restart)"},
     {"rank": 2, "action": "Send the bot's database export from Wednesday 21 October (NZ time)", "who": "Harry (5 minutes)",
      "why": "The only evidence on the bot's real filters. Free. Analysis runs the moment it lands.",
      "how": "docs/BOT-DB-IMPORT.md (upload in chat)"},
     {"rank": 3, "action": "Let the safety check wait 60 seconds before pausing", "who": "Harry",
-     "why": "Yesterday's pause was a false alarm from an order still filling; the check retries after only 3 seconds.",
+     "why": "The earlier pause was a false alarm from an order still filling; the check retries after only 3 seconds.",
      "how": "config/local.yaml on the PC: paper -> runner -> reconcile_retry_seconds: 60, then restart the bot"},
     {"rank": 4, "action": "Decide on the quality tilt and on leverage for the real-money ETF core", "who": "Harry",
      "why": "The one tilt that passed (profitability) and the risk arithmetic; real money follows your Upside Engine v2 rules.",
      "how": "docs/IMPROVEMENT-PROGRAM.md Part D, docs/RISK-AND-SIZING.md"},
-    {"rank": 5, "action": "Keep insider clusters and O1 straddles as record-only shadows", "who": "Lab",
+    {"rank": 5, "action": "Let the options book run; judge it after 10 closed trades", "who": "Lab",
+     "why": "It is a learning book on stock picks without a proven edge, so the expected result is a slow loss; 10 closed "
+     "trades show whether it pays for itself.", "how": "Bot tab, Options book"},
+    {"rank": 6, "action": "Keep insider clusters and O1 straddles as record-only shadows", "who": "Lab",
      "why": "Positive but not proven; forward records cost nothing.", "how": ""},
 ]
 

@@ -224,6 +224,12 @@ dl.terms dd { margin: 0; color: var(--ink); }
       <div class="tablewrap"><table id="pos"></table></div>
     </div>
     <div class="card stack">
+      <div class="section-head"><h2>Options book (learning trades)</h2><span class="muted" id="opt-sum" style="font-size:13px"></span></div>
+      <div class="tiles" id="opt-tiles"></div>
+      <div class="tablewrap"><table id="opt"></table></div>
+      <p class="note" id="opt-note"></p>
+    </div>
+    <div class="card stack">
       <h2>How the bot's orders actually fill</h2>
       <div id="exec"></div>
       <div class="tablewrap"><table id="fills"></table></div>
@@ -428,32 +434,28 @@ dl.terms dd { margin: 0; color: var(--ink); }
     const tiles = [
       ["Ideas tested", String(c.ideas), "Every one written down before its result"],
       ["Proven money-makers", "0", "1 positive options rule on watch only"],
-      ["Problems found", String(fixed + proposed), `${fixed} fixed in research, ${proposed} proposed for the bot`],
+      ["Problems found", String(fixed + proposed), `${fixed} fixed, ${proposed} waiting for your merge`],
       ["Bot's open trades", money(L.bot_pl), `Same money in SPY: ${money(L.spy_matched_pl)}`]
     ];
     $("#sum-tiles").replaceChildren(...tiles.map(([a, b, s]) => h("div", { class: "tile" }, h("span", { class: "label" }, a), h("span", { class: "value " + (a.startsWith("Bot") ? cls(L.bot_pl) : "") }, b), h("span", { class: "sub" }, s))));
     $("#findings").replaceChildren(...(SB.findings || []).map(f => h("li", {}, h("span", {}, f.text), h("span", { class: "src" }, f.source))));
     const needs = [
-      { id: "options", title: "Options learning trade (US market hours: before 9am NZ)", meta: "The bot's options book is OFF by design; switching it on is your decision. The bot's own rules then pick the trade, and may decline if no option beats the stock. Max $500 premium per trade, defined risk only.",
-        steps: ["In PowerShell: cd \"C:\\Users\\harry\\Downloads\\Businesspilot\\quantlab\"",
-                "Open config\\local.yaml in Notepad (notepad config\\local.yaml) and add these two lines at the end, then save:  options:  (newline, two spaces)  paper_trading: true",
-                "Dry run first (no order): .\\.venv\\Scripts\\python.exe -m quantlab.cli options evaluate --symbol UBER --horizon 25",
-                "Place it: .\\.venv\\Scripts\\python.exe -m quantlab.cli options evaluate --symbol UBER --horizon 25 --paper --qty 1",
-                "If it says STOCK or NO_TRADE, try another liquid name (e.g. --symbol AAPL or --symbol SPY). Check with: .\\.venv\\Scripts\\python.exe -m quantlab.cli options status",
-                "If config\\local.yaml already has an options: section, add paper_trading: true under it instead of a second options: line."] },
+      { id: "fix", title: "Install the bot fix before Tuesday 12pm NZ (about 10 minutes)", meta: "Without it the bot will most likely pause itself this week. (1) Alpaca's paper account now charges small fees that the bot's books do not record; it pauses when cash is $1 out and is already about $0.54 out. (2) On Monday's US run it will try to sell WBD, which was bought out for cash and can no longer be traded. 9 new tests; the full test suite passes.",
+        steps: ["Open github.com/HarryKelly-Git/quantlab/compare/master...proposal/fees-and-untradable-exits and read the description.",
+                "Click Create pull request, then Merge pull request, then Confirm merge.",
+                "Best time: now (Monday NZ; the bot is idle until 1:30am Tuesday), or Tuesday 9:30-11:30am NZ.",
+                "On the PC, open PowerShell in the QuantLab folder: cd \"C:\\Users\\harry\\Downloads\\Businesspilot\\quantlab\"",
+                "Stop the bot: .\\.venv\\Scripts\\python.exe -m quantlab.cli paper stop   then check: .\\.venv\\Scripts\\python.exe -m quantlab.cli paper status  (should say STOPPED).",
+                "Get the fix: git pull origin master   (if it shows an error or a conflict, stop and paste the message to Claude).",
+                "Restart: .\\scripts\\run_paper.cmd   then check paper status says RUNNING."] },
+      { id: "options", title: "Options are on: nothing to do", meta: "The options book has bought calls on its own since 8 October (see the Bot tab, Options book). Optional: test your UBER idea with the bot's own rules during US market hours (2:30-9am NZ).",
+        steps: ["Dry run (no order): .\\.venv\\Scripts\\python.exe -m quantlab.cli options evaluate --symbol UBER --horizon 25",
+                "If it chooses an option, place it: add  --paper --qty 1  to the same command. If it says STOCK or NO_TRADE, that is the rules declining; the book is capped at 3 open positions."] },
       { id: "private", title: "Make the GitHub repository private (30 seconds)", meta: "Claude's cloud access is not allowed to change repository settings, so this one is yours.",
         steps: ["Open github.com/HarryKelly-Git/quantlab and click Settings (top row of tabs).",
                 "Stay on General, scroll to the bottom: Danger Zone.",
                 "Click Change visibility, then Change to private, and confirm (GitHub may ask you to type the repository name).",
                 "Afterwards, git on the PC may ask you to sign in to GitHub once when it next pulls. That is normal."] },
-      { id: "pr", title: "Approve the two bot data fixes (about 10 minutes)", meta: "Do it on a Sunday (NZ), or on a weekday between 9:30am and 11:30am NZ time, when the bot is idle. Draft PR #3: 985 tests pass.",
-        steps: ["Open github.com/HarryKelly-Git/quantlab/pull/3 and read the summary at the top.",
-                "Click Ready for review, then Merge pull request, then Confirm merge.",
-                "On the PC, open PowerShell in the QuantLab folder: in File Explorer open the QuantLab folder (the one containing .venv and scripts), click the address bar, type powershell, press Enter. Or in any PowerShell window: cd \"<path to quantlab>\".",
-                "Stop the bot: .\\.venv\\Scripts\\python.exe -m quantlab.cli paper stop   then check: .\\.venv\\Scripts\\python.exe -m quantlab.cli paper status  (should say STOPPED).",
-                "Get the update: git pull origin master   (if it shows an error or a conflict, stop and paste the message to Claude).",
-                "Refresh past corporate actions so the fix can see them: .\\.venv\\Scripts\\python.exe -m quantlab.cli ingest --kinds corporate_actions --start 2016-01-01 --end YYYY-MM-DD   (yesterday's date; a few minutes).",
-                "Restart the bot: run .\\scripts\\run_paper.cmd (or double-click it), then check paper status says RUNNING."] },
       { id: "db", title: "Send the bot's database (from Wednesday 21 October, NZ time)", meta: `${L.trading_days} of about 20 trading days recorded so far. The copy is safe to make while the bot runs; the bot's own file is not changed.`,
         steps: ["On the PC, open PowerShell in the QuantLab folder (as above). Commands must start with .\\ in PowerShell.",
                 "Paste: .\\.venv\\Scripts\\python.exe -c \"import sqlite3; sqlite3.connect('var/quantlab.db').backup(sqlite3.connect('var/quantlab_export.db'))\"",
@@ -487,7 +489,7 @@ dl.terms dd { margin: 0; color: var(--ink); }
     const start = L.start_capital, last = L.equity_curve.at(-1).v;
     const tiles = [
       ["Account value", money(last, false), `${pc(last / start - 1, 2)} since funding on ${L.account_created}`],
-      ["Invested", money(L.invested, false), `${(L.invested / last * 100).toFixed(0)}% of the account · ${L.positions.length} stocks`],
+      ["Invested", money(L.invested, false), `${(L.invested / last * 100).toFixed(0)}% of the account · ${L.positions.length} stocks, ${L.options.trades.filter(t => t.status === "open").length} options`],
       ["Bot's open trades", money(L.bot_pl), `${pc(L.bot_pl / L.bot_cost, 2)} on ${money(L.bot_cost, false)} · SPY same dates ${money(L.spy_matched_pl)}`],
       ["Days of record", `${L.trading_days} / 20`, "Needed before the bot's own filters can be judged"]
     ];
@@ -503,7 +505,7 @@ dl.terms dd { margin: 0; color: var(--ink); }
       label: "Account value versus SPY", yFmt: (v) => pc(v, 1), tipFmt: (v) => pc(v, 2), zero: 0, areaBase: 0, xFmt: fmtD,
       xTicks: (a, b) => { const out = []; const n = 5; for (let i = 0; i <= n; i++) out.push(a + (b - a) * i / n); return out; }, height: 260 });
     toggles($("#bot-toggles"), series, draw, "bot-series"); draw(); redraws.push(draw);
-    $("#bot-note").textContent = "The account is mostly cash (about 73%), so its line moves far less than SPY's. " + L.manual_tests + " They explain the dip in the first week. The bot's first order was on " + L.first_bot_order + ".";
+    $("#bot-note").textContent = `About ${Math.round(L.cash / last * 100)}% of the account is cash, so its line moves far less than SPY's. ` + L.manual_tests + " They explain the dip in the first week. The bot's first order was on " + L.first_bot_order + "." + (L.equity_note ? " " + L.equity_note : "");
     // positions
     const cols = [["symbol", "Stock"], ["entry_day", "Bought"], ["qty", "Shares", 1], ["entry", "Paid", 1], ["price", "Now", 1], ["value", "Value", 1], ["pl", "Profit", 1], ["pl_pct", "%", 1], ["bar", ""], ["spy_ret", "SPY same days", 1]];
     let sortK = store.get("pos-sort", "pl"), dir = store.get("pos-dir", -1);
@@ -514,7 +516,7 @@ dl.terms dd { margin: 0; color: var(--ink); }
         if (k !== "bar") th.addEventListener("click", () => { dir = sortK === k ? -dir : -1; sortK = k; store.set("pos-sort", k); store.set("pos-dir", dir); renderPos(); }); return th; }));
       const body = rows.map(p => {
         const w = Math.abs(p.pl_pct) / maxAbs * 45;
-        return h("tr", {}, h("td", { class: "num" }, h("b", {}, p.symbol)), h("td", { class: "num muted" }, p.entry_day ? p.entry_day.slice(5) : "UNKNOWN"),
+        return h("tr", {}, h("td", { class: "num" }, h("b", {}, p.symbol), p.tradable ? null : h("span", { class: "muted", title: "The broker no longer trades this stock" }, " · can't trade")), h("td", { class: "num muted" }, p.entry_day ? p.entry_day.slice(5) : "UNKNOWN"),
           h("td", { class: "num r" }, String(p.qty)), h("td", { class: "num r" }, p.entry.toFixed(2)), h("td", { class: "num r" }, p.price.toFixed(2)),
           h("td", { class: "num r" }, money(p.value, false)), h("td", { class: "num r " + cls(p.pl) }, money(p.pl)), h("td", { class: "num r " + cls(p.pl_pct) }, pc(p.pl_pct, 1)),
           h("td", {}, h("div", { class: "plbar" }, h("span", { style: `left:${p.pl_pct >= 0 ? 50 : 50 - w}%;width:${w}%;background:var(${p.pl_pct >= 0 ? "--good" : "--fail"})` }))),
@@ -524,7 +526,25 @@ dl.terms dd { margin: 0; color: var(--ink); }
     }
     renderPos();
     const winners = L.positions.filter(p => p.pl > 0).length;
-    $("#pos-sum").textContent = `${winners} up, ${L.positions.length - winners} down or flat · tap a column to sort`;
+    $("#pos-sum").textContent = `${winners} up, ${L.positions.length - winners} down or flat · tap a column to sort` + (L.untradable.length ? ` · ${L.untradable.join(", ")}: bought out for cash, can no longer be traded; the broker has not paid it out yet` : "");
+    // options book
+    const O = L.options, open = O.trades.filter(t => t.status === "open");
+    $("#opt-tiles").replaceChildren(...[
+      ["Premium at risk", money(O.at_risk, false), `${open.length} open position${open.length === 1 ? "" : "s"}; the most each can lose is what was paid`],
+      ["Open profit", money(O.unrealised), "At the broker's latest price"],
+      ["Closed profit", money(O.realised), `${O.trades.length - open.length} closed`]
+    ].map(([a, b, sub], i) => h("div", { class: "tile" }, h("span", { class: "label" }, a), h("span", { class: "value " + (i ? cls(i === 1 ? O.unrealised : O.realised) : "") }, b), h("span", { class: "sub" }, sub))));
+    const fmtExp = (d) => new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    $("#opt").replaceChildren(h("thead", {}, h("tr", {}, ...["Option", "Bought", "Qty", "Paid", "Now", "Profit", "Stock must reach", "Status"].map((x, i) => h("th", { class: i >= 2 && i <= 5 ? "r" : "" }, x)))),
+      h("tbody", {}, ...O.trades.map(t => h("tr", {},
+        h("td", {}, h("b", {}, t.underlying), ` $${t.strike} ${t.type}, ${fmtExp(t.expiry)}`),
+        h("td", { class: "num muted" }, t.bought_on.slice(5)), h("td", { class: "num r" }, String(t.contracts)),
+        h("td", { class: "num r" }, t.paid.toFixed(2)), h("td", { class: "num r" }, t.status === "open" ? (t.now ?? 0).toFixed(2) : (t.sold_at ?? 0).toFixed(2)),
+        h("td", { class: "num r " + cls(t.realised + t.unrealised) }, money(t.realised + t.unrealised)),
+        h("td", { class: "num" }, t.status === "open" && t.breakeven ? `$${t.breakeven.toFixed(2)} by ${fmtExp(t.expiry)} (${pc(t.move_needed, 1)})` : "–"),
+        h("td", { class: "muted" }, t.status)))));
+    $("#opt-sum").textContent = "Each contract is 100 shares; prices are per share";
+    $("#opt-note").textContent = "Learning trades, run by the bot's options book, which buys calls on the bot's own stock picks. 'Stock must reach' is the break-even price at expiry: the strike plus the premium paid. Research so far: option prices already contain almost everything QuantLab's forecasts know, and buying at the asking price adds cost, so expect this book to lose slowly on average unless the stock picks themselves have an edge. A closed trade means the bot sold it, usually because it sold the stock.";
     // execution
     const E = L.execution;
     $("#exec").replaceChildren(
@@ -532,7 +552,7 @@ dl.terms dd { margin: 0; color: var(--ink); }
       h("div", { class: "tiles" },
         h("div", { class: "tile" }, h("span", { class: "label" }, "Price paid vs official open"), h("span", { class: "value" }, E.fill_vs_open_bps_mean === null ? "UNKNOWN" : (E.fill_vs_open_bps_mean > 0 ? "+" : "") + (E.fill_vs_open_bps_mean / 100).toFixed(2) + "%"), h("span", { class: "sub" }, `Average of ${E.fill_vs_open_n} entries. The backtest already charges 0.07-0.30% per side, so this is inside the assumed cost.`)),
         h("div", { class: "tile" }, h("span", { class: "label" }, "Entries lost"), h("span", { class: "value" }, String(E.lost_entries.length)), h("span", { class: "sub" }, E.lost_entries.length ? E.lost_entries.join(", ") + ": opening order expired and no fallback order was sent." : "None")),
-        h("div", { class: "tile" }, h("span", { class: "label" }, "Under-filled"), h("span", { class: "value" }, String(E.partial.length)), h("span", { class: "sub" }, E.partial.length ? E.partial.join("; ") + ". Partly filled at the open and never topped up. The bot's current code buys the remainder in this case." : "None"))
+        h("div", { class: "tile" }, h("span", { class: "label" }, "Under-filled"), h("span", { class: "value" }, String(E.partial.length)), h("span", { class: "sub" }, E.partial.length ? E.partial.join("; ") + ". Partly filled at the open and never topped up (before the 3 Oct fix; the bot now buys the remainder)." : "None"))
       ));
     $("#fills").replaceChildren(h("thead", {}, h("tr", {}, ...["Day", "Stock", "How it filled", "Price", "Open", "vs open"].map((x, i) => h("th", { class: i > 2 ? "r" : "" }, x)))),
       h("tbody", {}, ...E.fills.map(f => h("tr", {}, h("td", { class: "num muted" }, f.day.slice(5)), h("td", { class: "num" }, h("b", {}, f.symbol)),

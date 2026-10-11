@@ -43,7 +43,14 @@ def account_record(s: requests.Session) -> dict:
     out = {"fetched_at": pd.Timestamp.now(tz="UTC").isoformat(),
            "account": {k: acct.get(k) for k in ("equity", "last_equity", "cash", "long_market_value", "created_at")},
            "positions": get("/v2/positions"),
-           "history": get("/v2/account/portfolio/history", period="3M", timeframe="1D")}
+           "history": get("/v2/account/portfolio/history", period="3M", timeframe="1D"),
+           # hourly marks (Alpaca allows <= 30 days): the daily series leaves out a position that has no
+           # closing bar (WBD after its 2026-10-06 cash merger), the hourly one and /v2/account do not
+           "history_1h": get("/v2/account/portfolio/history", period="4W", timeframe="1H",
+                             intraday_reporting="market_hours")}
+    stocks = sorted({p["symbol"] for p in out["positions"] if p.get("asset_class") == "us_equity"})
+    out["assets"] = {sym: {k: v for k, v in get(f"/v2/assets/{sym}").items() if k in ("status", "tradable", "name")}
+                     for sym in stocks}
     orders, after = [], "2026-09-01T00:00:00Z"
     while True:
         o = get("/v2/orders", status="all", limit=500, after=after, direction="asc")
@@ -82,6 +89,20 @@ def live_summary(s: requests.Session, r: dict) -> dict:
     h = r["history"]
     eq = pd.Series(h["equity"], index=pd.to_datetime(h["timestamp"], unit="s", utc=True).tz_convert(ET).date)
     eq = eq[eq > 0]
+    # prefer each day's last market-hours hourly mark where it exists (see account_record)
+    equity_note = None
+    h1 = r.get("history_1h") or {}
+    if h1.get("timestamp"):
+        e1 = pd.Series(h1["equity"], index=pd.to_datetime(h1["timestamp"], unit="s", utc=True).tz_convert(ET))
+        e1 = e1[e1 > 0]
+        close1 = e1.groupby(e1.index.date).last()
+        gap = (eq.reindex(close1.index) - close1).dropna()
+        off = gap[gap.abs() > 0.005 * close1.reindex(gap.index)]      # small gaps: 15:30 mark vs 16:00 close
+        if len(off):
+            equity_note = (f"Alpaca's daily account history is about ${off.abs().max():,.0f} below its hourly record on "
+                           f"{len(off)} day(s) from {min(off.index)}: it leaves out a holding with no closing price "
+                           "(WBD after its cash takeover). Those days use the hourly record, which matches cash plus holdings.")
+            eq.loc[list(off.index)] = close1.reindex(off.index).to_numpy()
     fetched = pd.Timestamp(r["fetched_at"]).tz_convert(ET)
     # the account's value now belongs to today once the session has opened, otherwise to the last session's close
     t = fetched.tz_localize(None)
@@ -98,20 +119,28 @@ def live_summary(s: requests.Session, r: dict) -> dict:
     spy_open = {b["t"][:10]: b["o"] for b in spy_bars}
     first_day = filled.sort_values("day").groupby("symbol")["day"].first().to_dict()
     pos = []
+    assets = r.get("assets", {})
     for p in r["positions"]:
+        if p.get("asset_class") != "us_equity":
+            continue
         d0 = first_day.get(p["symbol"])
         ret = spy[max(spy)] / spy_open[d0] - 1 if d0 in spy_open else None
-        cost = float(p["avg_entry_price"]) * float(p["qty"])
+        cost = float(p["cost_basis"])
+        a = assets.get(p["symbol"], {})
         pos.append({"symbol": p["symbol"], "qty": float(p["qty"]), "entry": float(p["avg_entry_price"]),
                     "price": float(p["current_price"]), "value": float(p["market_value"]), "pl": float(p["unrealized_pl"]),
                     "pl_pct": float(p["unrealized_plpc"]), "entry_day": d0, "spy_ret": ret,
-                    "spy_pl": cost * ret if ret is not None else None})
+                    "spy_pl": cost * ret if ret is not None else None, "cost": cost,
+                    "tradable": a.get("tradable", True) is not False and a.get("status", "active") != "inactive"})
+    options = options_book(s, r)
     opg = bot[bot["time_in_force"] == "opg"]
     day_orders = set(zip(bot.loc[bot["time_in_force"] == "day", "symbol"], bot.loc[bot["time_in_force"] == "day", "created_at"].str[:10]))
+    # entries only (sells use their own fallback); an order still waiting for its open is not lost
     lost = [f"{x.symbol} {x.created_at[:10]}" for x in opg.itertuples()
-            if x.filled_qty == 0 and (x.symbol, x.created_at[:10]) not in day_orders]
+            if x.side == "buy" and x.status == "expired" and x.filled_qty == 0
+            and (x.symbol, x.created_at[:10]) not in day_orders]
     partial = [f"{x.symbol} {x.filled_qty:g} of {float(x.qty):g} ({x.created_at[5:10]})" for x in opg.itertuples()
-               if 0 < x.filled_qty < float(x.qty)]
+               if x.side == "buy" and 0 < x.filled_qty < float(x.qty) and (x.symbol, x.created_at[:10]) not in day_orders]
     acct = r["account"]
     return {"fetched_at_et": fetched.strftime("%Y-%m-%d %H:%M ET"), "start_capital": 100000.0,
             "equity": float(acct["equity"]), "cash": float(acct["cash"]), "invested": float(acct["long_market_value"]),
@@ -119,13 +148,52 @@ def live_summary(s: requests.Session, r: dict) -> dict:
             "equity_curve": [{"d": str(k), "v": round(float(v), 2)} for k, v in eq.items()],
             "spy_curve": [{"d": k, "v": v} for k, v in sorted(spy.items())],
             "positions": sorted(pos, key=lambda p: -p["pl"]),
-            "bot_pl": round(sum(p["pl"] for p in pos), 2), "bot_cost": round(sum(p["entry"] * p["qty"] for p in pos), 2),
+            "bot_pl": round(sum(p["pl"] for p in pos), 2), "bot_cost": round(sum(p["cost"] for p in pos), 2),
+            "equity_note": equity_note, "options": options,
+            "untradable": [p["symbol"] for p in pos if not p["tradable"]],
             "spy_matched_pl": round(sum(p["spy_pl"] for p in pos if p["spy_pl"] is not None), 2),
             "manual_tests": MANUAL_NOTE,
             "execution": {"opg_orders": int(len(opg)), "partial": partial, "opg_partial": int(((opg["filled_qty"] > 0) & (opg["status"] != "filled")).sum()),
                           "lost_entries": lost, "fills": fills, "fill_vs_open_n": len(fills),
                           "fill_vs_open_bps_mean": round(sum(f["fill_vs_open_bps"] for f in fills) / len(fills), 1) if fills else None},
             "trading_days": int(len(pd.bdate_range(acct["created_at"][:10], str(eq.index[-1]))))}
+
+
+def options_book(s: requests.Session, r: dict) -> dict:
+    """The OPT book's option trades (client ids ``qlopt-``): what was paid, what it is worth, and what the
+    stock must do by expiry. Prices per share; each contract is 100 shares. Read-only."""
+    o = pd.DataFrame(r["orders"])
+    o = o[o["client_order_id"].str.startswith("qlopt-") & (o["filled_qty"].astype(float) > 0)].copy()
+    held = {p["symbol"]: p for p in r["positions"] if p.get("asset_class") == "us_option"}
+    rows = []
+    for occ, g in o.groupby("symbol"):
+        q, px = g["filled_qty"].astype(float), g["filled_avg_price"].astype(float)
+        b, sl = g["side"] == "buy", g["side"] == "sell"
+        bought, sold = float(q[b].sum()), float(q[sl].sum())
+        paid = float((q[b] * px[b]).sum() / bought) if bought else None
+        got = float((q[sl] * px[sl]).sum() / sold) if sold else None
+        und, kind, strike = occ[:-15], occ[-9], int(occ[-8:]) / 1000
+        expiry = f"20{occ[-15:-13]}-{occ[-13:-11]}-{occ[-11:-9]}"
+        hp = held.get(occ)
+        now = float(hp["current_price"]) if hp else None
+        bars = daily_bars(s, und, (pd.Timestamp.now(tz=ET) - pd.Timedelta(days=10)).strftime("%Y-%m-%d"))
+        spot = bars[-1]["c"] if bars else None
+        be = (strike + paid if kind == "C" else strike - paid) if paid is not None else None
+        rows.append({
+            "contract": occ, "underlying": und, "type": "call" if kind == "C" else "put", "strike": strike,
+            "expiry": expiry, "bought_on": pd.Timestamp(g.loc[b, "filled_at"].min()).tz_convert(ET).strftime("%Y-%m-%d"),
+            "contracts": bought, "paid": round(paid, 4) if paid else None,
+            "premium": round(paid * bought * 100, 2) if paid else None,
+            "open": bought - sold, "now": now, "sold_at": round(got, 4) if got is not None else None,
+            "realised": round((got - paid) * sold * 100, 2) if got is not None and paid is not None else 0.0,
+            "unrealised": float(hp["unrealized_pl"]) if hp else 0.0,
+            "stock": spot, "breakeven": round(be, 2) if be is not None else None,
+            "move_needed": round(be / spot - 1, 4) if be and spot else None,
+            "status": "open" if hp else "closed"})
+    rows.sort(key=lambda x: x["bought_on"])
+    return {"trades": rows, "realised": round(sum(x["realised"] for x in rows), 2),
+            "unrealised": round(sum(x["unrealised"] for x in rows), 2),
+            "at_risk": round(sum(x["paid"] * x["open"] * 100 for x in rows if x["open"] > 0), 2)}
 
 
 def main() -> None:
