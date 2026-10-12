@@ -330,13 +330,13 @@ FIXES = [
      "more with options) that the bot's ledger never records. Its safety check pauses the bot when cash is $1 out, so the "
      "gap was heading for a false pause within days. Fix: record each broker fee once before the cash check; a single "
      "fee over $5 is still left to pause for review. Tests added; the full suite passes.",
-     "source": "branch proposal/fees-and-untradable-exits"},
+     "source": "https://github.com/HarryKelly-Git/quantlab/pull/4"},
     {"title": "Exit orders for a stock that can no longer trade", "where": "Bot execution (master)", "status": "PROPOSED",
      "detail": "WBD was bought out for cash on 6 Oct. The paper account still holds the shares but the broker no longer "
      "trades them, and the bot's delisting exit fires on Monday 12 Oct. Sending that order would be refused and could "
      "stop the night's run (pause, no new trades). Fix: check the broker first; if the stock can't trade, record a refused "
      "exit, keep the position as the broker holds it, and re-check every session.",
-     "source": "branch proposal/fees-and-untradable-exits"},
+     "source": "https://github.com/HarryKelly-Git/quantlab/pull/4"},
     {"title": "Every delisting booked as a -30% loss", "where": "Bot backtester (master)",
      "status": "FIXED", "detail": "All 13 delisted trades in the bot's replay were cash takeovers at or above the last "
      "price, yet the rule booked each as -30%. This flips the bot's backtest from about zero to clearly negative and "
@@ -371,7 +371,7 @@ NEXT = [
     {"rank": 1, "action": "Install the bot fix for broker fees and the WBD takeover before Tuesday 12pm NZ", "who": "Harry (10 minutes)",
      "why": "Without it the bot will most likely pause itself this week: unrecorded fees approach its $1 cash check, and "
      "its delisting exit for WBD fires on Monday's US run against a stock the broker no longer trades.",
-     "how": "Steps in the 'What I need from you' list (merge, stop, pull, restart)"},
+     "how": "Pull request #4, then the steps in 'What I need from you' (stop, pull, restart)"},
     {"rank": 2, "action": "Send the bot's database export from Wednesday 21 October (NZ time)", "who": "Harry (5 minutes)",
      "why": "The only evidence on the bot's real filters. Free. Analysis runs the moment it lands.",
      "how": "docs/BOT-DB-IMPORT.md (upload in chat)"},

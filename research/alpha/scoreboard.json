@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-10-11 22:46 UTC",
+ "generated_at": "2026-10-12 08:08 UTC",
  "headline": "No money-making rule has been proven yet. The paper bot runs, but its strategies earn about zero on honest 2016-24 data.",
  "paper_only": true,
  "holdout": "2025+ data is sealed and untouched (0 of 1 uses).",
@@ -680,14 +680,14 @@
    "where": "Bot runner (master)",
    "status": "PROPOSED",
    "detail": "Found 2026-10-11: Alpaca's paper account charges small regulatory and clearing fees (cents per day, more with options) that the bot's ledger never records. Its safety check pauses the bot when cash is $1 out, so the gap was heading for a false pause within days. Fix: record each broker fee once before the cash check; a single fee over $5 is still left to pause for review. Tests added; the full suite passes.",
-   "source": "branch proposal/fees-and-untradable-exits"
+   "source": "https://github.com/HarryKelly-Git/quantlab/pull/4"
   },
   {
    "title": "Exit orders for a stock that can no longer trade",
    "where": "Bot execution (master)",
    "status": "PROPOSED",
    "detail": "WBD was bought out for cash on 6 Oct. The paper account still holds the shares but the broker no longer trades them, and the bot's delisting exit fires on Monday 12 Oct. Sending that order would be refused and could stop the night's run (pause, no new trades). Fix: check the broker first; if the stock can't trade, record a refused exit, keep the position as the broker holds it, and re-check every session.",
-   "source": "branch proposal/fees-and-untradable-exits"
+   "source": "https://github.com/HarryKelly-Git/quantlab/pull/4"
   },
   {
    "title": "Every delisting booked as a -30% loss",
@@ -745,7 +745,7 @@
    "action": "Install the bot fix for broker fees and the WBD takeover before Tuesday 12pm NZ",
    "who": "Harry (10 minutes)",
    "why": "Without it the bot will most likely pause itself this week: unrecorded fees approach its $1 cash check, and its delisting exit for WBD fires on Monday's US run against a stock the broker no longer trades.",
-   "how": "Steps in the 'What I need from you' list (merge, stop, pull, restart)"
+   "how": "Pull request #4, then the steps in 'What I need from you' (stop, pull, restart)"
   },
   {
    "rank": 2,

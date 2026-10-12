@@ -440,10 +440,10 @@ dl.terms dd { margin: 0; color: var(--ink); }
     $("#sum-tiles").replaceChildren(...tiles.map(([a, b, s]) => h("div", { class: "tile" }, h("span", { class: "label" }, a), h("span", { class: "value " + (a.startsWith("Bot") ? cls(L.bot_pl) : "") }, b), h("span", { class: "sub" }, s))));
     $("#findings").replaceChildren(...(SB.findings || []).map(f => h("li", {}, h("span", {}, f.text), h("span", { class: "src" }, f.source))));
     const needs = [
-      { id: "fix", title: "Install the bot fix before Tuesday 12pm NZ (about 10 minutes)", meta: "Without it the bot will most likely pause itself this week. (1) Alpaca's paper account now charges small fees that the bot's books do not record; it pauses when cash is $1 out and is already about $0.54 out. (2) On Monday's US run it will try to sell WBD, which was bought out for cash and can no longer be traded. 9 new tests; the full test suite passes.",
-        steps: ["Open github.com/HarryKelly-Git/quantlab/compare/master...proposal/fees-and-untradable-exits and read the description.",
-                "Click Create pull request, then Merge pull request, then Confirm merge.",
-                "Best time: now (Monday NZ; the bot is idle until 1:30am Tuesday), or Tuesday 9:30-11:30am NZ.",
+      { id: "fix", title: "Install the bot fix before Tuesday 12pm NZ (about 10 minutes)", meta: "Without it the bot will most likely pause itself this week. (1) Alpaca's paper account now charges small fees that the bot's books do not record; it pauses when cash is $1 out and is already about $0.54 out. (2) On Monday's US run it will try to sell WBD, which was bought out for cash and can no longer be traded. 9 new tests; the full test suite (994) passes; checked read-only against the live paper account.",
+        steps: ["Open github.com/HarryKelly-Git/quantlab/pull/4 and read the description.",
+                "Click Merge pull request, then Confirm merge.",
+                "Best time: tonight before bed (the bot is idle until the 2:30am NZ open), or Tuesday 9:30-11:30am NZ at the latest.",
                 "On the PC, open PowerShell in the QuantLab folder: cd \"C:\\Users\\harry\\Downloads\\Businesspilot\\quantlab\"",
                 "Stop the bot: .\\.venv\\Scripts\\python.exe -m quantlab.cli paper stop   then check: .\\.venv\\Scripts\\python.exe -m quantlab.cli paper status  (should say STOPPED).",
                 "Get the fix: git pull origin master   (if it shows an error or a conflict, stop and paste the message to Claude).",
