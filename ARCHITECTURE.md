@@ -371,6 +371,12 @@ processed later records its decisions but every order is refused ("execution win
 One `paper_session_jobs` row per (book, D) holds the pipeline run_id; a restart resumes that run,
 so candidates and client ids are identical and nothing is resubmitted. Fills arrive on the stream
 (REST polling is the fallback) and are applied to the ledger, then reconciled.
+Before each cash comparison the runner books the broker's FEE activities (Alpaca paper charges
+CAT/REG/TAF/ORF/OCC fees, cents each; only those dated on/after the ledger's seeding) as `broker_fee`
+cash events, once each by activity id; a single fee above `paper.runner.broker_fee_max_auto` is left
+unbooked, so it still mismatches and pauses. An exit for an asset the broker reports inactive or not
+tradable (e.g. delisted after a cash merger) is refused before submission (`execution_refusals`,
+trade event `exit_blocked`) and re-evaluated every session; the position stays as the broker holds it.
 
 The runner pauses the system (and keeps monitoring) on: stale/invalid data, an unverifiable broker,
 a reconciliation mismatch, a broker order unknown to QuantLab, a pipeline failure, or any
