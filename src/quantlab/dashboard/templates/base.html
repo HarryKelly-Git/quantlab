@@ -23,7 +23,7 @@ h2{margin:18px 0 6px;font-size:17px}
 </style></head><body>
 <header><strong>QuantLab</strong><span class="muted">PAPER ONLY</span>
 <a href="/">market discovery</a><a href="/live">live</a><a href="/overview">overview</a><a href="/signals">signals &amp; decisions</a><a href="/portfolio/bot">bot book</a><a href="/portfolio/human">human book</a>
-<a href="/strategies">strategies</a><a href="/shadow">shadow</a><a href="/reports">reports</a><a href="/research">research</a><a href="/system">system</a>
+<a href="/strategies">strategies</a><a href="/shadow">shadow</a><a href="/reports">reports</a><a href="/research">research</a><a href="/alpha">alpha discovery</a><a href="/system">system</a>
 <span class="state {{ state }}">{{ state }}</span></header>
 <main>{% if state != "ACTIVE" %}<div class="banner">SYSTEM PAUSED: {{ state_reason }}. No new paper orders until a human resumes.</div>{% endif %}
 {% block body %}{% endblock %}</main></body></html>

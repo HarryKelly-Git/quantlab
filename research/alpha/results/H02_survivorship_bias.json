@@ -1,0 +1,77 @@
+{
+ "n_names_full": 1906.785335689046,
+ "n_names_survivors": 1572.0,
+ "universe_ew": {
+  "full": {
+   "cagr": 0.08529843573499618,
+   "sharpe": 0.4981876186755927,
+   "max_drawdown": -0.43405241850275067,
+   "total_return": 1.086307507326349
+  },
+  "survivors_only": {
+   "cagr": 0.09734024452744627,
+   "sharpe": 0.5537637011916111,
+   "max_drawdown": -0.4278939197145917,
+   "total_return": 1.3037291914196838
+  },
+  "bias_cagr_pp": 1.2041808792450093,
+  "full_delist_distressed_minus100_cagr": 0.08508645646667445,
+  "full_delist_all_zero_cagr": 0.08538928057665762
+ },
+ "momentum_12_1": {
+  "full": {
+   "cagr": 0.11251554722997348,
+   "sharpe": 0.5137221225429426,
+   "max_drawdown": -0.4562152230512334,
+   "total_return": 1.6062722668079354
+  },
+  "survivors_only": {
+   "cagr": 0.127756247036952,
+   "sharpe": 0.5577875503176731,
+   "max_drawdown": -0.47500176629609847,
+   "total_return": 1.945156382663579
+  },
+  "bias_cagr_pp": 1.5240699806978508,
+  "full_delist_distressed_minus100_cagr": 0.11176892394175164,
+  "full_delist_all_zero_cagr": 0.11283508942131437
+ },
+ "reversal_losers_5d": {
+  "full": {
+   "cagr": 0.039490330478341384,
+   "sharpe": 0.2784148877336601,
+   "max_drawdown": -0.6533811528067852,
+   "total_return": 0.4161755525760684
+  },
+  "survivors_only": {
+   "cagr": 0.06388051092442537,
+   "sharpe": 0.35573811061956334,
+   "max_drawdown": -0.6318690827535818,
+   "total_return": 0.7442503065331534
+  },
+  "bias_cagr_pp": 2.4390180446083987,
+  "full_delist_distressed_minus100_cagr": 0.038858223663230884,
+  "full_delist_all_zero_cagr": 0.039761111314098985
+ },
+ "high_vol": {
+  "full": {
+   "cagr": 0.01128655605762141,
+   "sharpe": 0.21410174007431934,
+   "max_drawdown": -0.7258623655613688,
+   "total_return": 0.10609068654312126
+  },
+  "survivors_only": {
+   "cagr": 0.06649751328660458,
+   "sharpe": 0.35934823870769805,
+   "max_drawdown": -0.7091618112329062,
+   "total_return": 0.7831784924531116
+  },
+  "bias_cagr_pp": 5.521095722898317,
+  "full_delist_distressed_minus100_cagr": 0.010400718000177278,
+  "full_delist_all_zero_cagr": 0.011666024484513926
+ },
+ "delistings": {
+  "n_delisted": 1871,
+  "n_distressed": 645,
+  "n_renamed_not_delisted": 16
+ }
+}

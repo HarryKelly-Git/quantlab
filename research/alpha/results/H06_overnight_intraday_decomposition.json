@@ -1,0 +1,163 @@
+{
+ "note": "gross P&L of the selected variant held close-to-close, split into the overnight (close->open) and intraday (open->close) legs; descriptive, no selection, no trial",
+ "H01:L10_raw_equal_ls_h5": {
+  "TRAIN": {
+   "overnight": {
+    "mean_bps": 1.7047240801232013,
+    "t_nw": 0.8459924326607967
+   },
+   "intraday": {
+    "mean_bps": 2.530148476680854,
+    "t_nw": 1.2651145327409075
+   }
+  },
+  "VALIDATION": {
+   "overnight": {
+    "mean_bps": -0.5935899591706442,
+    "t_nw": -0.14072660573660042
+   },
+   "intraday": {
+    "mean_bps": 0.47158248251010565,
+    "t_nw": 0.06235080624731826
+   }
+  },
+  "OOS": {
+   "overnight": {
+    "mean_bps": 4.009679900886897,
+    "t_nw": 2.163640745029236
+   },
+   "intraday": {
+    "mean_bps": -2.8565189218649807,
+    "t_nw": -0.8116580464810282
+   }
+  }
+ },
+ "H03:MOM_252_cond_strong_breadth": {
+  "TRAIN": {
+   "overnight": {
+    "mean_bps": 3.9335354595294185,
+    "t_nw": 5.747955993493064
+   },
+   "intraday": {
+    "mean_bps": 0.8540709287374069,
+    "t_nw": 0.4573773727310838
+   }
+  },
+  "VALIDATION": {
+   "overnight": {
+    "mean_bps": 4.543209208307839,
+    "t_nw": 1.2094813346708402
+   },
+   "intraday": {
+    "mean_bps": -4.427384254720923,
+    "t_nw": -0.7537642594360355
+   }
+  },
+  "OOS": {
+   "overnight": {
+    "mean_bps": 4.450611373370757,
+    "t_nw": 3.368470987460186
+   },
+   "intraday": {
+    "mean_bps": -0.8971508381352737,
+    "t_nw": -0.35430032969123304
+   }
+  }
+ },
+ "H04:RM_6-1_two_factor_sum_equal": {
+  "TRAIN": {
+   "overnight": {
+    "mean_bps": 3.5258691732287346,
+    "t_nw": 3.6601395902794773
+   },
+   "intraday": {
+    "mean_bps": 0.7264531066943685,
+    "t_nw": 0.2404707642864585
+   }
+  },
+  "VALIDATION": {
+   "overnight": {
+    "mean_bps": 5.547879221148054,
+    "t_nw": 1.6290221913383116
+   },
+   "intraday": {
+    "mean_bps": -4.328128271552587,
+    "t_nw": -0.7058434533087148
+   }
+  },
+  "OOS": {
+   "overnight": {
+    "mean_bps": 6.457885502501742,
+    "t_nw": 4.569907177707177
+   },
+   "intraday": {
+    "mean_bps": -3.2247387898407807,
+    "t_nw": -0.9424654623279303
+   }
+  }
+ },
+ "H16:MAX5_equal": {
+  "TRAIN": {
+   "overnight": {
+    "mean_bps": -3.0891691126610876,
+    "t_nw": -2.3527660220876396
+   },
+   "intraday": {
+    "mean_bps": 4.817855070204219,
+    "t_nw": 1.514682762418849
+   }
+  },
+  "VALIDATION": {
+   "overnight": {
+    "mean_bps": -11.790971310038001,
+    "t_nw": -2.5870556263253204
+   },
+   "intraday": {
+    "mean_bps": 8.385985972151909,
+    "t_nw": 1.1421172273166817
+   }
+  },
+  "OOS": {
+   "overnight": {
+    "mean_bps": 0.5683373570128303,
+    "t_nw": 0.18543662114852208
+   },
+   "intraday": {
+    "mean_bps": 2.711873116507514,
+    "t_nw": 0.4892605234671816
+   }
+  }
+ },
+ "H17:IVOL63_two_factor_equal": {
+  "TRAIN": {
+   "overnight": {
+    "mean_bps": -3.2406413778767633,
+    "t_nw": -2.232670159696174
+   },
+   "intraday": {
+    "mean_bps": 4.615851172650214,
+    "t_nw": 1.1900942848531644
+   }
+  },
+  "VALIDATION": {
+   "overnight": {
+    "mean_bps": -13.595843707665024,
+    "t_nw": -2.922787507841546
+   },
+   "intraday": {
+    "mean_bps": 7.089570670964666,
+    "t_nw": 0.8500667919066842
+   }
+  },
+  "OOS": {
+   "overnight": {
+    "mean_bps": -0.1489887752475216,
+    "t_nw": -0.051058825801944686
+   },
+   "intraday": {
+    "mean_bps": 4.442296742645877,
+    "t_nw": 0.7773015456680613
+   }
+  }
+ }
+}

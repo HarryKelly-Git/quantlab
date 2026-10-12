@@ -543,6 +543,11 @@ def create_app(ctx: AppContext | None = None) -> FastAPI:
         holdout = db.fetchall("SELECT * FROM holdout_access_log ORDER BY id DESC")
         return render(request, "research.html", hyps=hyps, ledger=ledger, notes=notes, holdout=holdout)
 
+    @app.get("/alpha", response_class=HTMLResponse)
+    def alpha(request: Request):
+        from quantlab.dashboard.alpha import alpha_state
+        return render(request, "alpha.html", a=alpha_state())
+
     @app.get("/system", response_class=HTMLResponse)
     def system(request: Request):
         runs = db.fetchall("SELECT run_id, kind, as_of_date, status, started_at, git_commit, git_dirty, error "

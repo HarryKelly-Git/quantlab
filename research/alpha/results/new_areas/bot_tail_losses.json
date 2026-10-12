@@ -1,0 +1,116 @@
+{
+ "source": "Area F base replay (S1, corrected delisting), docs/NEW-AREAS-PREREG.md section F",
+ "git": "8a70a46491e30706e5372264031b33a18812ff9b",
+ "trades": 1325,
+ "total_pnl": 5573.95,
+ "big_losers": {
+  "threshold": -0.25,
+  "n": 69,
+  "share": 0.0521,
+  "pnl": -46369.39,
+  "exit_reasons": {
+   "STOP": 50,
+   "TIME": 19
+  },
+  "by_strategy": {
+   "breakout": 5,
+   "extreme_reversal": 4,
+   "momentum_trend": 28,
+   "relative_strength": 26,
+   "sector_rotation": 6
+  },
+  "worst": [
+   {
+    "strategy_id": "relative_strength",
+    "symbol": "SKYH",
+    "entry_date": "2022-03-15",
+    "exit_reason": "STOP",
+    "net_ret": "-0.6866012949039265"
+   },
+   {
+    "strategy_id": "momentum_trend",
+    "symbol": "RIOT",
+    "entry_date": "2017-12-27",
+    "exit_reason": "STOP",
+    "net_ret": "-0.6850135022450288"
+   },
+   {
+    "strategy_id": "breakout",
+    "symbol": "AMC",
+    "entry_date": "2024-05-14",
+    "exit_reason": "STOP",
+    "net_ret": "-0.6436136363636361"
+   },
+   {
+    "strategy_id": "momentum_trend",
+    "symbol": "ANVS",
+    "entry_date": "2021-07-20",
+    "exit_reason": "STOP",
+    "net_ret": "-0.6416404757262623"
+   },
+   {
+    "strategy_id": "momentum_trend",
+    "symbol": "ABTS",
+    "entry_date": "2021-07-22",
+    "exit_reason": "STOP",
+    "net_ret": "-0.6368543438077632"
+   },
+   {
+    "strategy_id": "relative_strength",
+    "symbol": "MRIN@2025-06-21",
+    "entry_date": "2021-07-13",
+    "exit_reason": "TIME",
+    "net_ret": "-0.6270094777562863"
+   },
+   {
+    "strategy_id": "relative_strength",
+    "symbol": "CIIG@2023-04-23",
+    "entry_date": "2024-08-06",
+    "exit_reason": "STOP",
+    "net_ret": "-0.5960939849624061"
+   },
+   {
+    "strategy_id": "relative_strength",
+    "symbol": "CODX",
+    "entry_date": "2020-02-28",
+    "exit_reason": "STOP",
+    "net_ret": "-0.590243654822335"
+   },
+   {
+    "strategy_id": "relative_strength",
+    "symbol": "NCTY",
+    "entry_date": "2021-03-12",
+    "exit_reason": "TIME",
+    "net_ret": "-0.5871216891463745"
+   },
+   {
+    "strategy_id": "relative_strength",
+    "symbol": "RKDA",
+    "entry_date": "2018-04-10",
+    "exit_reason": "STOP",
+    "net_ret": "-0.584907284768212"
+   }
+  ]
+ },
+ "stop_distance_median_by_strategy": {
+  "breakout": 0.0784,
+  "extreme_reversal": 0.1425,
+  "mean_reversion": 0.0788,
+  "momentum_trend": 0.2626,
+  "relative_strength": 0.2851,
+  "sector_rotation": 0.1891
+ },
+ "stops_at_or_below_zero": 11,
+ "stop_exits": 247,
+ "stop_exits_gapped_10pct_beyond_stop": 27,
+ "pnl_by_year": {
+  "2017": 5232.46,
+  "2018": -8124.66,
+  "2019": 9654.39,
+  "2020": -3990.76,
+  "2021": 211.56,
+  "2022": 1346.02,
+  "2023": -927.38,
+  "2024": 2172.31
+ }
+}

@@ -1,0 +1,81 @@
+{
+ "family": "H21_eps_surprise_drift",
+ "variants": {
+  "SUE_hold21": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 4236,
+     "mean_bps": 103.19626673816107,
+     "median_bps": 10.401178544172828,
+     "hit_rate": 0.5030689329556185,
+     "weekly_t_nw": 2.1943750615151756,
+     "n_weeks": 101,
+     "mean_bps_without_top5pct": -275.76710959651496
+    },
+    "VALIDATION": {
+     "n_events": 2254,
+     "mean_bps": 194.7166800508547,
+     "median_bps": 144.4232772842936,
+     "hit_rate": 0.5390417036379769,
+     "weekly_t_nw": 0.6152661326101276,
+     "n_weeks": 50,
+     "mean_bps_without_top5pct": -123.99769801120671
+    }
+   },
+   "train_2x_costs_mean_bps": 61.07303727640469
+  },
+  "SUE_hold63": {
+   "summary": {
+    "TRAIN": {
+     "n_events": 4203,
+     "mean_bps": 207.82850960887143,
+     "median_bps": 175.7370245953878,
+     "hit_rate": 0.5267665952890792,
+     "weekly_t_nw": 1.4165964750212745,
+     "n_weeks": 101,
+     "mean_bps_without_top5pct": -483.59517030246644
+    },
+    "VALIDATION": {
+     "n_events": 2247,
+     "mean_bps": 144.83315071441996,
+     "median_bps": 172.9287289622019,
+     "hit_rate": 0.527369826435247,
+     "weekly_t_nw": 1.2352772517339419,
+     "n_weeks": 50,
+     "mean_bps_without_top5pct": -334.50739416282573
+    }
+   },
+   "train_2x_costs_mean_bps": 165.75380106735346
+  }
+ },
+ "selected": "SUE_hold63",
+ "oos": {
+  "selected": "SUE_hold63",
+  "n_events": 4167,
+  "mean_bps": 43.774227527596004,
+  "median_bps": 54.8811084698473,
+  "hit_rate": 0.5085193184545236,
+  "weekly_t_nw": -0.44787507165089435,
+  "n_weeks": 90,
+  "mean_bps_without_top5pct": -505.1684639798527,
+  "oos_2x_costs_mean_bps": -4.902038371132128,
+  "oos_rerun_reason": "first run used equity splits; it DID show OOS 2022-24 for SUE_hold21 once (mean +89.6 bps, weekly t -0.01, -228 bps without the top 5%): CONTAMINATED, reported as such"
+ },
+ "bh_train_rejections": 1,
+ "classification": "E",
+ "classification_reason": "development t between 1 and 2 but the result depends on the top 5% of trades; OOS t -0.45",
+ "evidence": {
+  "data_ok": true,
+  "dev_t_net": 1.2352772517339419,
+  "dev_t_gross": null,
+  "oos_t_net": -0.44787507165089435,
+  "oos_mean_net": 0.0043774227527596,
+  "oos_years_positive_frac": null,
+  "deflated_sharpe_prob": null,
+  "spa_p": null,
+  "pbo": null,
+  "survives_2x_costs": false,
+  "survives_top5_removal": false,
+  "regime_conditional_pass": null
+ }
+}

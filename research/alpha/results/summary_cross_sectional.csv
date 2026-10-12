@@ -1,0 +1,8 @@
+family,variants,eff_trials,selected,train_net_bps,train_t,val_net_bps,val_t,dev_t_gross,dsr,spa_p,pbo,oos_sharpe,oos_t,oos_total,oos_beta,class
+H01_short_term_reversal,160,2.0,L10_raw_equal_ls_h5,-0.62,-0.17,-2.72,-0.24,0.94,0.0,1.0,0.2,-0.55,-1.12,-0.316,0.24,E
+H03_momentum_matrix,40,4.1,MOM_252_cond_strong_breadth,3.8,1.86,-0.85,-0.11,0.84,0.0,0.398,0.34,0.59,1.01,0.218,-0.07,E
+H04_residual_momentum,16,1.2,RM_6-1_two_factor_sum_equal,3.1,0.9,-0.19,-0.02,0.74,0.497,0.486,0.61,0.32,0.65,0.136,-0.37,E
+H07_gap_reversal_intraday,4,1.2,GAP_large_equal,-59.32,-18.87,-57.82,-7.65,2.92,0.0,1.0,0.0,-5.55,-10.06,-0.989,0.1,D
+H16_max_lottery,4,1.0,MAX5_equal,0.05,0.01,-6.17,-0.64,-0.18,0.245,1.0,0.26,0.13,0.25,-0.03,-1.2,E
+H17_idiosyncratic_vol,8,1.0,IVOL63_two_factor_equal,0.55,0.13,-8.75,-0.82,-0.48,0.194,1.0,0.34,0.27,0.53,0.112,-1.13,E
+H23_revision_momentum,2,1.2,REV_63,-1.01,-0.39,-0.15,-0.02,0.24,0.33,1.0,0.04,0.21,0.35,0.055,-0.14,E

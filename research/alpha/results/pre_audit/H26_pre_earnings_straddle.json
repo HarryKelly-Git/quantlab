@@ -1,0 +1,173 @@
+{
+ "family": "H26_pre_earnings_straddle",
+ "variants": {
+  "k1": {
+   "event_TRAIN": {
+    "n": 7255,
+    "mean_ask_bid": -0.2954995058697865,
+    "median_ask_bid": -0.2327586788059538,
+    "mean_mid": 0.021077312790915993,
+    "hit_rate": 0.04686423156443832,
+    "t_weekly_nw": -24.0651645926169,
+    "median_spread_frac_in": 0.12442399391757974
+   },
+   "event_VALIDATION": {
+    "n": 3811,
+    "mean_ask_bid": -0.34341257983317214,
+    "median_ask_bid": -0.26855119007100325,
+    "mean_mid": 0.016626719459212992,
+    "hit_rate": 0.03699816321175545,
+    "t_weekly_nw": -23.96956961261687,
+    "median_spread_frac_in": 0.14503813459561954
+   },
+   "event_OOS": {
+    "n": 8169,
+    "mean_ask_bid": -0.30647158486044535,
+    "median_ask_bid": -0.21304346167522925,
+    "mean_mid": 0.024175239482952405,
+    "hit_rate": 0.06047251805606561,
+    "t_weekly_nw": -16.344201349178775,
+    "median_spread_frac_in": 0.11450381345956195
+   },
+   "placebo_TRAIN": {
+    "n": 7545,
+    "mean_ask_bid": -0.3057281695532451,
+    "median_ask_bid": -0.25925927234121127,
+    "mean_mid": 0.013863174054266379,
+    "hit_rate": 0.05778661365142478,
+    "t_weekly_nw": -22.182310005341563,
+    "median_spread_frac_in": 0.12371132297538123
+   },
+   "placebo_VALIDATION": {
+    "n": 4053,
+    "mean_ask_bid": -0.3467607770836938,
+    "median_ask_bid": -0.28282826482708345,
+    "mean_mid": 0.025162585816704813,
+    "hit_rate": 0.0537873180360227,
+    "t_weekly_nw": -27.46220359983495,
+    "median_spread_frac_in": 0.14529913136570483
+   },
+   "placebo_OOS": {
+    "n": 7016,
+    "mean_ask_bid": -0.3205628135521335,
+    "median_ask_bid": -0.2408258098079532,
+    "mean_mid": 0.024011828123233308,
+    "hit_rate": 0.0612884834663626,
+    "t_weekly_nw": -19.804137240014946,
+    "median_spread_frac_in": 0.11933459057659646
+   }
+  },
+  "k2": {
+   "event_TRAIN": {
+    "n": 7162,
+    "mean_ask_bid": -0.2890472445322299,
+    "median_ask_bid": -0.2419354914688544,
+    "mean_mid": 0.031304061229218735,
+    "hit_rate": 0.08475286232895839,
+    "t_weekly_nw": -22.401575909198552,
+    "median_spread_frac_in": 0.12280707184664652
+   },
+   "event_VALIDATION": {
+    "n": 3722,
+    "mean_ask_bid": -0.33990614793203183,
+    "median_ask_bid": -0.2813094202809256,
+    "mean_mid": 0.01985410245741247,
+    "hit_rate": 0.07254164427727028,
+    "t_weekly_nw": -23.361868643359937,
+    "median_spread_frac_in": 0.1450381623817132
+   },
+   "event_OOS": {
+    "n": 7989,
+    "mean_ask_bid": -0.30782296703791306,
+    "median_ask_bid": -0.22784801569337554,
+    "mean_mid": 0.028383040802571282,
+    "hit_rate": 0.08211290524471147,
+    "t_weekly_nw": -12.904039775992207,
+    "median_spread_frac_in": 0.11547913205984939
+   },
+   "placebo_TRAIN": {
+    "n": 7405,
+    "mean_ask_bid": -0.30378739317554376,
+    "median_ask_bid": -0.27659569503279724,
+    "mean_mid": 0.014459035184048433,
+    "hit_rate": 0.09061444969615125,
+    "t_weekly_nw": -27.581638253129814,
+    "median_spread_frac_in": 0.12195122234882305
+   },
+   "placebo_VALIDATION": {
+    "n": 3915,
+    "mean_ask_bid": -0.33471206898556966,
+    "median_ask_bid": -0.2962962554151928,
+    "mean_mid": 0.04650555305369555,
+    "hit_rate": 0.09042145593869731,
+    "t_weekly_nw": -30.46241499218052,
+    "median_spread_frac_in": 0.14634131023673924
+   },
+   "placebo_OOS": {
+    "n": 6785,
+    "mean_ask_bid": -0.3246526952355416,
+    "median_ask_bid": -0.26938777067223374,
+    "mean_mid": 0.024972930431843312,
+    "hit_rate": 0.08843036109064112,
+    "t_weekly_nw": -23.240924707177545,
+    "median_spread_frac_in": 0.12499987582366168
+   }
+  },
+  "k3": {
+   "event_TRAIN": {
+    "n": 6716,
+    "mean_ask_bid": -0.29185697877658406,
+    "median_ask_bid": -0.2520109273585738,
+    "mean_mid": 0.033183236018930064,
+    "hit_rate": 0.09350804050029779,
+    "t_weekly_nw": -20.354583016843037,
+    "median_spread_frac_in": 0.12195122234882305
+   },
+   "event_VALIDATION": {
+    "n": 3516,
+    "mean_ask_bid": -0.3440548550316575,
+    "median_ask_bid": -0.30000001718016234,
+    "mean_mid": 0.026089740457934288,
+    "hit_rate": 0.08048919226393629,
+    "t_weekly_nw": -28.174022767812527,
+    "median_spread_frac_in": 0.1510113493061387
+   },
+   "event_OOS": {
+    "n": 7514,
+    "mean_ask_bid": -0.3119940248491971,
+    "median_ask_bid": -0.2499999254941896,
+    "mean_mid": 0.03826530637485749,
+    "hit_rate": 0.09981368112856003,
+    "t_weekly_nw": -14.34081549990852,
+    "median_spread_frac_in": 0.12121211573878365
+   },
+   "placebo_TRAIN": {
+    "n": 6825,
+    "mean_ask_bid": -0.31413466923487826,
+    "median_ask_bid": -0.2962963175544683,
+    "mean_mid": 0.012591138747267673,
+    "hit_rate": 0.09919413919413919,
+    "t_weekly_nw": -23.613502814990426,
+    "median_spread_frac_in": 0.1192659787904593
+   },
+   "placebo_VALIDATION": {
+    "n": 3704,
+    "mean_ask_bid": -0.33970281149724646,
+    "median_ask_bid": -0.32577416705198126,
+    "mean_mid": 0.055510936548266394,
+    "hit_rate": 0.10529157667386609,
+    "t_weekly_nw": -21.669836758522855,
+    "median_spread_frac_in": 0.15599583080714852
+   },
+   "placebo_OOS": {
+    "n": 6311,
+    "mean_ask_bid": -0.3315939281476631,
+    "median_ask_bid": -0.29787232207733816,
+    "mean_mid": 0.03403023025662176,
+    "hit_rate": 0.10584693392489304,
+    "t_weekly_nw": -21.071847220699418,
+    "median_spread_frac_in": 0.12994345411986208
+   }
+  }
+ }
+}

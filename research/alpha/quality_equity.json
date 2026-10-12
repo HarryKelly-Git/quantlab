@@ -1,0 +1,108 @@
+{
+ "rows": 16979052,
+ "symbols": 12444,
+ "duplicates": 0,
+ "nonpositive_price": 0,
+ "high_below_low": 0,
+ "close_outside_range": 0,
+ "open_outside_range": 0,
+ "zero_volume": 862385,
+ "abs_adj_return_gt_50pct": 10500,
+ "abs_adj_return_gt_100pct": 2380,
+ "unadjusted_split_suspects": 4351,
+ "unadjusted_split_examples": [
+  {
+   "symbol": "AAC",
+   "date": "2016-11-03",
+   "close": "7.8",
+   "adj_close": "7.8"
+  },
+  {
+   "symbol": "AAC.WS",
+   "date": "2022-11-23",
+   "close": "0.1117",
+   "adj_close": "0.1117"
+  },
+  {
+   "symbol": "AACIW",
+   "date": "2022-09-15",
+   "close": "0.1797",
+   "adj_close": "0.1797"
+  },
+  {
+   "symbol": "AACIW",
+   "date": "2022-10-26",
+   "close": "0.04",
+   "adj_close": "0.04"
+  },
+  {
+   "symbol": "AACIW",
+   "date": "2022-12-12",
+   "close": "0.0152",
+   "adj_close": "0.0152"
+  },
+  {
+   "symbol": "AACIW",
+   "date": "2022-12-20",
+   "close": "0.03",
+   "adj_close": "0.03"
+  },
+  {
+   "symbol": "AACIW",
+   "date": "2023-06-05",
+   "close": "0.06",
+   "adj_close": "0.06"
+  },
+  {
+   "symbol": "AACIW",
+   "date": "2023-12-05",
+   "close": "0.0253",
+   "adj_close": "0.0253"
+  },
+  {
+   "symbol": "AACIW",
+   "date": "2024-03-22",
+   "close": "0.0731",
+   "adj_close": "0.0731"
+  },
+  {
+   "symbol": "AACIW",
+   "date": "2024-04-08",
+   "close": "0.1947",
+   "adj_close": "0.1947"
+  },
+  {
+   "symbol": "AAGR",
+   "date": "2023-12-07",
+   "close": "4.7",
+   "adj_close": "4.7"
+  },
+  {
+   "symbol": "AAGR",
+   "date": "2023-12-08",
+   "close": "2.3",
+   "adj_close": "2.3"
+  },
+  {
+   "symbol": "AAGRW",
+   "date": "2022-07-06",
+   "close": "0.15",
+   "adj_close": "0.15"
+  },
+  {
+   "symbol": "AAGRW",
+   "date": "2022-10-04",
+   "close": "0.01",
+   "adj_close": "0.01"
+  },
+  {
+   "symbol": "AAGRW",
+   "date": "2022-10-13",
+   "close": "0.039401",
+   "adj_close": "0.039401"
+  }
+ ],
+ "raw_vs_adjusted_split_days": 2398,
+ "stale_5day_runs": 424144,
+ "status": "REVIEW"
+}

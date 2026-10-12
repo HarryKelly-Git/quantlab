@@ -1,0 +1,175 @@
+{
+ "git": "c52ab6096a69e9f2b5752b14b26efde7145f9145+dirty",
+ "options": {
+  "O1": {
+   "n": 770,
+   "n_dates": 102,
+   "n_underlyings": 316,
+   "mean_pess": 0.08172494307783697,
+   "median_pess": -0.10773798517480859,
+   "hit_rate": 0.44805194805194803,
+   "by_year_pess": {
+    "2023": {
+     "count": 410,
+     "mean": 0.2565,
+     "median": 0.0371
+    },
+    "2024": {
+     "count": 360,
+     "mean": -0.1173,
+     "median": -0.2202
+    }
+   },
+   "by_quarter_pess": {
+    "2023Q1": 0.045,
+    "2023Q2": -0.0739,
+    "2023Q3": 0.3804,
+    "2023Q4": 0.5537,
+    "2024Q1": -0.2363,
+    "2024Q2": -0.0981,
+    "2024Q3": -0.1419,
+    "2024Q4": 0.3202
+   },
+   "top10_share_of_pnl": 0.5383876374472764,
+   "mean_excluding_top1pct": 0.049588838401660916
+  },
+  "O2": {
+   "n": 7151,
+   "n_dates": 136,
+   "n_underlyings": 774,
+   "mean_pess": 0.06397348238067532,
+   "median_pess": -0.9776656921643266,
+   "hit_rate": 0.3403719759474199,
+   "by_year_pess": {
+    "2023": {
+     "count": 3978,
+     "mean": 0.3028,
+     "median": -0.6701
+    },
+    "2024": {
+     "count": 3173,
+     "mean": -0.2354,
+     "median": -1.0
+    }
+   },
+   "by_quarter_pess": {
+    "2023Q1": 0.1795,
+    "2023Q2": -0.1854,
+    "2023Q3": 0.2835,
+    "2023Q4": 0.7629,
+    "2024Q1": -0.2723,
+    "2024Q2": -0.2783,
+    "2024Q3": -0.2462,
+    "2024Q4": 0.1333
+   },
+   "top10_share_of_pnl": 0.25091213279229413,
+   "mean_excluding_top1pct": -0.021993726015353005
+  }
+ },
+ "O1_excess_vs_same_date_baseline": {
+  "definition": "O1 straddle return at the ask minus the mean return of every liquid (spread <= 10%) ~30-DTE straddle on the same snapshot date; settle at intrinsic, no fees (same metric on both sides)",
+  "mean_per_trade": 0.041609841141122914,
+  "by_year": {
+   "2023": 0.1342,
+   "2024": -0.0639
+  },
+  "t_across_dates": 0.9873178637790873,
+  "n_dates": 102,
+  "baseline_mean_on_O1_dates": 0.05482046592178074,
+  "O1_mean_same_metric": 0.09643030706290363
+ },
+ "S1_delisted_trades_master_convention": [
+  {
+   "symbol": "CORI@2018-11-01",
+   "strategy_id": "relative_strength",
+   "entry_date": "2018-10-25",
+   "exit_date": "2018-12-03",
+   "net_ret": "-0.2958721337579619"
+  },
+  {
+   "symbol": "ARII@2018-12-01",
+   "strategy_id": "momentum_trend",
+   "entry_date": "2018-11-30",
+   "exit_date": "2018-12-12",
+   "net_ret": "-0.30404518682258985"
+  },
+  {
+   "symbol": "DOVA",
+   "strategy_id": "momentum_trend",
+   "entry_date": "2019-11-01",
+   "exit_date": "2019-11-18",
+   "net_ret": "-0.30970480056477245"
+  },
+  {
+   "symbol": "CSPR",
+   "strategy_id": "extreme_reversal",
+   "entry_date": "2022-01-18",
+   "exit_date": "2022-01-31",
+   "net_ret": "-0.17591097560975605"
+  },
+  {
+   "symbol": "TPTX",
+   "strategy_id": "relative_strength",
+   "entry_date": "2022-07-12",
+   "exit_date": "2022-08-23",
+   "net_ret": "-0.29271391344873476"
+  },
+  {
+   "symbol": "BHVN",
+   "strategy_id": "breakout",
+   "entry_date": "2022-09-26",
+   "exit_date": "2022-10-07",
+   "net_ret": "-0.30331210380531554"
+  },
+  {
+   "symbol": "TWTR@2022-10-23",
+   "strategy_id": "breakout",
+   "entry_date": "2022-10-05",
+   "exit_date": "2022-11-03",
+   "net_ret": "-0.2533126740947076"
+  },
+  {
+   "symbol": "CCXI",
+   "strategy_id": "momentum_trend",
+   "entry_date": "2022-10-17",
+   "exit_date": "2022-10-26",
+   "net_ret": "-0.30102681940700793"
+  },
+  {
+   "symbol": "AKUS@2022-11-27",
+   "strategy_id": "momentum_trend",
+   "entry_date": "2022-11-18",
+   "exit_date": "2022-12-07",
+   "net_ret": "-0.30307552631578955"
+  },
+  {
+   "symbol": "ALBO@2023-02-26",
+   "strategy_id": "sector_rotation",
+   "entry_date": "2023-02-22",
+   "exit_date": "2023-03-09",
+   "net_ret": "-0.2956288553803975"
+  },
+  {
+   "symbol": "PRVB@2023-04-23",
+   "strategy_id": "relative_strength",
+   "entry_date": "2023-03-20",
+   "exit_date": "2023-05-03",
+   "net_ret": "-0.2709656485355648"
+  },
+  {
+   "symbol": "BLU@2023-06-25",
+   "strategy_id": "sector_rotation",
+   "entry_date": "2023-05-04",
+   "exit_date": "2023-07-06",
+   "net_ret": "-0.29012537931034466"
+  },
+  {
+   "symbol": "NWLI@2024-07-07",
+   "strategy_id": "breakout",
+   "entry_date": "2024-07-05",
+   "exit_date": "2024-07-15",
+   "net_ret": "-0.30187833633633643"
+  }
+ ],
+ "S1_delisted_note": "every one was a cash acquisition (Corium, American Railcar, Dova, Casper, Turning Point, Biohaven, Twitter, ChemoCentryx, Akouos, Albireo, Provention, BELLUS, National Western); master's backtester books -30% on each"
+}

@@ -1,0 +1,9 @@
+{
+ "sealed": true,
+ "holdout_start": "2025-01-01",
+ "sealed_on": "2026-10-07",
+ "max_evaluations": 1,
+ "evaluations_used": 0,
+ "evaluations": [],
+ "note": "2022-24 has been examined repeatedly: it is validation/research history, not a pristine test. Unlock only via alpha.holdout.unlock with a committed pre-registration."
+}

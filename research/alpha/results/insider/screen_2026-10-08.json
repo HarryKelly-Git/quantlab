@@ -1,0 +1,6995 @@
+[
+ {
+  "ticker": "GME",
+  "company": "Gamestop Corp.",
+  "score": 9,
+  "insiders": 5,
+  "top_buyers": [
+   "Cohen Ryan"
+  ],
+  "titles": [
+   "Dir",
+   "Pres, CEO, COB"
+  ],
+  "value": 76304219,
+  "first": "2026-09-08",
+  "last": "2026-10-02",
+  "vwap": 22.48,
+  "price": 24.58,
+  "since_first_buy": 0.3012,
+  "dd_from_52w_high_at_buy": -0.318,
+  "adv_m": 131.1,
+  "flags": []
+ },
+ {
+  "ticker": "BSX",
+  "company": "Boston Scientific Corp",
+  "score": 9,
+  "insiders": 3,
+  "top_buyers": [
+   "Mahoney Michael F"
+  ],
+  "titles": [
+   "COB, Pres, CEO",
+   "Dir"
+  ],
+  "value": 9329216,
+  "first": "2026-07-31",
+  "last": "2026-08-25",
+  "vwap": 48.27,
+  "price": 41.58,
+  "since_first_buy": -0.1102,
+  "dd_from_52w_high_at_buy": -0.568,
+  "adv_m": 869.4,
+  "flags": []
+ },
+ {
+  "ticker": "CDNL",
+  "company": "Cardinal Infrastructure Group Inc.",
+  "score": 9,
+  "insiders": 7,
+  "top_buyers": [
+   "Rowe Michael Bruce Jr.",
+   "Spivey Jeremy Simmons",
+   "Wood Benjamin"
+  ],
+  "titles": [
+   "CEO",
+   "CFO",
+   "COO",
+   "Dir"
+  ],
+  "value": 8541274,
+  "first": "2026-08-14",
+  "last": "2026-08-17",
+  "vwap": 38.54,
+  "price": 26.07,
+  "since_first_buy": -0.3387,
+  "dd_from_52w_high_at_buy": -0.582,
+  "adv_m": 21.7,
+  "flags": []
+ },
+ {
+  "ticker": "APTV",
+  "company": "Aptiv Plc",
+  "score": 9,
+  "insiders": 4,
+  "top_buyers": [
+   "Clark Kevin P"
+  ],
+  "titles": [
+   "Chair, CEO",
+   "Dir"
+  ],
+  "value": 8254508,
+  "first": "2026-08-05",
+  "last": "2026-08-13",
+  "vwap": 48.01,
+  "price": 44.22,
+  "since_first_buy": -0.0593,
+  "dd_from_52w_high_at_buy": -0.388,
+  "adv_m": 160.9,
+  "flags": []
+ },
+ {
+  "ticker": "DKS",
+  "company": "Dick'S Sporting Goods, Inc.",
+  "score": 9,
+  "insiders": 7,
+  "top_buyers": [
+   "Barnes Matthew",
+   "Gupta Navdeep"
+  ],
+  "titles": [
+   "Dir",
+   "EVP, CFO",
+   "Pres - Foot Locker Intl"
+  ],
+  "value": 5588663,
+  "first": "2026-08-26",
+  "last": "2026-09-30",
+  "vwap": 130.59,
+  "price": 131.18,
+  "since_first_buy": 0.0213,
+  "dd_from_52w_high_at_buy": -0.458,
+  "adv_m": 315.4,
+  "flags": []
+ },
+ {
+  "ticker": "BRVE",
+  "company": "Braveheart Bio, Inc.",
+  "score": 8,
+  "insiders": 6,
+  "top_buyers": [
+   "Murdoch Travis",
+   "Rickey James Paul"
+  ],
+  "titles": [
+   "CEO, Pres",
+   "CFO",
+   "Dir",
+   "Dir, 10%"
+  ],
+  "value": 74339964,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 18.0,
+  "price": 18.58,
+  "since_first_buy": -0.3807,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 9.8,
+  "flags": [
+   "recent listing",
+   "round-price (offering?)"
+  ]
+ },
+ {
+  "ticker": "UBER",
+  "company": "Uber Technologies, Inc",
+  "score": 8,
+  "insiders": 2,
+  "top_buyers": [
+   "Khosrowshahi Dara"
+  ],
+  "titles": [
+   "CEO",
+   "See Remarks"
+  ],
+  "value": 15314016,
+  "first": "2026-09-04",
+  "last": "2026-09-10",
+  "vwap": 72.58,
+  "price": 68.45,
+  "since_first_buy": -0.0965,
+  "dd_from_52w_high_at_buy": -0.243,
+  "adv_m": 1185.2,
+  "flags": []
+ },
+ {
+  "ticker": "ACI",
+  "company": "Albertsons Companies, Inc.",
+  "score": 8,
+  "insiders": 3,
+  "top_buyers": [
+   "McCollam Sharon",
+   "Morris Susan"
+  ],
+  "titles": [
+   "CEO",
+   "EVP, M, A, Corporate Affairs",
+   "Pres, CFO"
+  ],
+  "value": 2515543,
+  "first": "2026-07-27",
+  "last": "2026-07-31",
+  "vwap": 11.49,
+  "price": 11.74,
+  "since_first_buy": 0.0325,
+  "dd_from_52w_high_at_buy": -0.407,
+  "adv_m": 83.0,
+  "flags": []
+ },
+ {
+  "ticker": "AMRZ",
+  "company": "Amrize Ltd",
+  "score": 8,
+  "insiders": 7,
+  "top_buyers": [
+   "Jenisch Jan Philipp",
+   "Oran Baris"
+  ],
+  "titles": [
+   "CFO",
+   "COB, CEO",
+   "Chief People Officer",
+   "Chief Strategy, M, A Officer"
+  ],
+  "value": 2431718,
+  "first": "2026-08-11",
+  "last": "2026-09-02",
+  "vwap": 44.22,
+  "price": 36.39,
+  "since_first_buy": -0.2318,
+  "dd_from_52w_high_at_buy": -0.27,
+  "adv_m": 145.5,
+  "flags": []
+ },
+ {
+  "ticker": "AMRC",
+  "company": "Ameresco, Inc.",
+  "score": 8,
+  "insiders": 3,
+  "top_buyers": [
+   "Sakellaris George P"
+  ],
+  "titles": [
+   "CEO, 10%",
+   "Dir"
+  ],
+  "value": 1806300,
+  "first": "2026-08-07",
+  "last": "2026-08-26",
+  "vwap": 23.76,
+  "price": 21.93,
+  "since_first_buy": -0.145,
+  "dd_from_52w_high_at_buy": -0.407,
+  "adv_m": 13.7,
+  "flags": []
+ },
+ {
+  "ticker": "BBD",
+  "company": "Bank Bradesco",
+  "score": 7,
+  "insiders": 22,
+  "top_buyers": [],
+  "titles": [
+   "Dir",
+   "Exec Officer"
+  ],
+  "value": 67300649,
+  "first": "2026-08-25",
+  "last": "2026-09-28",
+  "vwap": 17.48,
+  "price": 4.34,
+  "since_first_buy": 0.337,
+  "dd_from_52w_high_at_buy": -0.216,
+  "adv_m": 99.7,
+  "flags": [
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "BABA",
+  "company": "Alibaba Group Holding Ltd",
+  "score": 7,
+  "insiders": 2,
+  "top_buyers": [
+   "Wu Yongming"
+  ],
+  "titles": [
+   "CEO",
+   "Dir"
+  ],
+  "value": 25691200,
+  "first": "2026-08-24",
+  "last": "2026-08-25",
+  "vwap": 14.35,
+  "price": 107.0,
+  "since_first_buy": -0.0968,
+  "dd_from_52w_high_at_buy": -0.369,
+  "adv_m": 1052.0,
+  "flags": []
+ },
+ {
+  "ticker": "APLM",
+  "company": "Apollomics Inc.",
+  "score": 7,
+  "insiders": 3,
+  "top_buyers": [
+   "Chen Hung-Wen",
+   "Chen Yi-Kuei",
+   "Lin Peter Kuan-How"
+  ],
+  "titles": [
+   "CEO",
+   "CFO",
+   "COO"
+  ],
+  "value": 8250009,
+  "first": "2026-08-14",
+  "last": "2026-08-14",
+  "vwap": 14.14,
+  "price": 21.5,
+  "since_first_buy": -0.0812,
+  "dd_from_52w_high_at_buy": -0.362,
+  "adv_m": 0.1,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "INBX",
+  "company": "Inhibrx Biosciences, Inc.",
+  "score": 7,
+  "insiders": 3,
+  "top_buyers": [
+   "Lappe Mark"
+  ],
+  "titles": [
+   "CEO",
+   "Dir"
+  ],
+  "value": 5498380,
+  "first": "2026-09-08",
+  "last": "2026-09-25",
+  "vwap": 104.73,
+  "price": 93.36,
+  "since_first_buy": -0.1835,
+  "dd_from_52w_high_at_buy": -0.194,
+  "adv_m": 23.8,
+  "flags": []
+ },
+ {
+  "ticker": "CLBK",
+  "company": "Columbia Financial, Inc./Md/",
+  "score": 7,
+  "insiders": 16,
+  "top_buyers": [
+   "Kemly Thomas J.",
+   "Klein Steven M",
+   "Splaine Thomas Jr"
+  ],
+  "titles": [
+   "1st Sr. EVP, CBO",
+   "Dir",
+   "EVP, CFO",
+   "EVP, CIO"
+  ],
+  "value": 4778740,
+  "first": "2026-07-20",
+  "last": "2026-07-20",
+  "vwap": 10.0,
+  "price": 10.8,
+  "since_first_buy": -0.5572,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 44.3,
+  "flags": [
+   "round-price (offering?)"
+  ]
+ },
+ {
+  "ticker": "SBLK",
+  "company": "Star Bulk Carriers Corp.",
+  "score": 7,
+  "insiders": 5,
+  "top_buyers": [
+   "Reskos Nikolaos",
+   "Spyrou Symeon"
+  ],
+  "titles": [
+   "COO",
+   "Dir",
+   "co CFO"
+  ],
+  "value": 4675858,
+  "first": "2026-09-15",
+  "last": "2026-09-15",
+  "vwap": 28.27,
+  "price": 29.69,
+  "since_first_buy": -0.0487,
+  "dd_from_52w_high_at_buy": -0.037,
+  "adv_m": 44.9,
+  "flags": []
+ },
+ {
+  "ticker": "PFE",
+  "company": "Pfizer Inc",
+  "score": 7,
+  "insiders": 3,
+  "top_buyers": [
+   "Bourla Albert"
+  ],
+  "titles": [
+   "COB, CEO",
+   "Dir"
+  ],
+  "value": 2960110,
+  "first": "2026-08-05",
+  "last": "2026-08-12",
+  "vwap": 25.77,
+  "price": 28.0,
+  "since_first_buy": 0.0849,
+  "dd_from_52w_high_at_buy": -0.065,
+  "adv_m": 926.3,
+  "flags": []
+ },
+ {
+  "ticker": "CELH",
+  "company": "Celsius Holdings, Inc.",
+  "score": 7,
+  "insiders": 3,
+  "top_buyers": [
+   "Fieldly John"
+  ],
+  "titles": [
+   "CEO",
+   "Dir"
+  ],
+  "value": 1830043,
+  "first": "2026-09-10",
+  "last": "2026-09-15",
+  "vwap": 27.73,
+  "price": 26.92,
+  "since_first_buy": 0.0109,
+  "dd_from_52w_high_at_buy": -0.589,
+  "adv_m": 237.2,
+  "flags": []
+ },
+ {
+  "ticker": "XENE",
+  "company": "Xenon Pharmaceuticals Inc.",
+  "score": 7,
+  "insiders": 2,
+  "top_buyers": [
+   "Kelly Thomas Patrick",
+   "Mortimer Ian"
+  ],
+  "titles": [
+   "CFO",
+   "Pres, CEO"
+  ],
+  "value": 1681140,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 37.36,
+  "price": 36.41,
+  "since_first_buy": -0.021,
+  "dd_from_52w_high_at_buy": -0.476,
+  "adv_m": 43.7,
+  "flags": []
+ },
+ {
+  "ticker": "TTMI",
+  "company": "Ttm Technologies Inc",
+  "score": 7,
+  "insiders": 2,
+  "top_buyers": [
+   "Roks Edwin"
+  ],
+  "titles": [
+   "Dir",
+   "Pres, CEO"
+  ],
+  "value": 1642200,
+  "first": "2026-08-24",
+  "last": "2026-08-25",
+  "vwap": 109.48,
+  "price": 128.2,
+  "since_first_buy": 0.1968,
+  "dd_from_52w_high_at_buy": -0.516,
+  "adv_m": 271.9,
+  "flags": []
+ },
+ {
+  "ticker": "HOG",
+  "company": "Harley-Davidson, Inc.",
+  "score": 7,
+  "insiders": 3,
+  "top_buyers": [
+   "Starrs Artie"
+  ],
+  "titles": [
+   "CLO, CCO, CAO, Corp Sec",
+   "Dir",
+   "Pres, CEO"
+  ],
+  "value": 1439491,
+  "first": "2026-07-31",
+  "last": "2026-08-11",
+  "vwap": 25.03,
+  "price": 26.95,
+  "since_first_buy": 0.1059,
+  "dd_from_52w_high_at_buy": -0.184,
+  "adv_m": 50.5,
+  "flags": []
+ },
+ {
+  "ticker": "REZI",
+  "company": "Resideo Technologies, Inc.",
+  "score": 7,
+  "insiders": 3,
+  "top_buyers": [
+   "Surran Thomas A"
+  ],
+  "titles": [
+   "Pres, CEO",
+   "SVP, GC, Corp Sec",
+   "SVP, Strategy, Business Ops"
+  ],
+  "value": 848123,
+  "first": "2026-08-14",
+  "last": "2026-08-17",
+  "vwap": 20.56,
+  "price": 17.56,
+  "since_first_buy": -0.1434,
+  "dd_from_52w_high_at_buy": -0.338,
+  "adv_m": 39.5,
+  "flags": []
+ },
+ {
+  "ticker": "SCTX",
+  "company": "Scribe Therapeutics, Inc.",
+  "score": 6,
+  "insiders": 3,
+  "top_buyers": [],
+  "titles": [
+   "Dir",
+   "See Remarks, 10%"
+  ],
+  "value": 66259761,
+  "first": "2026-07-24",
+  "last": "2026-07-27",
+  "vwap": 15.09,
+  "price": 17.57,
+  "since_first_buy": -0.1885,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 6.6,
+  "flags": [
+   "recent listing"
+  ]
+ },
+ {
+  "ticker": "CYBN",
+  "company": "Cybin Inc.",
+  "score": 6,
+  "insiders": 3,
+  "top_buyers": [
+   "Halstead Michael",
+   "So Eric H. L."
+  ],
+  "titles": [
+   "CEO",
+   "Chief Growth Officer",
+   "Exec Chair"
+  ],
+  "value": 8384242,
+  "first": "2026-08-31",
+  "last": "2026-09-21",
+  "vwap": 12.24,
+  "price": 8.28,
+  "since_first_buy": 0.0,
+  "dd_from_52w_high_at_buy": -0.08,
+  "adv_m": 4.3,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "FSBC",
+  "company": "Five Star Bancorp",
+  "score": 6,
+  "insiders": 5,
+  "top_buyers": [],
+  "titles": [
+   "Dir",
+   "Dir, 10%"
+  ],
+  "value": 6230004,
+  "first": "2026-07-22",
+  "last": "2026-07-22",
+  "vwap": 44.0,
+  "price": 42.35,
+  "since_first_buy": -0.1197,
+  "dd_from_52w_high_at_buy": -0.027,
+  "adv_m": 6.9,
+  "flags": [
+   "round-price (offering?)"
+  ]
+ },
+ {
+  "ticker": "ONON",
+  "company": "On Holding AG",
+  "score": 6,
+  "insiders": 2,
+  "top_buyers": [
+   "Coppetti Caspar Felix"
+  ],
+  "titles": [
+   "Exec Officer",
+   "Exec Officer, Co-CEO"
+  ],
+  "value": 3987582,
+  "first": "2026-08-14",
+  "last": "2026-08-14",
+  "vwap": 30.67,
+  "price": 33.22,
+  "since_first_buy": 0.031,
+  "dd_from_52w_high_at_buy": -0.364,
+  "adv_m": 215.4,
+  "flags": []
+ },
+ {
+  "ticker": "COO",
+  "company": "Cooper Companies, Inc.",
+  "score": 6,
+  "insiders": 3,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1880110,
+  "first": "2026-09-11",
+  "last": "2026-09-16",
+  "vwap": 54.18,
+  "price": 54.75,
+  "since_first_buy": 0.0156,
+  "dd_from_52w_high_at_buy": -0.361,
+  "adv_m": 148.4,
+  "flags": []
+ },
+ {
+  "ticker": "LINE",
+  "company": "Lineage, Inc.",
+  "score": 6,
+  "insiders": 2,
+  "top_buyers": [
+   "Lemasters Robb A.",
+   "Marchetti Kevin Patrick"
+  ],
+  "titles": [
+   "CFO",
+   "CO-Exec COB, 10%"
+  ],
+  "value": 1814193,
+  "first": "2026-08-07",
+  "last": "2026-08-28",
+  "vwap": 40.32,
+  "price": 34.21,
+  "since_first_buy": -0.18,
+  "dd_from_52w_high_at_buy": -0.05,
+  "adv_m": 34.9,
+  "flags": []
+ },
+ {
+  "ticker": "GBFH",
+  "company": "Gbank Financial Holdings Inc.",
+  "score": 6,
+  "insiders": 5,
+  "top_buyers": [
+   "Newgard Jeffrey K",
+   "Nigro Edward Michael"
+  ],
+  "titles": [
+   "CEO, Exec COB",
+   "Dir",
+   "Pres, CEO (GBank)",
+   "SECRETARY"
+  ],
+  "value": 1742873,
+  "first": "2026-08-03",
+  "last": "2026-08-05",
+  "vwap": 21.39,
+  "price": 17.45,
+  "since_first_buy": -0.2032,
+  "dd_from_52w_high_at_buy": -0.479,
+  "adv_m": 1.6,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "ABCL",
+  "company": "Abcellera Biologics Inc.",
+  "score": 6,
+  "insiders": 3,
+  "top_buyers": [
+   "Booth Andrew"
+  ],
+  "titles": [
+   "CFO",
+   "Dir"
+  ],
+  "value": 1545679,
+  "first": "2026-08-12",
+  "last": "2026-08-24",
+  "vwap": 10.5,
+  "price": 12.83,
+  "since_first_buy": 0.239,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 51.6,
+  "flags": []
+ },
+ {
+  "ticker": "ELV",
+  "company": "Elevance Health, Inc.",
+  "score": 6,
+  "insiders": 2,
+  "top_buyers": [
+   "Boudreaux Gail"
+  ],
+  "titles": [
+   "Dir",
+   "Pres, CEO"
+  ],
+  "value": 1368280,
+  "first": "2026-07-17",
+  "last": "2026-07-17",
+  "vwap": 367.32,
+  "price": 404.31,
+  "since_first_buy": 0.0883,
+  "dd_from_52w_high_at_buy": -0.126,
+  "adv_m": 443.8,
+  "flags": []
+ },
+ {
+  "ticker": "EQPT",
+  "company": "Equipmentshare.Com Inc",
+  "score": 6,
+  "insiders": 2,
+  "top_buyers": [
+   "Schlacks Jabbok",
+   "Schlacks William J."
+  ],
+  "titles": [
+   "Founder, CEO",
+   "Founder, Pres"
+  ],
+  "value": 1245683,
+  "first": "2026-08-14",
+  "last": "2026-09-14",
+  "vwap": 18.07,
+  "price": 17.68,
+  "since_first_buy": -0.143,
+  "dd_from_52w_high_at_buy": -0.404,
+  "adv_m": 49.8,
+  "flags": []
+ },
+ {
+  "ticker": "CCB",
+  "company": "Coastal Financial Corp",
+  "score": 6,
+  "insiders": 2,
+  "top_buyers": [
+   "Sprink Eric M"
+  ],
+  "titles": [
+   "CEO",
+   "Dir, 10%"
+  ],
+  "value": 1102750,
+  "first": "2026-08-05",
+  "last": "2026-08-06",
+  "vwap": 44.11,
+  "price": 40.93,
+  "since_first_buy": -0.0729,
+  "dd_from_52w_high_at_buy": -0.629,
+  "adv_m": 9.2,
+  "flags": []
+ },
+ {
+  "ticker": "JMKE",
+  "company": "Jersey Mike'S Subs Inc.",
+  "score": 6,
+  "insiders": 3,
+  "top_buyers": [
+   "Allen Michele",
+   "Peterson Stacy"
+  ],
+  "titles": [
+   "CFO",
+   "Pres, COO",
+   "See Remarks"
+  ],
+  "value": 874000,
+  "first": "2026-07-31",
+  "last": "2026-07-31",
+  "vwap": 23.0,
+  "price": 16.39,
+  "since_first_buy": -0.2874,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 57.6,
+  "flags": [
+   "recent listing",
+   "round-price (offering?)"
+  ]
+ },
+ {
+  "ticker": "TSCO",
+  "company": "Tractor Supply Co /De/",
+  "score": 6,
+  "insiders": 2,
+  "top_buyers": [
+   "Lawton III Harry A"
+  ],
+  "titles": [
+   "Dir",
+   "Pres, CEO"
+  ],
+  "value": 601789,
+  "first": "2026-08-03",
+  "last": "2026-08-04",
+  "vwap": 32.1,
+  "price": 32.52,
+  "since_first_buy": 0.0198,
+  "dd_from_52w_high_at_buy": -0.479,
+  "adv_m": 310.0,
+  "flags": []
+ },
+ {
+  "ticker": "DY",
+  "company": "Dycom Industries Inc",
+  "score": 6,
+  "insiders": 2,
+  "top_buyers": [
+   "Peyovich Daniel S"
+  ],
+  "titles": [
+   "Dir",
+   "Pres, CEO"
+  ],
+  "value": 453090,
+  "first": "2026-09-01",
+  "last": "2026-09-09",
+  "vwap": 292.32,
+  "price": 282.46,
+  "since_first_buy": -0.0168,
+  "dd_from_52w_high_at_buy": -0.463,
+  "adv_m": 161.9,
+  "flags": []
+ },
+ {
+  "ticker": "BTDR",
+  "company": "Bitdeer Technologies Group",
+  "score": 6,
+  "insiders": 2,
+  "top_buyers": [
+   "Potter Michael G"
+  ],
+  "titles": [
+   "CFO",
+   "Chief Strategy Officer"
+  ],
+  "value": 447000,
+  "first": "2026-08-12",
+  "last": "2026-08-14",
+  "vwap": 8.94,
+  "price": 10.4,
+  "since_first_buy": 0.153,
+  "dd_from_52w_high_at_buy": -0.652,
+  "adv_m": 118.2,
+  "flags": []
+ },
+ {
+  "ticker": "ENOV",
+  "company": "Enovis Corp",
+  "score": 6,
+  "insiders": 2,
+  "top_buyers": [
+   "McDonald Damien"
+  ],
+  "titles": [
+   "CEO",
+   "Chief Administrative Officer"
+  ],
+  "value": 399591,
+  "first": "2026-09-02",
+  "last": "2026-09-04",
+  "vwap": 19.37,
+  "price": 17.61,
+  "since_first_buy": -0.1282,
+  "dd_from_52w_high_at_buy": -0.394,
+  "adv_m": 26.8,
+  "flags": []
+ },
+ {
+  "ticker": "GRAB",
+  "company": "Grab Holdings Ltd",
+  "score": 5,
+  "insiders": 1,
+  "top_buyers": [
+   "Tan Anthony Ping Yeow"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 29876310,
+  "first": "2026-09-21",
+  "last": "2026-09-21",
+  "vwap": 2.89,
+  "price": 3.08,
+  "since_first_buy": 0.0584,
+  "dd_from_52w_high_at_buy": -0.549,
+  "adv_m": 150.2,
+  "flags": [
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "AMR",
+  "company": "Alpha Metallurgical Resources, Inc.",
+  "score": 5,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir",
+   "See Remarks, 10%"
+  ],
+  "value": 12635233,
+  "first": "2026-08-20",
+  "last": "2026-09-08",
+  "vwap": 210.59,
+  "price": 170.21,
+  "since_first_buy": -0.124,
+  "dd_from_52w_high_at_buy": -0.222,
+  "adv_m": 52.4,
+  "flags": []
+ },
+ {
+  "ticker": "PMTS",
+  "company": "Cpi Card Group Inc.",
+  "score": 5,
+  "insiders": 3,
+  "top_buyers": [],
+  "titles": [
+   "10%",
+   "Dir",
+   "Non-Executive Chairman"
+  ],
+  "value": 11837492,
+  "first": "2026-09-14",
+  "last": "2026-09-14",
+  "vwap": 21.5,
+  "price": 25.28,
+  "since_first_buy": 0.042,
+  "dd_from_52w_high_at_buy": -0.205,
+  "adv_m": 2.7,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "FOX",
+  "company": "Fox Corp",
+  "score": 5,
+  "insiders": 1,
+  "top_buyers": [
+   "Murdoch Lachlan K"
+  ],
+  "titles": [
+   "Exec Chair, CEO"
+  ],
+  "value": 10274977,
+  "first": "2026-09-15",
+  "last": "2026-09-15",
+  "vwap": 68.53,
+  "price": 55.98,
+  "since_first_buy": -0.0723,
+  "dd_from_52w_high_at_buy": -0.1,
+  "adv_m": 57.5,
+  "flags": []
+ },
+ {
+  "ticker": "INTC",
+  "company": "Intel Corp",
+  "score": 5,
+  "insiders": 1,
+  "top_buyers": [
+   "Tan Lip Bu"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 9999985,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 95.0,
+  "price": 113.12,
+  "since_first_buy": 0.1577,
+  "dd_from_52w_high_at_buy": -0.307,
+  "adv_m": 10289.1,
+  "flags": []
+ },
+ {
+  "ticker": "KLAR",
+  "company": "Klarna Group Plc",
+  "score": 5,
+  "insiders": 1,
+  "top_buyers": [
+   "Siemiatkowski Sebastian"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 9949164,
+  "first": "2026-08-26",
+  "last": "2026-08-26",
+  "vwap": 14.37,
+  "price": 13.25,
+  "since_first_buy": -0.0676,
+  "dd_from_52w_high_at_buy": -0.69,
+  "adv_m": 66.8,
+  "flags": []
+ },
+ {
+  "ticker": "NYAX",
+  "company": "Nayax Ltd.",
+  "score": 5,
+  "insiders": 2,
+  "top_buyers": [
+   "Ben-Avi David",
+   "Nechmad Yair"
+  ],
+  "titles": [
+   "CEO, Co Founder, COB",
+   "CTO, Co Founder"
+  ],
+  "value": 9052330,
+  "first": "2026-09-22",
+  "last": "2026-09-30",
+  "vwap": 45.08,
+  "price": 46.61,
+  "since_first_buy": 0.0757,
+  "dd_from_52w_high_at_buy": -0.428,
+  "adv_m": 0.9,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "PAM",
+  "company": "Pampa Energy Inc.",
+  "score": 5,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "VicePres"
+  ],
+  "value": 7521317,
+  "first": "2026-09-25",
+  "last": "2026-09-28",
+  "vwap": 5.16,
+  "price": 80.12,
+  "since_first_buy": 0.0296,
+  "dd_from_52w_high_at_buy": -0.157,
+  "adv_m": 13.6,
+  "flags": []
+ },
+ {
+  "ticker": "GSHD",
+  "company": "Goosehead Insurance, Inc.",
+  "score": 5,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "10%",
+   "Dir"
+  ],
+  "value": 7199024,
+  "first": "2026-07-31",
+  "last": "2026-09-22",
+  "vwap": 47.49,
+  "price": 43.72,
+  "since_first_buy": -0.2948,
+  "dd_from_52w_high_at_buy": -0.318,
+  "adv_m": 23.0,
+  "flags": []
+ },
+ {
+  "ticker": "ADC",
+  "company": "Agree Realty Corp",
+  "score": 5,
+  "insiders": 2,
+  "top_buyers": [
+   "Agree Joey"
+  ],
+  "titles": [
+   "Dir",
+   "Pres, CEO"
+  ],
+  "value": 4075321,
+  "first": "2026-08-27",
+  "last": "2026-09-16",
+  "vwap": 70.88,
+  "price": 65.16,
+  "since_first_buy": -0.1031,
+  "dd_from_52w_high_at_buy": -0.094,
+  "adv_m": 95.2,
+  "flags": []
+ },
+ {
+  "ticker": "BWMX",
+  "company": "Betterware De Mexico, S.A.P.I. De C.V",
+  "score": 5,
+  "insiders": 3,
+  "top_buyers": [
+   "Chevallier Andres Campos"
+  ],
+  "titles": [
+   "CEO",
+   "Chairman, 10%",
+   "MD Betterware Mexico"
+  ],
+  "value": 3487546,
+  "first": "2026-07-27",
+  "last": "2026-09-16",
+  "vwap": 16.46,
+  "price": 16.22,
+  "since_first_buy": -0.0134,
+  "dd_from_52w_high_at_buy": -0.111,
+  "adv_m": 0.9,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "XRN",
+  "company": "Chiron Real Estate Inc.",
+  "score": 5,
+  "insiders": 3,
+  "top_buyers": [
+   "Decker Mark Okey Jr",
+   "Roseth Aaron Robert"
+  ],
+  "titles": [
+   "CEO, Pres",
+   "COO",
+   "Dir"
+  ],
+  "value": 2522709,
+  "first": "2026-08-10",
+  "last": "2026-08-12",
+  "vwap": 36.05,
+  "price": 34.1,
+  "since_first_buy": -0.0408,
+  "dd_from_52w_high_at_buy": -0.055,
+  "adv_m": 3.2,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "ELAN",
+  "company": "Elanco Animal Health Inc",
+  "score": 5,
+  "insiders": 3,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1281870,
+  "first": "2026-08-07",
+  "last": "2026-08-20",
+  "vwap": 23.31,
+  "price": 22.36,
+  "since_first_buy": 0.0108,
+  "dd_from_52w_high_at_buy": -0.176,
+  "adv_m": 126.6,
+  "flags": []
+ },
+ {
+  "ticker": "PNFP",
+  "company": "Pinnacle Financial Partners, Inc.",
+  "score": 5,
+  "insiders": 2,
+  "top_buyers": [
+   "Blair Kevin S."
+  ],
+  "titles": [
+   "CEO",
+   "Chief Banking Officer"
+  ],
+  "value": 1250335,
+  "first": "2026-07-24",
+  "last": "2026-09-01",
+  "vwap": 99.41,
+  "price": 93.09,
+  "since_first_buy": -0.0884,
+  "dd_from_52w_high_at_buy": -0.007,
+  "adv_m": 101.3,
+  "flags": []
+ },
+ {
+  "ticker": "MTDR",
+  "company": "Matador Resources Co",
+  "score": 5,
+  "insiders": 2,
+  "top_buyers": [
+   "Calvert Christopher P",
+   "Foran Joseph Wm"
+  ],
+  "titles": [
+   "COB, CEO",
+   "EVP, CFO"
+  ],
+  "value": 1116796,
+  "first": "2026-08-10",
+  "last": "2026-08-27",
+  "vwap": 52.34,
+  "price": 52.85,
+  "since_first_buy": 0.0119,
+  "dd_from_52w_high_at_buy": -0.19,
+  "adv_m": 99.1,
+  "flags": []
+ },
+ {
+  "ticker": "TSN",
+  "company": "Tyson Foods, Inc.",
+  "score": 5,
+  "insiders": 1,
+  "top_buyers": [
+   "Schomburger Jeffrey K"
+  ],
+  "titles": [
+   "Pres, CEO Elect"
+  ],
+  "value": 1001617,
+  "first": "2026-09-04",
+  "last": "2026-09-04",
+  "vwap": 51.5,
+  "price": 51.7,
+  "since_first_buy": 0.0054,
+  "dd_from_52w_high_at_buy": -0.239,
+  "adv_m": 165.3,
+  "flags": []
+ },
+ {
+  "ticker": "ALK",
+  "company": "Alaska Air Group, Inc.",
+  "score": 5,
+  "insiders": 1,
+  "top_buyers": [
+   "Minicucci Benito"
+  ],
+  "titles": [
+   "CEO, Pres"
+  ],
+  "value": 1001510,
+  "first": "2026-08-20",
+  "last": "2026-08-20",
+  "vwap": 40.06,
+  "price": 39.59,
+  "since_first_buy": -0.0147,
+  "dd_from_52w_high_at_buy": -0.371,
+  "adv_m": 110.6,
+  "flags": []
+ },
+ {
+  "ticker": "NXH",
+  "company": "Neighborhood Intelligence, Inc.",
+  "score": 5,
+  "insiders": 1,
+  "top_buyers": [
+   "Lemonis Marcus"
+  ],
+  "titles": [
+   "Exec COB, CEO"
+  ],
+  "value": 1000000,
+  "first": "2026-10-06",
+  "last": "2026-10-06",
+  "vwap": 2.76,
+  "price": 1.775,
+  "since_first_buy": -0.0301,
+  "dd_from_52w_high_at_buy": -0.849,
+  "adv_m": 9.2,
+  "flags": [
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "MLAB",
+  "company": "Mesa Laboratories Inc /Co/",
+  "score": 5,
+  "insiders": 2,
+  "top_buyers": [
+   "Kadia Siddhartha"
+  ],
+  "titles": [
+   "Dir",
+   "Pres, CEO"
+  ],
+  "value": 902411,
+  "first": "2026-08-13",
+  "last": "2026-08-13",
+  "vwap": 112.9,
+  "price": 129.96,
+  "since_first_buy": 0.1495,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 15.7,
+  "flags": []
+ },
+ {
+  "ticker": "TNC",
+  "company": "Tennant Co",
+  "score": 5,
+  "insiders": 3,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 849240,
+  "first": "2026-08-12",
+  "last": "2026-08-31",
+  "vwap": 67.94,
+  "price": 65.87,
+  "since_first_buy": -0.0445,
+  "dd_from_52w_high_at_buy": -0.24,
+  "adv_m": 12.1,
+  "flags": []
+ },
+ {
+  "ticker": "RBKB",
+  "company": "Rhinebeck Bancorp, Inc.",
+  "score": 5,
+  "insiders": 3,
+  "top_buyers": [
+   "Smith Matthew James"
+  ],
+  "titles": [
+   "Dir",
+   "Pres, CEO"
+  ],
+  "value": 596709,
+  "first": "2026-07-22",
+  "last": "2026-07-22",
+  "vwap": 11.95,
+  "price": 12.97,
+  "since_first_buy": 0.0772,
+  "dd_from_52w_high_at_buy": -0.318,
+  "adv_m": 1.4,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "KMT",
+  "company": "Kennametal Inc",
+  "score": 5,
+  "insiders": 2,
+  "top_buyers": [
+   "Chowbey Sanjay"
+  ],
+  "titles": [
+   "Dir",
+   "Pres, CEO"
+  ],
+  "value": 354750,
+  "first": "2026-09-04",
+  "last": "2026-09-10",
+  "vwap": 29.56,
+  "price": 32.27,
+  "since_first_buy": 0.0403,
+  "dd_from_52w_high_at_buy": -0.275,
+  "adv_m": 42.4,
+  "flags": []
+ },
+ {
+  "ticker": "AGMB",
+  "company": "Agomab Therapeutics Nv",
+  "score": 5,
+  "insiders": 3,
+  "top_buyers": [
+   "Kemula Pierre Thadee Victor",
+   "Knotnerus Tim Jasper"
+  ],
+  "titles": [
+   "CEO",
+   "CFO",
+   "Dir"
+  ],
+  "value": 266670,
+  "first": "2026-10-05",
+  "last": "2026-10-06",
+  "vwap": 8.6,
+  "price": 8.8,
+  "since_first_buy": 0.0127,
+  "dd_from_52w_high_at_buy": -0.512,
+  "adv_m": 1.3,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "HWKN",
+  "company": "Hawkins Inc",
+  "score": 5,
+  "insiders": 2,
+  "top_buyers": [
+   "Oldenkamp Jeffrey P."
+  ],
+  "titles": [
+   "EVP, CFO",
+   "VP - Water Treatment Group"
+  ],
+  "value": 261576,
+  "first": "2026-08-25",
+  "last": "2026-08-27",
+  "vwap": 118.9,
+  "price": 132.38,
+  "since_first_buy": 0.118,
+  "dd_from_52w_high_at_buy": -0.351,
+  "adv_m": 19.3,
+  "flags": []
+ },
+ {
+  "ticker": "WVVI",
+  "company": "Willamette Valley Vineyards Inc",
+  "score": 5,
+  "insiders": 3,
+  "top_buyers": [
+   "Osborn Michael Jordan"
+  ],
+  "titles": [
+   "CEO",
+   "Dir"
+  ],
+  "value": 35283,
+  "first": "2026-09-25",
+  "last": "2026-10-02",
+  "vwap": 1.9,
+  "price": 1.83,
+  "since_first_buy": -0.0567,
+  "dd_from_52w_high_at_buy": -0.503,
+  "adv_m": 0.0,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "FTK",
+  "company": "Flotek Industries Inc/Cn/",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 34320013,
+  "first": "2026-09-11",
+  "last": "2026-09-11",
+  "vwap": 26.01,
+  "price": 28.06,
+  "since_first_buy": 0.0267,
+  "dd_from_52w_high_at_buy": -0.296,
+  "adv_m": 12.1,
+  "flags": []
+ },
+ {
+  "ticker": "BLSM",
+  "company": "Blossomhill Therapeutics, Inc.",
+  "score": 4,
+  "insiders": 3,
+  "top_buyers": [],
+  "titles": [
+   "Dir",
+   "Dir, 10%"
+  ],
+  "value": 25000000,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 16.0,
+  "price": 16.61,
+  "since_first_buy": 0.0388,
+  "dd_from_52w_high_at_buy": -0.001,
+  "adv_m": 3.8,
+  "flags": [
+   "illiquid",
+   "recent listing",
+   "round-price (offering?)"
+  ]
+ },
+ {
+  "ticker": "AUGO",
+  "company": "Aura Minerals Inc.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 22660981,
+  "first": "2026-08-17",
+  "last": "2026-08-28",
+  "vwap": 86.16,
+  "price": 82.02,
+  "since_first_buy": 0.054,
+  "dd_from_52w_high_at_buy": -0.273,
+  "adv_m": 62.6,
+  "flags": []
+ },
+ {
+  "ticker": "AXIA",
+  "company": "Axia Energia S.A.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 15526643,
+  "first": "2026-07-15",
+  "last": "2026-10-02",
+  "vwap": 10.45,
+  "price": 10.22,
+  "since_first_buy": 0.0302,
+  "dd_from_52w_high_at_buy": -0.261,
+  "adv_m": 20.4,
+  "flags": []
+ },
+ {
+  "ticker": "ALMS",
+  "company": "Alumis Inc.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 10726255,
+  "first": "2026-09-04",
+  "last": "2026-09-04",
+  "vwap": 10.87,
+  "price": 6.77,
+  "since_first_buy": -0.3901,
+  "dd_from_52w_high_at_buy": -0.634,
+  "adv_m": 22.5,
+  "flags": []
+ },
+ {
+  "ticker": "CSGP",
+  "company": "Costar Group, Inc.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Florance Andrew C"
+  ],
+  "titles": [
+   "Founder, CEO"
+  ],
+  "value": 2489837,
+  "first": "2026-08-04",
+  "last": "2026-08-04",
+  "vwap": 29.89,
+  "price": 27.6,
+  "since_first_buy": -0.0743,
+  "dd_from_52w_high_at_buy": -0.692,
+  "adv_m": 180.5,
+  "flags": []
+ },
+ {
+  "ticker": "KURA",
+  "company": "Kura Oncology, Inc.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Wilson Troy Edward"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 2351000,
+  "first": "2026-08-17",
+  "last": "2026-08-24",
+  "vwap": 11.76,
+  "price": 10.67,
+  "since_first_buy": -0.0541,
+  "dd_from_52w_high_at_buy": -0.071,
+  "adv_m": 19.3,
+  "flags": []
+ },
+ {
+  "ticker": "FBIN",
+  "company": "Fortune Brands Innovations, Inc.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Singh Jesse G"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 2015342,
+  "first": "2026-08-06",
+  "last": "2026-08-06",
+  "vwap": 51.3,
+  "price": 38.52,
+  "since_first_buy": -0.2305,
+  "dd_from_52w_high_at_buy": -0.209,
+  "adv_m": 93.0,
+  "flags": []
+ },
+ {
+  "ticker": "PRMB",
+  "company": "Primo Brands Corp",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Foss Eric J"
+  ],
+  "titles": [
+   "Exec. Chair, CEO"
+  ],
+  "value": 1998973,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 23.8,
+  "price": 19.0,
+  "since_first_buy": -0.1877,
+  "dd_from_52w_high_at_buy": -0.074,
+  "adv_m": 80.3,
+  "flags": []
+ },
+ {
+  "ticker": "SGI",
+  "company": "Somnigroup International Inc.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Thompson Scott L"
+  ],
+  "titles": [
+   "CEO, Pres"
+  ],
+  "value": 1885314,
+  "first": "2026-08-27",
+  "last": "2026-08-27",
+  "vwap": 62.84,
+  "price": 61.76,
+  "since_first_buy": -0.0115,
+  "dd_from_52w_high_at_buy": -0.358,
+  "adv_m": 179.7,
+  "flags": []
+ },
+ {
+  "ticker": "PRTS",
+  "company": "Carparts.Com, Inc.",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [
+   "Huffaker Michael",
+   "Meniane David"
+  ],
+  "titles": [
+   "CEO",
+   "COO"
+  ],
+  "value": 1764291,
+  "first": "2026-09-04",
+  "last": "2026-09-10",
+  "vwap": 9.51,
+  "price": 8.695,
+  "since_first_buy": -0.0651,
+  "dd_from_52w_high_at_buy": -0.147,
+  "adv_m": 0.2,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "HHH",
+  "company": "Howard Hughes Holdings Inc.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Grandisson Marc"
+  ],
+  "titles": [
+   "Exec COB, Vantage"
+  ],
+  "value": 1602938,
+  "first": "2026-09-23",
+  "last": "2026-09-23",
+  "vwap": 64.12,
+  "price": 71.85,
+  "since_first_buy": 0.1271,
+  "dd_from_52w_high_at_buy": -0.29,
+  "adv_m": 32.5,
+  "flags": []
+ },
+ {
+  "ticker": "TM",
+  "company": "Toyota Motor Corp/",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Kon Kenta"
+  ],
+  "titles": [
+   "Pres"
+  ],
+  "value": 1564850,
+  "first": "2026-08-05",
+  "last": "2026-08-05",
+  "vwap": 18.41,
+  "price": 182.91,
+  "since_first_buy": -0.016,
+  "dd_from_52w_high_at_buy": -0.242,
+  "adv_m": 62.1,
+  "flags": []
+ },
+ {
+  "ticker": "SITE",
+  "company": "Siteone Landscape Supply, Inc.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Black Doug"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 1296930,
+  "first": "2026-08-04",
+  "last": "2026-08-26",
+  "vwap": 99.76,
+  "price": 86.36,
+  "since_first_buy": -0.1471,
+  "dd_from_52w_high_at_buy": -0.38,
+  "adv_m": 80.0,
+  "flags": []
+ },
+ {
+  "ticker": "UPST",
+  "company": "Upstart Holdings, Inc.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Gu Paul"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 1277500,
+  "first": "2026-09-10",
+  "last": "2026-09-10",
+  "vwap": 25.55,
+  "price": 24.02,
+  "since_first_buy": -0.043,
+  "dd_from_52w_high_at_buy": -0.632,
+  "adv_m": 107.6,
+  "flags": []
+ },
+ {
+  "ticker": "VIA",
+  "company": "Via Transportation, Inc.",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1248354,
+  "first": "2026-08-10",
+  "last": "2026-08-11",
+  "vwap": 22.76,
+  "price": 30.49,
+  "since_first_buy": 0.308,
+  "dd_from_52w_high_at_buy": -0.568,
+  "adv_m": 17.6,
+  "flags": []
+ },
+ {
+  "ticker": "REFI",
+  "company": "Chicago Atlantic Real Estate Finance, Inc.",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [
+   "Cappell Anthony",
+   "Mazarakis John"
+  ],
+  "titles": [
+   "Co-CEO",
+   "Exec COB"
+  ],
+  "value": 1233490,
+  "first": "2026-08-17",
+  "last": "2026-08-26",
+  "vwap": 10.48,
+  "price": 9.61,
+  "since_first_buy": -0.0213,
+  "dd_from_52w_high_at_buy": -0.165,
+  "adv_m": 1.7,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "VST",
+  "company": "Vistra Corp.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Burke James A"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 1173069,
+  "first": "2026-08-24",
+  "last": "2026-08-31",
+  "vwap": 135.38,
+  "price": 166.72,
+  "since_first_buy": 0.231,
+  "dd_from_52w_high_at_buy": -0.375,
+  "adv_m": 654.1,
+  "flags": []
+ },
+ {
+  "ticker": "GIII",
+  "company": "G III Apparel Group Ltd /De/",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Goldfarb Morris"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 1117600,
+  "first": "2026-09-14",
+  "last": "2026-09-14",
+  "vwap": 27.94,
+  "price": 26.95,
+  "since_first_buy": -0.0281,
+  "dd_from_52w_high_at_buy": -0.244,
+  "adv_m": 16.3,
+  "flags": []
+ },
+ {
+  "ticker": "ATEC",
+  "company": "Alphatec Holdings, Inc.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Miles Patrick"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 1013150,
+  "first": "2026-09-10",
+  "last": "2026-09-10",
+  "vwap": 8.81,
+  "price": 10.25,
+  "since_first_buy": 0.1595,
+  "dd_from_52w_high_at_buy": -0.61,
+  "adv_m": 17.2,
+  "flags": []
+ },
+ {
+  "ticker": "PVH",
+  "company": "Pvh Corp. /De/",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Larsson Stefan"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 1000001,
+  "first": "2026-09-11",
+  "last": "2026-09-11",
+  "vwap": 70.53,
+  "price": 78.33,
+  "since_first_buy": 0.1089,
+  "dd_from_52w_high_at_buy": -0.284,
+  "adv_m": 67.8,
+  "flags": []
+ },
+ {
+  "ticker": "NOMD",
+  "company": "Nomad Foods Ltd",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [
+   "Baldew Ruben",
+   "Brisby Dominic"
+  ],
+  "titles": [
+   "CEO",
+   "CFO"
+  ],
+  "value": 954231,
+  "first": "2026-08-19",
+  "last": "2026-08-24",
+  "vwap": 12.19,
+  "price": 11.0,
+  "since_first_buy": -0.0787,
+  "dd_from_52w_high_at_buy": -0.192,
+  "adv_m": 14.4,
+  "flags": []
+ },
+ {
+  "ticker": "TSM",
+  "company": "Taiwan Semiconductor Manufacturing Co Ltd",
+  "score": 4,
+  "insiders": 3,
+  "top_buyers": [],
+  "titles": [
+   "VP"
+  ],
+  "value": 837513,
+  "first": "2026-07-19",
+  "last": "2026-08-18",
+  "vwap": 73.72,
+  "price": 472.2,
+  "since_first_buy": 0.1878,
+  "dd_from_52w_high_at_buy": -0.166,
+  "adv_m": 4437.6,
+  "flags": []
+ },
+ {
+  "ticker": "VFC",
+  "company": "V F Corp",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [
+   "Darrell Bracken"
+  ],
+  "titles": [
+   "Dir",
+   "Pres, Chief Exec Officer"
+  ],
+  "value": 787352,
+  "first": "2026-07-31",
+  "last": "2026-08-13",
+  "vwap": 14.89,
+  "price": 14.38,
+  "since_first_buy": 0.0113,
+  "dd_from_52w_high_at_buy": -0.332,
+  "adv_m": 101.2,
+  "flags": []
+ },
+ {
+  "ticker": "INR",
+  "company": "Infinity Natural Resources, Inc.",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [
+   "Baetz Cary D"
+  ],
+  "titles": [
+   "Dir",
+   "EVP, CFO"
+  ],
+  "value": 663770,
+  "first": "2026-09-21",
+  "last": "2026-09-24",
+  "vwap": 13.07,
+  "price": 13.56,
+  "since_first_buy": 0.0644,
+  "dd_from_52w_high_at_buy": -0.337,
+  "adv_m": 3.7,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "PLNT",
+  "company": "Planet Fitness, Inc.",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 612059,
+  "first": "2026-08-10",
+  "last": "2026-09-14",
+  "vwap": 49.65,
+  "price": 43.09,
+  "since_first_buy": -0.1199,
+  "dd_from_52w_high_at_buy": -0.563,
+  "adv_m": 93.2,
+  "flags": []
+ },
+ {
+  "ticker": "AHCO",
+  "company": "Adapthealth Corp.",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 520530,
+  "first": "2026-08-06",
+  "last": "2026-08-06",
+  "vwap": 6.23,
+  "price": 5.88,
+  "since_first_buy": -0.0273,
+  "dd_from_52w_high_at_buy": -0.548,
+  "adv_m": 14.6,
+  "flags": []
+ },
+ {
+  "ticker": "TH",
+  "company": "Target Hospitality Corp.",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [
+   "Archer James Bradley"
+  ],
+  "titles": [
+   "Chief Commercial Officer",
+   "Dir, CEO, Pres"
+  ],
+  "value": 375158,
+  "first": "2026-09-15",
+  "last": "2026-09-18",
+  "vwap": 19.45,
+  "price": 18.26,
+  "since_first_buy": -0.0261,
+  "dd_from_52w_high_at_buy": -0.086,
+  "adv_m": 24.1,
+  "flags": []
+ },
+ {
+  "ticker": "GLXY",
+  "company": "Galaxy Digital Inc.",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 358545,
+  "first": "2026-08-10",
+  "last": "2026-08-12",
+  "vwap": 20.97,
+  "price": 21.4,
+  "since_first_buy": 0.0963,
+  "dd_from_52w_high_at_buy": -0.545,
+  "adv_m": 119.4,
+  "flags": []
+ },
+ {
+  "ticker": "MGY",
+  "company": "Magnolia Oil & Gas Corp",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 323125,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 24.86,
+  "price": 24.33,
+  "since_first_buy": -0.0229,
+  "dd_from_52w_high_at_buy": -0.22,
+  "adv_m": 102.2,
+  "flags": []
+ },
+ {
+  "ticker": "SCOR",
+  "company": "Comscore, Inc.",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [
+   "McLaughlin Matthew F."
+  ],
+  "titles": [
+   "CEO",
+   "Dir"
+  ],
+  "value": 311438,
+  "first": "2026-08-26",
+  "last": "2026-09-04",
+  "vwap": 5.19,
+  "price": 4.09,
+  "since_first_buy": -0.2195,
+  "dd_from_52w_high_at_buy": -0.417,
+  "adv_m": 0.2,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "XAIR",
+  "company": "Beyond Air, Inc.",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [
+   "Goodman Robert Scott"
+  ],
+  "titles": [
+   "10%",
+   "CEO"
+  ],
+  "value": 256589,
+  "first": "2026-07-29",
+  "last": "2026-09-29",
+  "vwap": 4.66,
+  "price": 2.54,
+  "since_first_buy": -0.539,
+  "dd_from_52w_high_at_buy": -0.917,
+  "adv_m": 0.1,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "KMPR",
+  "company": "Kemper Corp",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 235510,
+  "first": "2026-08-10",
+  "last": "2026-08-11",
+  "vwap": 26.17,
+  "price": 26.25,
+  "since_first_buy": 0.0065,
+  "dd_from_52w_high_at_buy": -0.5,
+  "adv_m": 21.7,
+  "flags": []
+ },
+ {
+  "ticker": "FUL",
+  "company": "Fuller H B Co",
+  "score": 4,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 200279,
+  "first": "2026-09-28",
+  "last": "2026-09-28",
+  "vwap": 49.21,
+  "price": 49.91,
+  "since_first_buy": 0.0109,
+  "dd_from_52w_high_at_buy": -0.262,
+  "adv_m": 33.0,
+  "flags": []
+ },
+ {
+  "ticker": "UA",
+  "company": "Under Armour, Inc.",
+  "score": 4,
+  "insiders": 1,
+  "top_buyers": [
+   "Taleghani Reza"
+  ],
+  "titles": [
+   "CFO"
+  ],
+  "value": 100181,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 5.37,
+  "price": 4.7,
+  "since_first_buy": -0.0962,
+  "dd_from_52w_high_at_buy": -0.34,
+  "adv_m": 13.0,
+  "flags": [
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "SLBT",
+  "company": "Sl Science Holding Ltd",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Wang Ching-Dong"
+  ],
+  "titles": [
+   "CEO, 10%"
+  ],
+  "value": 2147483647,
+  "first": "2026-09-29",
+  "last": "2026-09-29",
+  "vwap": 472.46,
+  "price": 1.51,
+  "since_first_buy": -0.1749,
+  "dd_from_52w_high_at_buy": -0.857,
+  "adv_m": 0.1,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "JEF",
+  "company": "Jefferies Financial Group Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 324032894,
+  "first": "2026-07-15",
+  "last": "2026-07-15",
+  "vwap": 54.86,
+  "price": 44.14,
+  "since_first_buy": -0.2217,
+  "dd_from_52w_high_at_buy": -0.17,
+  "adv_m": 98.5,
+  "flags": []
+ },
+ {
+  "ticker": "COE",
+  "company": "51Talk Online Education Group",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Huang Jack Jiajia"
+  ],
+  "titles": [
+   "CEO, 10%"
+  ],
+  "value": 88868902,
+  "first": "2026-07-09",
+  "last": "2026-08-11",
+  "vwap": 17.56,
+  "price": 9.96,
+  "since_first_buy": -0.4036,
+  "dd_from_52w_high_at_buy": -0.699,
+  "adv_m": 0.3,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "AAT",
+  "company": "American Assets Trust, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Rady Ernest S"
+  ],
+  "titles": [
+   "Exec COB, 10%"
+  ],
+  "value": 20059590,
+  "first": "2026-08-05",
+  "last": "2026-09-14",
+  "vwap": 22.57,
+  "price": 21.46,
+  "since_first_buy": -0.0555,
+  "dd_from_52w_high_at_buy": -0.108,
+  "adv_m": 9.3,
+  "flags": []
+ },
+ {
+  "ticker": "BORR",
+  "company": "Borr Drilling Ltd",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 16860800,
+  "first": "2026-09-16",
+  "last": "2026-10-06",
+  "vwap": 4.22,
+  "price": 4.3,
+  "since_first_buy": 0.0165,
+  "dd_from_52w_high_at_buy": -0.36,
+  "adv_m": 19.7,
+  "flags": [
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "LILA",
+  "company": "Liberty Latin America Ltd.",
+  "score": 3,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 10343183,
+  "first": "2026-08-11",
+  "last": "2026-08-31",
+  "vwap": 20.95,
+  "price": 8.91,
+  "since_first_buy": 0.0397,
+  "dd_from_52w_high_at_buy": -0.015,
+  "adv_m": 3.2,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "ATTO",
+  "company": "Attovia Therapeutics, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 10285000,
+  "first": "2026-08-05",
+  "last": "2026-08-05",
+  "vwap": 17.58,
+  "price": 16.42,
+  "since_first_buy": -0.2502,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 7.0,
+  "flags": [
+   "recent listing"
+  ]
+ },
+ {
+  "ticker": "PSUS",
+  "company": "Pershing Square Usa, Ltd.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Chief Investment Officer"
+  ],
+  "value": 9615216,
+  "first": "2026-10-02",
+  "last": "2026-10-02",
+  "vwap": 37.47,
+  "price": 37.42,
+  "since_first_buy": 0.0075,
+  "dd_from_52w_high_at_buy": -0.136,
+  "adv_m": 11.7,
+  "flags": [
+   "recent listing"
+  ]
+ },
+ {
+  "ticker": "GWAV",
+  "company": "Greenwave Technology Solutions, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Meeks Danny"
+  ],
+  "titles": [
+   "CEO, 10%"
+  ],
+  "value": 8000002,
+  "first": "2026-08-27",
+  "last": "2026-08-27",
+  "vwap": 3.72,
+  "price": 2.45,
+  "since_first_buy": -0.4368,
+  "dd_from_52w_high_at_buy": -0.752,
+  "adv_m": 0.1,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "CX",
+  "company": "Cemex Sab De Cv",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 6926305,
+  "first": "2026-09-25",
+  "last": "2026-09-25",
+  "vwap": 17.28,
+  "price": 9.59,
+  "since_first_buy": -0.0124,
+  "dd_from_52w_high_at_buy": -0.28,
+  "adv_m": 67.9,
+  "flags": []
+ },
+ {
+  "ticker": "GPUS",
+  "company": "Hyperscale Data, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Ault Milton C III"
+  ],
+  "titles": [
+   "Exec COB, 10%"
+  ],
+  "value": 5051382,
+  "first": "2026-09-29",
+  "last": "2026-09-29",
+  "vwap": 0.49,
+  "price": 0.1599,
+  "since_first_buy": 0.0031,
+  "dd_from_52w_high_at_buy": -0.949,
+  "adv_m": 3.7,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "ANGX",
+  "company": "Angel Studios, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 3009007,
+  "first": "2026-09-09",
+  "last": "2026-09-11",
+  "vwap": 5.21,
+  "price": 4.12,
+  "since_first_buy": -0.1643,
+  "dd_from_52w_high_at_buy": -0.692,
+  "adv_m": 6.2,
+  "flags": [
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "BKKT",
+  "company": "Bakkt, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 2111557,
+  "first": "2026-08-18",
+  "last": "2026-08-18",
+  "vwap": 7.12,
+  "price": 7.27,
+  "since_first_buy": 0.0491,
+  "dd_from_52w_high_at_buy": -0.846,
+  "adv_m": 8.6,
+  "flags": []
+ },
+ {
+  "ticker": "ABTC",
+  "company": "American Bitcoin Corp.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1929607,
+  "first": "2026-08-05",
+  "last": "2026-08-05",
+  "vwap": 6.29,
+  "price": 8.22,
+  "since_first_buy": 0.2569,
+  "dd_from_52w_high_at_buy": -0.953,
+  "adv_m": 9.8,
+  "flags": []
+ },
+ {
+  "ticker": "DFH",
+  "company": "Dream Finders Homes, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1385440,
+  "first": "2026-08-11",
+  "last": "2026-09-10",
+  "vwap": 13.85,
+  "price": 9.5,
+  "since_first_buy": -0.3281,
+  "dd_from_52w_high_at_buy": -0.544,
+  "adv_m": 9.5,
+  "flags": []
+ },
+ {
+  "ticker": "DINO",
+  "company": "Hf Sinclair Corp",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Myers Franklin"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 1279500,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 85.3,
+  "price": 115.63,
+  "since_first_buy": 0.3516,
+  "dd_from_52w_high_at_buy": -0.069,
+  "adv_m": 263.1,
+  "flags": []
+ },
+ {
+  "ticker": "BCBP",
+  "company": "Bcb Bancorp Inc",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Obrien Thomas M"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 1240000,
+  "first": "2026-09-18",
+  "last": "2026-09-18",
+  "vwap": 7.75,
+  "price": 8.31,
+  "since_first_buy": -0.047,
+  "dd_from_52w_high_at_buy": -0.24,
+  "adv_m": 1.5,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "IONS",
+  "company": "Ionis Pharmaceuticals Inc",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1058700,
+  "first": "2026-07-30",
+  "last": "2026-07-30",
+  "vwap": 52.94,
+  "price": 44.16,
+  "since_first_buy": -0.1712,
+  "dd_from_52w_high_at_buy": -0.384,
+  "adv_m": 154.0,
+  "flags": []
+ },
+ {
+  "ticker": "TFC",
+  "company": "Truist Financial Corp",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Lyons Michael P."
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 1015577,
+  "first": "2026-09-17",
+  "last": "2026-09-17",
+  "vwap": 48.36,
+  "price": 45.58,
+  "since_first_buy": -0.0592,
+  "dd_from_52w_high_at_buy": -0.105,
+  "adv_m": 327.7,
+  "flags": []
+ },
+ {
+  "ticker": "ITT",
+  "company": "Itt Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Savi Luca"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 1001592,
+  "first": "2026-08-31",
+  "last": "2026-08-31",
+  "vwap": 199.56,
+  "price": 200.39,
+  "since_first_buy": 0.0024,
+  "dd_from_52w_high_at_buy": -0.095,
+  "adv_m": 152.1,
+  "flags": []
+ },
+ {
+  "ticker": "PRE",
+  "company": "Prenetics Global Ltd",
+  "score": 3,
+  "insiders": 2,
+  "top_buyers": [
+   "Rosin Brian J",
+   "Yeung Danny Sheng Wu"
+  ],
+  "titles": [
+   "CEO",
+   "CFO of IM8 (US) LLC"
+  ],
+  "value": 999698,
+  "first": "2026-08-20",
+  "last": "2026-08-24",
+  "vwap": 20.92,
+  "price": 22.47,
+  "since_first_buy": 0.2504,
+  "dd_from_52w_high_at_buy": -0.189,
+  "adv_m": 4.1,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "HUN",
+  "company": "Huntsman Corp",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Huntsman Peter R"
+  ],
+  "titles": [
+   "COB, Pres , CEO"
+  ],
+  "value": 981000,
+  "first": "2026-08-03",
+  "last": "2026-08-03",
+  "vwap": 9.81,
+  "price": 8.63,
+  "since_first_buy": -0.1306,
+  "dd_from_52w_high_at_buy": -0.369,
+  "adv_m": 23.1,
+  "flags": []
+ },
+ {
+  "ticker": "LUCK",
+  "company": "Lucky Strike Entertainment Corp",
+  "score": 3,
+  "insiders": 2,
+  "top_buyers": [
+   "Shannon Thomas F."
+  ],
+  "titles": [
+   "CEO, 10%",
+   "Dir"
+  ],
+  "value": 809744,
+  "first": "2026-08-28",
+  "last": "2026-09-09",
+  "vwap": 23.68,
+  "price": 5.17,
+  "since_first_buy": -0.1945,
+  "dd_from_52w_high_at_buy": -0.381,
+  "adv_m": 0.4,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "CVBF",
+  "company": "Cvb Financial Corp",
+  "score": 3,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 675600,
+  "first": "2026-07-28",
+  "last": "2026-08-31",
+  "vwap": 22.52,
+  "price": 21.53,
+  "since_first_buy": -0.0469,
+  "dd_from_52w_high_at_buy": -0.022,
+  "adv_m": 27.6,
+  "flags": []
+ },
+ {
+  "ticker": "LUMN",
+  "company": "Lumen Technologies, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Johnson Kathleen E"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 612680,
+  "first": "2026-08-06",
+  "last": "2026-08-06",
+  "vwap": 6.13,
+  "price": 5.91,
+  "since_first_buy": 0.0017,
+  "dd_from_52w_high_at_buy": -0.501,
+  "adv_m": 72.9,
+  "flags": []
+ },
+ {
+  "ticker": "CAG",
+  "company": "Conagra Brands Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Brase John P"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 510633,
+  "first": "2026-07-17",
+  "last": "2026-07-17",
+  "vwap": 14.59,
+  "price": 13.25,
+  "since_first_buy": -0.0616,
+  "dd_from_52w_high_at_buy": -0.269,
+  "adv_m": 184.1,
+  "flags": []
+ },
+ {
+  "ticker": "CMC",
+  "company": "Commercial Metals Co",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Matt Peter R"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 504499,
+  "first": "2026-07-10",
+  "last": "2026-07-10",
+  "vwap": 61.3,
+  "price": 63.25,
+  "since_first_buy": 0.0097,
+  "dd_from_52w_high_at_buy": -0.242,
+  "adv_m": 68.1,
+  "flags": []
+ },
+ {
+  "ticker": "HLI",
+  "company": "Houlihan Lokey, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Alley J Lindsey"
+  ],
+  "titles": [
+   "CFO"
+  ],
+  "value": 500570,
+  "first": "2026-08-03",
+  "last": "2026-08-03",
+  "vwap": 124.52,
+  "price": 125.22,
+  "since_first_buy": 0.0032,
+  "dd_from_52w_high_at_buy": -0.393,
+  "adv_m": 100.4,
+  "flags": []
+ },
+ {
+  "ticker": "OPLN",
+  "company": "Openlane, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Kelly Peter J"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 499999,
+  "first": "2026-08-24",
+  "last": "2026-08-24",
+  "vwap": 33.72,
+  "price": 34.79,
+  "since_first_buy": 0.0217,
+  "dd_from_52w_high_at_buy": -0.206,
+  "adv_m": 38.4,
+  "flags": []
+ },
+ {
+  "ticker": "PRCT",
+  "company": "Procept Biorobotics Corp",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Wood Larry L"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 498315,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 20.85,
+  "price": 17.91,
+  "since_first_buy": -0.1225,
+  "dd_from_52w_high_at_buy": -0.509,
+  "adv_m": 23.7,
+  "flags": []
+ },
+ {
+  "ticker": "ACDC",
+  "company": "Profrac Holding Corp.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Wilks Matthew"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 401851,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 5.02,
+  "price": 4.77,
+  "since_first_buy": -0.0647,
+  "dd_from_52w_high_at_buy": -0.367,
+  "adv_m": 6.3,
+  "flags": [
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "BCML",
+  "company": "Baycom Corp",
+  "score": 3,
+  "insiders": 2,
+  "top_buyers": [
+   "Baron Christopher F"
+  ],
+  "titles": [
+   "Dir",
+   "Pres, CEO"
+  ],
+  "value": 401568,
+  "first": "2026-07-31",
+  "last": "2026-08-10",
+  "vwap": 30.31,
+  "price": 30.8,
+  "since_first_buy": 0.0308,
+  "dd_from_52w_high_at_buy": -0.132,
+  "adv_m": 1.6,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "DMC",
+  "company": "Del Monte Corp",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Abbas Mohammed"
+  ],
+  "titles": [
+   "Pres, COO"
+  ],
+  "value": 358705,
+  "first": "2026-08-04",
+  "last": "2026-08-04",
+  "vwap": 29.89,
+  "price": 29.63,
+  "since_first_buy": -0.0017,
+  "dd_from_52w_high_at_buy": -0.292,
+  "adv_m": 10.8,
+  "flags": []
+ },
+ {
+  "ticker": "MIR",
+  "company": "Mirion Technologies, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Schopfer Brian"
+  ],
+  "titles": [
+   "CFO"
+  ],
+  "value": 312000,
+  "first": "2026-09-02",
+  "last": "2026-09-02",
+  "vwap": 15.6,
+  "price": 16.45,
+  "since_first_buy": 0.0565,
+  "dd_from_52w_high_at_buy": -0.477,
+  "adv_m": 53.9,
+  "flags": []
+ },
+ {
+  "ticker": "GPOR",
+  "company": "Gulfport Energy Corp",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Dell'Osso Domenic J Jr"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 256976,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 160.61,
+  "price": 162.04,
+  "since_first_buy": -0.0044,
+  "dd_from_52w_high_at_buy": -0.268,
+  "adv_m": 43.3,
+  "flags": []
+ },
+ {
+  "ticker": "DMRA",
+  "company": "Damora Therapeutics, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Jarrett Jennifer"
+  ],
+  "titles": [
+   "Dir, Pres, CEO"
+  ],
+  "value": 252875,
+  "first": "2026-09-25",
+  "last": "2026-09-25",
+  "vwap": 20.23,
+  "price": 20.24,
+  "since_first_buy": -0.0203,
+  "dd_from_52w_high_at_buy": -0.395,
+  "adv_m": 11.4,
+  "flags": []
+ },
+ {
+  "ticker": "HLMN",
+  "company": "Hillman Solutions Corp.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Kraft Robert O."
+  ],
+  "titles": [
+   "CFO, Treasurer"
+  ],
+  "value": 248500,
+  "first": "2026-09-11",
+  "last": "2026-09-11",
+  "vwap": 7.0,
+  "price": 6.94,
+  "since_first_buy": -0.0057,
+  "dd_from_52w_high_at_buy": -0.35,
+  "adv_m": 9.7,
+  "flags": []
+ },
+ {
+  "ticker": "FUN",
+  "company": "Six Flags Entertainment Corporation/New",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Reilly John T"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 248265,
+  "first": "2026-08-12",
+  "last": "2026-08-12",
+  "vwap": 15.8,
+  "price": 11.63,
+  "since_first_buy": -0.2926,
+  "dd_from_52w_high_at_buy": -0.385,
+  "adv_m": 30.7,
+  "flags": []
+ },
+ {
+  "ticker": "CORZ",
+  "company": "Core Scientific, Inc./Tx",
+  "score": 3,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 244352,
+  "first": "2026-08-18",
+  "last": "2026-08-20",
+  "vwap": 18.8,
+  "price": 15.94,
+  "since_first_buy": -0.1544,
+  "dd_from_52w_high_at_buy": -0.354,
+  "adv_m": 201.0,
+  "flags": []
+ },
+ {
+  "ticker": "NAMS",
+  "company": "Newamsterdam Pharma Co N.V.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Davidson Michael H."
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 226500,
+  "first": "2026-09-14",
+  "last": "2026-09-14",
+  "vwap": 22.65,
+  "price": 22.13,
+  "since_first_buy": -0.0103,
+  "dd_from_52w_high_at_buy": -0.461,
+  "adv_m": 29.6,
+  "flags": []
+ },
+ {
+  "ticker": "PODD",
+  "company": "Insulet Corp",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "McEvoy Ashley"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 162217,
+  "first": "2026-08-21",
+  "last": "2026-08-21",
+  "vwap": 147.47,
+  "price": 134.36,
+  "since_first_buy": -0.0931,
+  "dd_from_52w_high_at_buy": -0.58,
+  "adv_m": 210.3,
+  "flags": []
+ },
+ {
+  "ticker": "OXM",
+  "company": "Oxford Industries Inc",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Chubb Thomas Caldecot III"
+  ],
+  "titles": [
+   "CEO, Pres"
+  ],
+  "value": 108268,
+  "first": "2026-09-09",
+  "last": "2026-09-09",
+  "vwap": 30.93,
+  "price": 25.17,
+  "since_first_buy": -0.1788,
+  "dd_from_52w_high_at_buy": -0.364,
+  "adv_m": 12.3,
+  "flags": []
+ },
+ {
+  "ticker": "CE",
+  "company": "Celanese Corp",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Kyrish Chuck"
+  ],
+  "titles": [
+   "SVP, CFO"
+  ],
+  "value": 104698,
+  "first": "2026-08-14",
+  "last": "2026-08-14",
+  "vwap": 45.52,
+  "price": 43.86,
+  "since_first_buy": -0.0394,
+  "dd_from_52w_high_at_buy": -0.34,
+  "adv_m": 71.3,
+  "flags": []
+ },
+ {
+  "ticker": "FG",
+  "company": "F&G Annuities & Life, Inc.",
+  "score": 3,
+  "insiders": 1,
+  "top_buyers": [
+   "Murphy Conor"
+  ],
+  "titles": [
+   "CEO, Pres"
+  ],
+  "value": 5015,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 21.71,
+  "price": 19.89,
+  "since_first_buy": -0.0826,
+  "dd_from_52w_high_at_buy": -0.355,
+  "adv_m": 13.5,
+  "flags": []
+ },
+ {
+  "ticker": "KOD",
+  "company": "Kodiak Sciences Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 156986394,
+  "first": "2026-09-28",
+  "last": "2026-09-28",
+  "vwap": 80.85,
+  "price": 91.08,
+  "since_first_buy": 0.0129,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 23.3,
+  "flags": []
+ },
+ {
+  "ticker": "PAMT",
+  "company": "Pamt Corp",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 31225740,
+  "first": "2026-09-03",
+  "last": "2026-09-03",
+  "vwap": 9.55,
+  "price": 12.3,
+  "since_first_buy": -0.0254,
+  "dd_from_52w_high_at_buy": -0.281,
+  "adv_m": 0.2,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "GSAT",
+  "company": "Globalstar, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 29839232,
+  "first": "2026-09-18",
+  "last": "2026-09-18",
+  "vwap": 82.52,
+  "price": 83.67,
+  "since_first_buy": 0.01,
+  "dd_from_52w_high_at_buy": -0.019,
+  "adv_m": 55.8,
+  "flags": []
+ },
+ {
+  "ticker": "CBIO",
+  "company": "Crescent Biopharma, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 12375025,
+  "first": "2026-07-16",
+  "last": "2026-07-16",
+  "vwap": 14.5,
+  "price": 13.49,
+  "since_first_buy": -0.1072,
+  "dd_from_52w_high_at_buy": -0.44,
+  "adv_m": 4.3,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "GWRS",
+  "company": "Global Water Resources, Inc.",
+  "score": 2,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 7000005,
+  "first": "2026-08-20",
+  "last": "2026-08-20",
+  "vwap": 8.85,
+  "price": 8.15,
+  "since_first_buy": -0.0785,
+  "dd_from_52w_high_at_buy": -0.165,
+  "adv_m": 0.6,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "ENHA",
+  "company": "Enhanced Group Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 6992054,
+  "first": "2026-09-17",
+  "last": "2026-09-17",
+  "vwap": 1.15,
+  "price": 1.39,
+  "since_first_buy": -0.0479,
+  "dd_from_52w_high_at_buy": -0.87,
+  "adv_m": 1.1,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "PBLS",
+  "company": "Parabilis Medicines, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 6919551,
+  "first": "2026-07-20",
+  "last": "2026-07-20",
+  "vwap": 28.29,
+  "price": 28.82,
+  "since_first_buy": 0.0553,
+  "dd_from_52w_high_at_buy": -0.136,
+  "adv_m": 15.7,
+  "flags": [
+   "recent listing"
+  ]
+ },
+ {
+  "ticker": "AON",
+  "company": "Aon Plc",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 6549688,
+  "first": "2026-09-02",
+  "last": "2026-09-02",
+  "vwap": 327.48,
+  "price": 270.47,
+  "since_first_buy": -0.1826,
+  "dd_from_52w_high_at_buy": -0.131,
+  "adv_m": 476.3,
+  "flags": []
+ },
+ {
+  "ticker": "NTSK",
+  "company": "Netskope Inc",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 3765698,
+  "first": "2026-07-10",
+  "last": "2026-07-10",
+  "vwap": 12.29,
+  "price": 19.24,
+  "since_first_buy": 0.5617,
+  "dd_from_52w_high_at_buy": -0.522,
+  "adv_m": 80.3,
+  "flags": []
+ },
+ {
+  "ticker": "ORCL",
+  "company": "Oracle Corp",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 3483800,
+  "first": "2026-09-29",
+  "last": "2026-09-29",
+  "vwap": 139.35,
+  "price": 143.56,
+  "since_first_buy": 0.0419,
+  "dd_from_52w_high_at_buy": -0.555,
+  "adv_m": 3893.2,
+  "flags": []
+ },
+ {
+  "ticker": "WELL",
+  "company": "Welltower Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 2407650,
+  "first": "2026-08-25",
+  "last": "2026-08-25",
+  "vwap": 240.76,
+  "price": 221.12,
+  "since_first_buy": -0.0831,
+  "dd_from_52w_high_at_buy": -0.04,
+  "adv_m": 618.9,
+  "flags": []
+ },
+ {
+  "ticker": "CVNA",
+  "company": "Carvana Co.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1544981,
+  "first": "2026-07-31",
+  "last": "2026-07-31",
+  "vwap": 61.8,
+  "price": 62.76,
+  "since_first_buy": 0.0064,
+  "dd_from_52w_high_at_buy": -0.348,
+  "adv_m": 528.8,
+  "flags": []
+ },
+ {
+  "ticker": "AME",
+  "company": "Ametek Inc/",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1023400,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 255.85,
+  "price": 248.62,
+  "since_first_buy": -0.0286,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 316.3,
+  "flags": []
+ },
+ {
+  "ticker": "KRMN",
+  "company": "Karman Holdings Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1007648,
+  "first": "2026-09-16",
+  "last": "2026-09-16",
+  "vwap": 37.32,
+  "price": 31.39,
+  "since_first_buy": -0.1502,
+  "dd_from_52w_high_at_buy": -0.68,
+  "adv_m": 132.1,
+  "flags": []
+ },
+ {
+  "ticker": "MSCI",
+  "company": "Msci Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1000160,
+  "first": "2026-09-02",
+  "last": "2026-09-02",
+  "vwap": 560.0,
+  "price": 555.38,
+  "since_first_buy": -0.0094,
+  "dd_from_52w_high_at_buy": -0.126,
+  "adv_m": 333.6,
+  "flags": []
+ },
+ {
+  "ticker": "RGNX",
+  "company": "Regenxbio Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 949381,
+  "first": "2026-08-26",
+  "last": "2026-08-26",
+  "vwap": 9.25,
+  "price": 7.595,
+  "since_first_buy": -0.1903,
+  "dd_from_52w_high_at_buy": -0.413,
+  "adv_m": 10.8,
+  "flags": []
+ },
+ {
+  "ticker": "FCEL",
+  "company": "Fuelcell Energy Inc",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 741922,
+  "first": "2026-07-16",
+  "last": "2026-09-14",
+  "vwap": 17.36,
+  "price": 18.365,
+  "since_first_buy": 0.064,
+  "dd_from_52w_high_at_buy": -0.521,
+  "adv_m": 141.5,
+  "flags": []
+ },
+ {
+  "ticker": "BV",
+  "company": "Brightview Holdings, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 562400,
+  "first": "2026-08-06",
+  "last": "2026-08-06",
+  "vwap": 11.25,
+  "price": 10.4,
+  "since_first_buy": -0.0494,
+  "dd_from_52w_high_at_buy": -0.328,
+  "adv_m": 9.8,
+  "flags": []
+ },
+ {
+  "ticker": "MAIR",
+  "company": "Madison Air Solutions Corp",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 556800,
+  "first": "2026-08-25",
+  "last": "2026-08-25",
+  "vwap": 27.84,
+  "price": 24.12,
+  "since_first_buy": -0.1383,
+  "dd_from_52w_high_at_buy": -0.362,
+  "adv_m": 56.6,
+  "flags": [
+   "recent listing"
+  ]
+ },
+ {
+  "ticker": "FISV",
+  "company": "Fiserv Inc",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 519500,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 51.95,
+  "price": 45.31,
+  "since_first_buy": -0.1355,
+  "dd_from_52w_high_at_buy": -0.626,
+  "adv_m": 307.4,
+  "flags": []
+ },
+ {
+  "ticker": "FTAI",
+  "company": "Ftai Aviation Ltd.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Moreno David"
+  ],
+  "titles": [
+   "Pres"
+  ],
+  "value": 498143,
+  "first": "2026-07-31",
+  "last": "2026-07-31",
+  "vwap": 201.27,
+  "price": 174.83,
+  "since_first_buy": -0.1494,
+  "dd_from_52w_high_at_buy": -0.333,
+  "adv_m": 265.6,
+  "flags": []
+ },
+ {
+  "ticker": "ARE",
+  "company": "Alexandria Real Estate Equities, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Marcus Joel S"
+  ],
+  "titles": [
+   "Exec COB"
+  ],
+  "value": 479800,
+  "first": "2026-08-17",
+  "last": "2026-09-11",
+  "vwap": 47.98,
+  "price": 45.21,
+  "since_first_buy": -0.0223,
+  "dd_from_52w_high_at_buy": -0.431,
+  "adv_m": 86.1,
+  "flags": []
+ },
+ {
+  "ticker": "CAVA",
+  "company": "Cava Group, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Chief Operations Officer"
+  ],
+  "value": 432380,
+  "first": "2026-08-31",
+  "last": "2026-08-31",
+  "vwap": 66.52,
+  "price": 52.07,
+  "since_first_buy": -0.2081,
+  "dd_from_52w_high_at_buy": -0.325,
+  "adv_m": 200.8,
+  "flags": []
+ },
+ {
+  "ticker": "CEG",
+  "company": "Constellation Energy Corp",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 417931,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 278.62,
+  "price": 299.59,
+  "since_first_buy": 0.0779,
+  "dd_from_52w_high_at_buy": -0.308,
+  "adv_m": 716.1,
+  "flags": []
+ },
+ {
+  "ticker": "YEXT",
+  "company": "Yext, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 397910,
+  "first": "2026-07-13",
+  "last": "2026-07-13",
+  "vwap": 5.22,
+  "price": 6.62,
+  "since_first_buy": 0.2706,
+  "dd_from_52w_high_at_buy": -0.431,
+  "adv_m": 5.4,
+  "flags": []
+ },
+ {
+  "ticker": "FRPH",
+  "company": "Frp Holdings, Inc.",
+  "score": 2,
+  "insiders": 2,
+  "top_buyers": [
+   "Baker John D. III"
+  ],
+  "titles": [
+   "CEO",
+   "Dir, 10%"
+  ],
+  "value": 349924,
+  "first": "2026-08-07",
+  "last": "2026-08-17",
+  "vwap": 21.94,
+  "price": 19.95,
+  "since_first_buy": -0.0899,
+  "dd_from_52w_high_at_buy": -0.179,
+  "adv_m": 2.0,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "AVBC",
+  "company": "Avidia Bancorp, Inc.",
+  "score": 2,
+  "insiders": 3,
+  "top_buyers": [],
+  "titles": [
+   "Chairman of the Board",
+   "Dir"
+  ],
+  "value": 348421,
+  "first": "2026-08-11",
+  "last": "2026-09-14",
+  "vwap": 21.91,
+  "price": 21.92,
+  "since_first_buy": 0.0248,
+  "dd_from_52w_high_at_buy": -0.043,
+  "adv_m": 3.0,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "HPP",
+  "company": "Hudson Pacific Properties, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 335000,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 13.4,
+  "price": 11.63,
+  "since_first_buy": -0.1288,
+  "dd_from_52w_high_at_buy": -0.379,
+  "adv_m": 8.4,
+  "flags": []
+ },
+ {
+  "ticker": "RM",
+  "company": "Regional Management Corp.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Lamba Lakhbir S."
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 316495,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 31.65,
+  "price": 33.2,
+  "since_first_buy": 0.059,
+  "dd_from_52w_high_at_buy": -0.288,
+  "adv_m": 2.4,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "VCIG",
+  "company": "Vci Global Ltd",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Hoo Voon Him"
+  ],
+  "titles": [
+   "CEO, Dir, 10%"
+  ],
+  "value": 313225,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 1.62,
+  "price": 0.771,
+  "since_first_buy": -0.5089,
+  "dd_from_52w_high_at_buy": -1.0,
+  "adv_m": 0.3,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "SGRY",
+  "company": "Surgery Partners, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 304713,
+  "first": "2026-08-18",
+  "last": "2026-08-18",
+  "vwap": 14.34,
+  "price": 13.71,
+  "since_first_buy": -0.0372,
+  "dd_from_52w_high_at_buy": -0.403,
+  "adv_m": 25.6,
+  "flags": []
+ },
+ {
+  "ticker": "LBRT",
+  "company": "Liberty Energy Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 250009,
+  "first": "2026-07-28",
+  "last": "2026-07-28",
+  "vwap": 17.79,
+  "price": 19.41,
+  "since_first_buy": 0.1016,
+  "dd_from_52w_high_at_buy": -0.477,
+  "adv_m": 76.7,
+  "flags": []
+ },
+ {
+  "ticker": "ECVT",
+  "company": "Ecovyst Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 249994,
+  "first": "2026-09-10",
+  "last": "2026-09-10",
+  "vwap": 10.05,
+  "price": 10.31,
+  "since_first_buy": 0.0238,
+  "dd_from_52w_high_at_buy": -0.327,
+  "adv_m": 12.4,
+  "flags": []
+ },
+ {
+  "ticker": "SON",
+  "company": "Sonoco Products Co",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Coker R. Howard"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 249446,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 57.41,
+  "price": 47.74,
+  "since_first_buy": -0.1695,
+  "dd_from_52w_high_at_buy": -0.042,
+  "adv_m": 53.7,
+  "flags": []
+ },
+ {
+  "ticker": "CC",
+  "company": "Chemours Co",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 203060,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 15.62,
+  "price": 13.98,
+  "since_first_buy": -0.1073,
+  "dd_from_52w_high_at_buy": -0.434,
+  "adv_m": 29.7,
+  "flags": []
+ },
+ {
+  "ticker": "HRL",
+  "company": "Hormel Foods Corp /De/",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Chairman of the Board"
+  ],
+  "value": 201000,
+  "first": "2026-10-05",
+  "last": "2026-10-05",
+  "vwap": 20.1,
+  "price": 19.55,
+  "since_first_buy": -0.0264,
+  "dd_from_52w_high_at_buy": -0.234,
+  "adv_m": 92.6,
+  "flags": []
+ },
+ {
+  "ticker": "PAR",
+  "company": "Par Technology Corp",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 199950,
+  "first": "2026-08-12",
+  "last": "2026-08-12",
+  "vwap": 17.36,
+  "price": 14.78,
+  "since_first_buy": -0.1748,
+  "dd_from_52w_high_at_buy": -0.672,
+  "adv_m": 13.6,
+  "flags": []
+ },
+ {
+  "ticker": "DVN",
+  "company": "Devon Energy Corp/De",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Gaspar Clay M"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 199876,
+  "first": "2026-09-14",
+  "last": "2026-09-14",
+  "vwap": 51.08,
+  "price": 47.88,
+  "since_first_buy": -0.031,
+  "dd_from_52w_high_at_buy": -0.038,
+  "adv_m": 464.7,
+  "flags": []
+ },
+ {
+  "ticker": "HUBS",
+  "company": "Hubspot Inc",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 199735,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 215.93,
+  "price": 220.27,
+  "since_first_buy": 0.0202,
+  "dd_from_52w_high_at_buy": -0.587,
+  "adv_m": 328.0,
+  "flags": []
+ },
+ {
+  "ticker": "IPGP",
+  "company": "Ipg Photonics Corp",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 199400,
+  "first": "2026-08-26",
+  "last": "2026-08-26",
+  "vwap": 73.58,
+  "price": 80.89,
+  "since_first_buy": 0.09,
+  "dd_from_52w_high_at_buy": -0.518,
+  "adv_m": 34.8,
+  "flags": []
+ },
+ {
+  "ticker": "GO",
+  "company": "Grocery Outlet Holding Corp.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 175500,
+  "first": "2026-08-27",
+  "last": "2026-08-27",
+  "vwap": 11.7,
+  "price": 11.94,
+  "since_first_buy": 0.0205,
+  "dd_from_52w_high_at_buy": -0.373,
+  "adv_m": 24.7,
+  "flags": []
+ },
+ {
+  "ticker": "JBL",
+  "company": "Jabil Inc",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 149815,
+  "first": "2026-07-17",
+  "last": "2026-07-17",
+  "vwap": 299.63,
+  "price": 299.47,
+  "since_first_buy": -0.0049,
+  "dd_from_52w_high_at_buy": -0.219,
+  "adv_m": 319.7,
+  "flags": []
+ },
+ {
+  "ticker": "MPLT",
+  "company": "Maplight Therapeutics, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 148702,
+  "first": "2026-07-28",
+  "last": "2026-07-28",
+  "vwap": 9.52,
+  "price": 9.36,
+  "since_first_buy": -0.2396,
+  "dd_from_52w_high_at_buy": -0.691,
+  "adv_m": 6.7,
+  "flags": []
+ },
+ {
+  "ticker": "CMCO",
+  "company": "Columbus McKinnon Corp",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Linker John R"
+  ],
+  "titles": [
+   "EVP, Finance, CFO"
+  ],
+  "value": 147525,
+  "first": "2026-07-31",
+  "last": "2026-07-31",
+  "vwap": 19.67,
+  "price": 16.16,
+  "since_first_buy": -0.1544,
+  "dd_from_52w_high_at_buy": -0.169,
+  "adv_m": 7.0,
+  "flags": []
+ },
+ {
+  "ticker": "Q",
+  "company": "Qnity Electronics, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 138136,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 138.14,
+  "price": 129.72,
+  "since_first_buy": -0.061,
+  "dd_from_52w_high_at_buy": -0.213,
+  "adv_m": 190.5,
+  "flags": []
+ },
+ {
+  "ticker": "GRML",
+  "company": "Greenland Mines Ltd",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Leblanc Jeff"
+  ],
+  "titles": [
+   "CFO"
+  ],
+  "value": 136080,
+  "first": "2026-08-25",
+  "last": "2026-08-25",
+  "vwap": 9.72,
+  "price": 5.83,
+  "since_first_buy": -0.3996,
+  "dd_from_52w_high_at_buy": -0.743,
+  "adv_m": 2.0,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "VRCA",
+  "company": "Verrica Pharmaceuticals Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Rieger Jayson"
+  ],
+  "titles": [
+   "CEO, Pres"
+  ],
+  "value": 125750,
+  "first": "2026-08-14",
+  "last": "2026-08-14",
+  "vwap": 5.03,
+  "price": 4.14,
+  "since_first_buy": -0.167,
+  "dd_from_52w_high_at_buy": -0.454,
+  "adv_m": 0.2,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "GTLB",
+  "company": "Gitlab Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Staples William"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 124802,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 46.62,
+  "price": 51.99,
+  "since_first_buy": 0.1003,
+  "dd_from_52w_high_at_buy": -0.074,
+  "adv_m": 168.8,
+  "flags": []
+ },
+ {
+  "ticker": "BROS",
+  "company": "Dutch Bros Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 103120,
+  "first": "2026-08-13",
+  "last": "2026-08-13",
+  "vwap": 51.56,
+  "price": 38.18,
+  "since_first_buy": -0.2533,
+  "dd_from_52w_high_at_buy": -0.311,
+  "adv_m": 181.5,
+  "flags": []
+ },
+ {
+  "ticker": "BMI",
+  "company": "Badger Meter Inc",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "VP-Engineering"
+  ],
+  "value": 101572,
+  "first": "2026-07-30",
+  "last": "2026-07-30",
+  "vwap": 135.25,
+  "price": 124.07,
+  "since_first_buy": -0.0454,
+  "dd_from_52w_high_at_buy": -0.318,
+  "adv_m": 45.9,
+  "flags": []
+ },
+ {
+  "ticker": "VMI",
+  "company": "Valmont Industries Inc",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Schwietz John L"
+  ],
+  "titles": [
+   "EVP, CFO"
+  ],
+  "value": 101118,
+  "first": "2026-07-23",
+  "last": "2026-07-23",
+  "vwap": 486.14,
+  "price": 464.59,
+  "since_first_buy": -0.0476,
+  "dd_from_52w_high_at_buy": -0.162,
+  "adv_m": 84.9,
+  "flags": []
+ },
+ {
+  "ticker": "CTRI",
+  "company": "Centuri Holdings, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 100204,
+  "first": "2026-09-18",
+  "last": "2026-09-18",
+  "vwap": 19.27,
+  "price": 20.76,
+  "since_first_buy": 0.0729,
+  "dd_from_52w_high_at_buy": -0.537,
+  "adv_m": 35.1,
+  "flags": []
+ },
+ {
+  "ticker": "MBLY",
+  "company": "Mobileye Global Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 100175,
+  "first": "2026-08-06",
+  "last": "2026-08-06",
+  "vwap": 8.46,
+  "price": 7.15,
+  "since_first_buy": -0.1508,
+  "dd_from_52w_high_at_buy": -0.458,
+  "adv_m": 40.4,
+  "flags": []
+ },
+ {
+  "ticker": "MKC",
+  "company": "McCormick & Co Inc",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 44610,
+  "first": "2026-10-02",
+  "last": "2026-10-02",
+  "vwap": 44.61,
+  "price": 45.25,
+  "since_first_buy": 0.013,
+  "dd_from_52w_high_at_buy": -0.365,
+  "adv_m": 148.4,
+  "flags": []
+ },
+ {
+  "ticker": "DYN",
+  "company": "Dyne Therapeutics, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 40000,
+  "first": "2026-10-02",
+  "last": "2026-10-02",
+  "vwap": 16.0,
+  "price": 15.97,
+  "since_first_buy": 0.0507,
+  "dd_from_52w_high_at_buy": -0.432,
+  "adv_m": 50.4,
+  "flags": []
+ },
+ {
+  "ticker": "UXIN",
+  "company": "Uxin Ltd",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Dai Kun"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 39830,
+  "first": "2026-10-01",
+  "last": "2026-10-06",
+  "vwap": 1.31,
+  "price": 1.21,
+  "since_first_buy": -0.1168,
+  "dd_from_52w_high_at_buy": -0.66,
+  "adv_m": 0.1,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "CRL",
+  "company": "Charles River Laboratories International, Inc.",
+  "score": 2,
+  "insiders": 1,
+  "top_buyers": [
+   "Coleman Glenn"
+  ],
+  "titles": [
+   "EVP, CFO"
+  ],
+  "value": 2974,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 297.4,
+  "price": 300.3,
+  "since_first_buy": 0.0179,
+  "dd_from_52w_high_at_buy": -0.012,
+  "adv_m": 245.6,
+  "flags": []
+ },
+ {
+  "ticker": "LEN",
+  "company": "Lennar Corp /New/",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 595294961,
+  "first": "2026-09-17",
+  "last": "2026-10-01",
+  "vwap": 79.35,
+  "price": 76.13,
+  "since_first_buy": -0.0386,
+  "dd_from_52w_high_at_buy": -0.392,
+  "adv_m": 230.9,
+  "flags": [
+   "10%-holder only"
+  ]
+ },
+ {
+  "ticker": "GPI",
+  "company": "Group 1 Automotive Inc",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 138329597,
+  "first": "2026-09-09",
+  "last": "2026-09-28",
+  "vwap": 251.67,
+  "price": 232.61,
+  "since_first_buy": -0.1915,
+  "dd_from_52w_high_at_buy": -0.407,
+  "adv_m": 61.9,
+  "flags": [
+   "10%-holder only"
+  ]
+ },
+ {
+  "ticker": "CV",
+  "company": "Capsovision, Inc",
+  "score": 1,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 14999995,
+  "first": "2026-09-15",
+  "last": "2026-09-18",
+  "vwap": 5.69,
+  "price": 6.54,
+  "since_first_buy": 0.0251,
+  "dd_from_52w_high_at_buy": -0.558,
+  "adv_m": 0.7,
+  "flags": [
+   "10%-holder only",
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "IMTX",
+  "company": "Immatics N.V.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 7499991,
+  "first": "2026-08-26",
+  "last": "2026-08-26",
+  "vwap": 8.69,
+  "price": 7.45,
+  "since_first_buy": -0.21,
+  "dd_from_52w_high_at_buy": -0.206,
+  "adv_m": 4.5,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "ARTV",
+  "company": "Artiva Biotherapeutics, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 5077976,
+  "first": "2026-07-10",
+  "last": "2026-07-29",
+  "vwap": 9.52,
+  "price": 7.0,
+  "since_first_buy": -0.2739,
+  "dd_from_52w_high_at_buy": -0.28,
+  "adv_m": 3.5,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "NPB",
+  "company": "Northpointe Bancshares Inc",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [
+   "Williams Charles Alan"
+  ],
+  "titles": [
+   "COB, CEO, 10%"
+  ],
+  "value": 2750032,
+  "first": "2026-08-25",
+  "last": "2026-09-01",
+  "vwap": 16.84,
+  "price": 15.56,
+  "since_first_buy": -0.082,
+  "dd_from_52w_high_at_buy": -0.121,
+  "adv_m": 3.4,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "LTGO",
+  "company": "Latigo Biotherapeutics, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 2520000,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 18.0,
+  "price": 15.52,
+  "since_first_buy": -0.1638,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 5.1,
+  "flags": [
+   "recent listing"
+  ]
+ },
+ {
+  "ticker": "VEON",
+  "company": "Veon Ltd.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1120053,
+  "first": "2026-08-06",
+  "last": "2026-08-06",
+  "vwap": 56.0,
+  "price": 77.19,
+  "since_first_buy": 0.3814,
+  "dd_from_52w_high_at_buy": -0.109,
+  "adv_m": 6.2,
+  "flags": []
+ },
+ {
+  "ticker": "IR",
+  "company": "Ingersoll Rand Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1000091,
+  "first": "2026-08-03",
+  "last": "2026-08-03",
+  "vwap": 86.68,
+  "price": 77.24,
+  "since_first_buy": -0.1199,
+  "dd_from_52w_high_at_buy": -0.111,
+  "adv_m": 331.8,
+  "flags": []
+ },
+ {
+  "ticker": "DFIN",
+  "company": "Donnelley Financial Solutions, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 999990,
+  "first": "2026-09-01",
+  "last": "2026-09-01",
+  "vwap": 48.12,
+  "price": 49.8,
+  "since_first_buy": 0.0341,
+  "dd_from_52w_high_at_buy": -0.154,
+  "adv_m": 9.8,
+  "flags": []
+ },
+ {
+  "ticker": "BFLY",
+  "company": "Butterfly Network, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 999510,
+  "first": "2026-08-14",
+  "last": "2026-08-14",
+  "vwap": 8.68,
+  "price": 8.27,
+  "since_first_buy": -0.0645,
+  "dd_from_52w_high_at_buy": -0.089,
+  "adv_m": 42.5,
+  "flags": []
+ },
+ {
+  "ticker": "CRM",
+  "company": "Salesforce, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 999451,
+  "first": "2026-09-18",
+  "last": "2026-09-18",
+  "vwap": 239.33,
+  "price": 224.56,
+  "since_first_buy": -0.0562,
+  "dd_from_52w_high_at_buy": -0.1,
+  "adv_m": 2438.6,
+  "flags": []
+ },
+ {
+  "ticker": "OPFI",
+  "company": "Oppfi Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [
+   "Schwartz Todd G."
+  ],
+  "titles": [
+   "CEO, 10%"
+  ],
+  "value": 994680,
+  "first": "2026-08-12",
+  "last": "2026-08-14",
+  "vwap": 7.1,
+  "price": 6.06,
+  "since_first_buy": -0.1166,
+  "dd_from_52w_high_at_buy": -0.44,
+  "adv_m": 4.3,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "PSN",
+  "company": "Parsons Corp",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 959400,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 47.97,
+  "price": 42.02,
+  "since_first_buy": -0.1163,
+  "dd_from_52w_high_at_buy": -0.467,
+  "adv_m": 52.1,
+  "flags": []
+ },
+ {
+  "ticker": "BG",
+  "company": "Bunge Global Sa",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 689050,
+  "first": "2026-07-31",
+  "last": "2026-07-31",
+  "vwap": 106.01,
+  "price": 105.51,
+  "since_first_buy": -0.0005,
+  "dd_from_52w_high_at_buy": -0.192,
+  "adv_m": 178.6,
+  "flags": []
+ },
+ {
+  "ticker": "INFQ",
+  "company": "Infleqtion, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 646836,
+  "first": "2026-08-14",
+  "last": "2026-08-14",
+  "vwap": 12.42,
+  "price": 11.64,
+  "since_first_buy": -0.0949,
+  "dd_from_52w_high_at_buy": -0.504,
+  "adv_m": 95.7,
+  "flags": []
+ },
+ {
+  "ticker": "ASTS",
+  "company": "Ast Spacemobile, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 619200,
+  "first": "2026-08-31",
+  "last": "2026-08-31",
+  "vwap": 57.22,
+  "price": 60.65,
+  "since_first_buy": 0.0262,
+  "dd_from_52w_high_at_buy": -0.556,
+  "adv_m": 676.0,
+  "flags": []
+ },
+ {
+  "ticker": "HRI",
+  "company": "Herc Holdings Inc",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 502855,
+  "first": "2026-08-21",
+  "last": "2026-08-21",
+  "vwap": 163.0,
+  "price": 124.42,
+  "since_first_buy": -0.2277,
+  "dd_from_52w_high_at_buy": -0.097,
+  "adv_m": 70.7,
+  "flags": []
+ },
+ {
+  "ticker": "SEI",
+  "company": "Solaris Energy Infrastructure, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 500994,
+  "first": "2026-09-08",
+  "last": "2026-09-08",
+  "vwap": 64.23,
+  "price": 76.46,
+  "since_first_buy": 0.1979,
+  "dd_from_52w_high_at_buy": -0.228,
+  "adv_m": 164.7,
+  "flags": []
+ },
+ {
+  "ticker": "AMT",
+  "company": "American Tower Corp /Ma/",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 500733,
+  "first": "2026-08-21",
+  "last": "2026-08-21",
+  "vwap": 177.0,
+  "price": 166.18,
+  "since_first_buy": -0.0445,
+  "dd_from_52w_high_at_buy": -0.138,
+  "adv_m": 420.2,
+  "flags": []
+ },
+ {
+  "ticker": "FNKO",
+  "company": "Funko, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 499995,
+  "first": "2026-08-24",
+  "last": "2026-08-24",
+  "vwap": 6.85,
+  "price": 6.31,
+  "since_first_buy": -0.0815,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 5.5,
+  "flags": []
+ },
+ {
+  "ticker": "FTI",
+  "company": "Technipfmc Plc",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 499971,
+  "first": "2026-08-14",
+  "last": "2026-08-14",
+  "vwap": 78.55,
+  "price": 68.4,
+  "since_first_buy": -0.1293,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 210.8,
+  "flags": []
+ },
+ {
+  "ticker": "ASND",
+  "company": "Ascendis Pharma A/S",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 492654,
+  "first": "2026-08-14",
+  "last": "2026-08-14",
+  "vwap": 246.33,
+  "price": 228.41,
+  "since_first_buy": -0.0808,
+  "dd_from_52w_high_at_buy": -0.103,
+  "adv_m": 138.0,
+  "flags": []
+ },
+ {
+  "ticker": "MFP",
+  "company": "Midera Food Processing, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 491045,
+  "first": "2026-08-17",
+  "last": "2026-08-17",
+  "vwap": 45.05,
+  "price": 40.55,
+  "since_first_buy": -0.0989,
+  "dd_from_52w_high_at_buy": -0.065,
+  "adv_m": 29.0,
+  "flags": [
+   "recent listing"
+  ]
+ },
+ {
+  "ticker": "AMH",
+  "company": "American Homes 4 Rent",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 442056,
+  "first": "2026-08-10",
+  "last": "2026-09-10",
+  "vwap": 22.1,
+  "price": 30.0,
+  "since_first_buy": -0.1116,
+  "dd_from_52w_high_at_buy": -0.015,
+  "adv_m": 72.1,
+  "flags": []
+ },
+ {
+  "ticker": "CROX",
+  "company": "Crocs, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 437530,
+  "first": "2026-09-10",
+  "last": "2026-09-10",
+  "vwap": 109.38,
+  "price": 115.2,
+  "since_first_buy": 0.0585,
+  "dd_from_52w_high_at_buy": -0.229,
+  "adv_m": 123.0,
+  "flags": []
+ },
+ {
+  "ticker": "TISI",
+  "company": "Team Inc",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [
+   "Roeder Clinton William"
+  ],
+  "titles": [
+   "CFO"
+  ],
+  "value": 426760,
+  "first": "2026-08-21",
+  "last": "2026-09-03",
+  "vwap": 25.1,
+  "price": 27.59,
+  "since_first_buy": 0.2143,
+  "dd_from_52w_high_at_buy": -0.026,
+  "adv_m": 0.6,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "GLPI",
+  "company": "Gaming & Leisure Properties, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 422400,
+  "first": "2026-08-18",
+  "last": "2026-08-18",
+  "vwap": 42.24,
+  "price": 37.78,
+  "since_first_buy": -0.0839,
+  "dd_from_52w_high_at_buy": -0.126,
+  "adv_m": 110.1,
+  "flags": []
+ },
+ {
+  "ticker": "NVR",
+  "company": "Nvr Inc",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 405185,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 6431.51,
+  "price": 5931.62,
+  "since_first_buy": -0.0718,
+  "dd_from_52w_high_at_buy": -0.252,
+  "adv_m": 227.8,
+  "flags": []
+ },
+ {
+  "ticker": "LMB",
+  "company": "Limbach Holdings, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 391013,
+  "first": "2026-09-11",
+  "last": "2026-09-11",
+  "vwap": 50.0,
+  "price": 50.97,
+  "since_first_buy": 0.0093,
+  "dd_from_52w_high_at_buy": -0.557,
+  "adv_m": 16.4,
+  "flags": []
+ },
+ {
+  "ticker": "BRK.B",
+  "company": "Berkshire Hathaway Inc",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "See Remarks"
+  ],
+  "value": 250072,
+  "first": "2026-08-12",
+  "last": "2026-08-12",
+  "vwap": 512.44,
+  "price": 506.25,
+  "since_first_buy": -0.0074,
+  "dd_from_52w_high_at_buy": -0.037,
+  "adv_m": 2061.3,
+  "flags": []
+ },
+ {
+  "ticker": "CTEV",
+  "company": "Claritev Corp",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [
+   "Dalton Travis"
+  ],
+  "titles": [
+   "Pres, CEO, Exec Chair"
+  ],
+  "value": 249664,
+  "first": "2026-08-27",
+  "last": "2026-08-27",
+  "vwap": 38.71,
+  "price": 25.03,
+  "since_first_buy": -0.3546,
+  "dd_from_52w_high_at_buy": -0.465,
+  "adv_m": 4.2,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "UTI",
+  "company": "Universal Technical Institute Inc",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 225676,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 28.21,
+  "price": 19.89,
+  "since_first_buy": -0.2556,
+  "dd_from_52w_high_at_buy": -0.478,
+  "adv_m": 36.8,
+  "flags": []
+ },
+ {
+  "ticker": "BNL",
+  "company": "Broadstone Net Lease, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 211600,
+  "first": "2026-08-20",
+  "last": "2026-08-20",
+  "vwap": 21.16,
+  "price": 18.28,
+  "since_first_buy": -0.1245,
+  "dd_from_52w_high_at_buy": -0.072,
+  "adv_m": 35.9,
+  "flags": []
+ },
+ {
+  "ticker": "NAKA",
+  "company": "Nakamoto Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [
+   "Bailey David F"
+  ],
+  "titles": [
+   "CEO, 10%"
+  ],
+  "value": 209990,
+  "first": "2026-08-19",
+  "last": "2026-08-19",
+  "vwap": 5.68,
+  "price": 9.34,
+  "since_first_buy": 0.5413,
+  "dd_from_52w_high_at_buy": -0.986,
+  "adv_m": 1.2,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "NXRT",
+  "company": "Nexpoint Residential Trust, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "See Remarks"
+  ],
+  "value": 201049,
+  "first": "2026-10-01",
+  "last": "2026-10-01",
+  "vwap": 18.65,
+  "price": 19.5,
+  "since_first_buy": 0.0339,
+  "dd_from_52w_high_at_buy": -0.365,
+  "adv_m": 9.4,
+  "flags": []
+ },
+ {
+  "ticker": "ASST",
+  "company": "Strive, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 199386,
+  "first": "2026-08-14",
+  "last": "2026-08-14",
+  "vwap": 12.54,
+  "price": 28.185,
+  "since_first_buy": 1.2887,
+  "dd_from_52w_high_at_buy": -0.931,
+  "adv_m": 148.0,
+  "flags": []
+ },
+ {
+  "ticker": "OBK",
+  "company": "Origin Bancorp, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 199282,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 53.86,
+  "price": 52.32,
+  "since_first_buy": -0.0237,
+  "dd_from_52w_high_at_buy": -0.025,
+  "adv_m": 9.3,
+  "flags": []
+ },
+ {
+  "ticker": "DTM",
+  "company": "Dt Midstream, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 198915,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 132.61,
+  "price": 122.69,
+  "since_first_buy": -0.06,
+  "dd_from_52w_high_at_buy": -0.128,
+  "adv_m": 116.3,
+  "flags": []
+ },
+ {
+  "ticker": "SNEX",
+  "company": "Stonex Group Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 161206,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 64.48,
+  "price": 61.46,
+  "since_first_buy": -0.0504,
+  "dd_from_52w_high_at_buy": -0.302,
+  "adv_m": 63.9,
+  "flags": []
+ },
+ {
+  "ticker": "CW",
+  "company": "Curtiss Wright Corp",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 148999,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 712.91,
+  "price": 509.1,
+  "since_first_buy": -0.2664,
+  "dd_from_52w_high_at_buy": -0.124,
+  "adv_m": 202.6,
+  "flags": []
+ },
+ {
+  "ticker": "BXMT",
+  "company": "Blackstone Mortgage Trust, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 143357,
+  "first": "2026-08-04",
+  "last": "2026-08-04",
+  "vwap": 14.34,
+  "price": 11.2,
+  "since_first_buy": -0.1925,
+  "dd_from_52w_high_at_buy": -0.267,
+  "adv_m": 28.0,
+  "flags": []
+ },
+ {
+  "ticker": "RDVT",
+  "company": "Red Violet, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 142980,
+  "first": "2026-08-27",
+  "last": "2026-08-27",
+  "vwap": 71.49,
+  "price": 77.85,
+  "since_first_buy": 0.0812,
+  "dd_from_52w_high_at_buy": -0.024,
+  "adv_m": 14.5,
+  "flags": []
+ },
+ {
+  "ticker": "ZUMZ",
+  "company": "Zumiez Inc",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [
+   "Ellis Adam Christopher"
+  ],
+  "titles": [
+   "Pres International"
+  ],
+  "value": 134000,
+  "first": "2026-09-18",
+  "last": "2026-09-18",
+  "vwap": 13.4,
+  "price": 14.12,
+  "since_first_buy": 0.0697,
+  "dd_from_52w_high_at_buy": -0.569,
+  "adv_m": 3.8,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "EVRG",
+  "company": "Evergy, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 133611,
+  "first": "2026-09-11",
+  "last": "2026-09-11",
+  "vwap": 81.47,
+  "price": 80.3,
+  "since_first_buy": -0.0162,
+  "dd_from_52w_high_at_buy": -0.066,
+  "adv_m": 159.7,
+  "flags": []
+ },
+ {
+  "ticker": "SAIC",
+  "company": "Science Applications International Corp",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 132500,
+  "first": "2026-09-22",
+  "last": "2026-09-22",
+  "vwap": 132.5,
+  "price": 122.08,
+  "since_first_buy": -0.0587,
+  "dd_from_52w_high_at_buy": -0.03,
+  "adv_m": 48.8,
+  "flags": []
+ },
+ {
+  "ticker": "FCNCA",
+  "company": "First Citizens Bancshares Inc /De/",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 108405,
+  "first": "2026-08-19",
+  "last": "2026-08-19",
+  "vwap": 2168.1,
+  "price": 2071.56,
+  "since_first_buy": -0.0448,
+  "dd_from_52w_high_at_buy": -0.053,
+  "adv_m": 127.0,
+  "flags": []
+ },
+ {
+  "ticker": "ETR",
+  "company": "Entergy Corp /De/",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 106075,
+  "first": "2026-08-06",
+  "last": "2026-08-06",
+  "vwap": 106.08,
+  "price": 102.8,
+  "since_first_buy": -0.0289,
+  "dd_from_52w_high_at_buy": -0.093,
+  "adv_m": 268.2,
+  "flags": []
+ },
+ {
+  "ticker": "AGCO",
+  "company": "Agco Corp /De",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 100710,
+  "first": "2026-08-14",
+  "last": "2026-08-14",
+  "vwap": 100.71,
+  "price": 109.15,
+  "since_first_buy": 0.0772,
+  "dd_from_52w_high_at_buy": -0.275,
+  "adv_m": 107.7,
+  "flags": []
+ },
+ {
+  "ticker": "RBA",
+  "company": "Rb Global Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 100488,
+  "first": "2026-08-24",
+  "last": "2026-08-24",
+  "vwap": 83.74,
+  "price": 80.4,
+  "since_first_buy": -0.0405,
+  "dd_from_52w_high_at_buy": -0.293,
+  "adv_m": 134.4,
+  "flags": []
+ },
+ {
+  "ticker": "MPB",
+  "company": "Mid Penn Bancorp Inc",
+  "score": 1,
+  "insiders": 5,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 26939,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 35.4,
+  "price": 35.73,
+  "since_first_buy": 0.0093,
+  "dd_from_52w_high_at_buy": -0.079,
+  "adv_m": 4.0,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "CMPX",
+  "company": "Compass Therapeutics, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "CHIEF ACCOUNTING OFFICER"
+  ],
+  "value": 18400,
+  "first": "2026-10-01",
+  "last": "2026-10-01",
+  "vwap": 0.92,
+  "price": 1.02,
+  "since_first_buy": 0.1319,
+  "dd_from_52w_high_at_buy": -0.865,
+  "adv_m": 5.5,
+  "flags": [
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "DLPN",
+  "company": "Dolphin Entertainment, Inc.",
+  "score": 1,
+  "insiders": 1,
+  "top_buyers": [
+   "O'Dowd William IV"
+  ],
+  "titles": [
+   "CEO, 10%"
+  ],
+  "value": 4856,
+  "first": "2026-10-05",
+  "last": "2026-10-05",
+  "vwap": 1.08,
+  "price": 1.004,
+  "since_first_buy": -0.0897,
+  "dd_from_52w_high_at_buy": -0.394,
+  "adv_m": 0.0,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "COUR",
+  "company": "Coursera, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 11355072,
+  "first": "2026-09-25",
+  "last": "2026-09-25",
+  "vwap": 4.87,
+  "price": 5.11,
+  "since_first_buy": 0.0119,
+  "dd_from_52w_high_at_buy": -0.582,
+  "adv_m": 27.2,
+  "flags": [
+   "10%-holder only"
+  ]
+ },
+ {
+  "ticker": "AVR",
+  "company": "Anteris Technologies Global Corp.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 9736563,
+  "first": "2026-09-30",
+  "last": "2026-10-02",
+  "vwap": 7.59,
+  "price": 6.82,
+  "since_first_buy": -0.1223,
+  "dd_from_52w_high_at_buy": -0.265,
+  "adv_m": 6.6,
+  "flags": [
+   "10%-holder only"
+  ]
+ },
+ {
+  "ticker": "MED",
+  "company": "Medifast Inc",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 1371856,
+  "first": "2026-08-19",
+  "last": "2026-08-26",
+  "vwap": 11.86,
+  "price": 11.44,
+  "since_first_buy": -0.0121,
+  "dd_from_52w_high_at_buy": -0.205,
+  "adv_m": 1.4,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "ATRA",
+  "company": "Atara Biotherapeutics, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 999994,
+  "first": "2026-09-04",
+  "last": "2026-09-04",
+  "vwap": 9.6,
+  "price": 9.37,
+  "since_first_buy": -0.04,
+  "dd_from_52w_high_at_buy": -0.46,
+  "adv_m": 0.4,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "MOBI",
+  "company": "Mobia Medical, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 995696,
+  "first": "2026-08-13",
+  "last": "2026-08-18",
+  "vwap": 11.71,
+  "price": 8.51,
+  "since_first_buy": -0.2714,
+  "dd_from_52w_high_at_buy": -0.202,
+  "adv_m": 1.3,
+  "flags": [
+   "illiquid",
+   "recent listing"
+  ]
+ },
+ {
+  "ticker": "MBGL",
+  "company": "Mobility Global Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 980566,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 19.61,
+  "price": 17.37,
+  "since_first_buy": -0.1005,
+  "dd_from_52w_high_at_buy": -0.13,
+  "adv_m": 76.4,
+  "flags": [
+   "recent listing"
+  ]
+ },
+ {
+  "ticker": "SUNS",
+  "company": "Sunrise Realty Trust, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [
+   "Tannenbaum Leonard M"
+  ],
+  "titles": [
+   "Exec COB, 10%"
+  ],
+  "value": 900383,
+  "first": "2026-08-07",
+  "last": "2026-08-13",
+  "vwap": 7.62,
+  "price": 6.08,
+  "since_first_buy": -0.1855,
+  "dd_from_52w_high_at_buy": -0.239,
+  "adv_m": 0.5,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "BWA",
+  "company": "Borgwarner Inc",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 500664,
+  "first": "2026-08-19",
+  "last": "2026-08-19",
+  "vwap": 67.59,
+  "price": 62.36,
+  "since_first_buy": -0.0559,
+  "dd_from_52w_high_at_buy": -0.14,
+  "adv_m": 127.6,
+  "flags": []
+ },
+ {
+  "ticker": "WCC",
+  "company": "Wesco International Inc",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "EVP, GM, EES"
+  ],
+  "value": 351254,
+  "first": "2026-08-04",
+  "last": "2026-08-04",
+  "vwap": 365.89,
+  "price": 366.12,
+  "since_first_buy": -0.0199,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 179.4,
+  "flags": []
+ },
+ {
+  "ticker": "EPSN",
+  "company": "Epsilon Energy Ltd.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [
+   "Stabell Jason"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 284267,
+  "first": "2026-08-21",
+  "last": "2026-09-16",
+  "vwap": 5.75,
+  "price": 6.04,
+  "since_first_buy": 0.0877,
+  "dd_from_52w_high_at_buy": -0.129,
+  "adv_m": 0.7,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "PAL",
+  "company": "Proficient Auto Logistics, Inc",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 272500,
+  "first": "2026-08-13",
+  "last": "2026-08-13",
+  "vwap": 5.45,
+  "price": 3.42,
+  "since_first_buy": -0.3759,
+  "dd_from_52w_high_at_buy": -0.48,
+  "adv_m": 2.1,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "HNVR",
+  "company": "Hanover Bancorp, Inc. /Md",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [
+   "O'Connor Kevin M"
+  ],
+  "titles": [
+   "Pres"
+  ],
+  "value": 268800,
+  "first": "2026-07-30",
+  "last": "2026-07-30",
+  "vwap": 26.88,
+  "price": 25.19,
+  "since_first_buy": -0.0476,
+  "dd_from_52w_high_at_buy": -0.012,
+  "adv_m": 1.0,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "KDP",
+  "company": "Keurig Dr Pepper Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 250247,
+  "first": "2026-08-25",
+  "last": "2026-08-25",
+  "vwap": 31.83,
+  "price": 30.54,
+  "since_first_buy": -0.0339,
+  "dd_from_52w_high_at_buy": -0.05,
+  "adv_m": 334.7,
+  "flags": []
+ },
+ {
+  "ticker": "FMX",
+  "company": "Mexican Economic Development Inc",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 248073,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 118.13,
+  "price": 117.11,
+  "since_first_buy": -0.0095,
+  "dd_from_52w_high_at_buy": -0.105,
+  "adv_m": 49.0,
+  "flags": []
+ },
+ {
+  "ticker": "STRZ",
+  "company": "Starz Entertainment Corp /Cn/",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [
+   "Hirsch Jeffrey"
+  ],
+  "titles": [
+   "Pres, CEO"
+  ],
+  "value": 248000,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 24.8,
+  "price": 23.53,
+  "since_first_buy": -0.0309,
+  "dd_from_52w_high_at_buy": -0.196,
+  "adv_m": 4.8,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "APMD",
+  "company": "Apnimed, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 200000,
+  "first": "2026-08-03",
+  "last": "2026-08-03",
+  "vwap": 16.0,
+  "price": 18.04,
+  "since_first_buy": -0.2784,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 10.1,
+  "flags": [
+   "recent listing"
+  ]
+ },
+ {
+  "ticker": "SDHC",
+  "company": "Smith Douglas Homes Corp.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 199522,
+  "first": "2026-09-10",
+  "last": "2026-09-10",
+  "vwap": 10.31,
+  "price": 9.88,
+  "since_first_buy": -0.0518,
+  "dd_from_52w_high_at_buy": -0.53,
+  "adv_m": 0.5,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "CRESY",
+  "company": "Cresud Inc",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [
+   "Elsztain Alejandro Gustavo"
+  ],
+  "titles": [
+   "CEO"
+  ],
+  "value": 199282,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 11.5,
+  "price": 11.63,
+  "since_first_buy": 0.0104,
+  "dd_from_52w_high_at_buy": -0.184,
+  "adv_m": 2.5,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "ORN",
+  "company": "Orion Group Holdings Inc",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 192430,
+  "first": "2026-07-31",
+  "last": "2026-07-31",
+  "vwap": 9.62,
+  "price": 9.07,
+  "since_first_buy": -0.0726,
+  "dd_from_52w_high_at_buy": -0.429,
+  "adv_m": 4.3,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "CINF",
+  "company": "Cincinnati Financial Corp",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 171640,
+  "first": "2026-08-25",
+  "last": "2026-08-25",
+  "vwap": 171.64,
+  "price": 161.61,
+  "since_first_buy": -0.0519,
+  "dd_from_52w_high_at_buy": -0.107,
+  "adv_m": 92.5,
+  "flags": []
+ },
+ {
+  "ticker": "BFC",
+  "company": "Bank First Corp",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 160737,
+  "first": "2026-08-17",
+  "last": "2026-08-17",
+  "vwap": 156.97,
+  "price": 147.53,
+  "since_first_buy": -0.0559,
+  "dd_from_52w_high_at_buy": -0.01,
+  "adv_m": 11.5,
+  "flags": []
+ },
+ {
+  "ticker": "LTC",
+  "company": "Ltc Properties Inc",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 153200,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 38.3,
+  "price": 41.81,
+  "since_first_buy": 0.1073,
+  "dd_from_52w_high_at_buy": -0.106,
+  "adv_m": 21.9,
+  "flags": []
+ },
+ {
+  "ticker": "ECG",
+  "company": "Everus Construction Group, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 144950,
+  "first": "2026-08-17",
+  "last": "2026-08-17",
+  "vwap": 144.95,
+  "price": 125.26,
+  "since_first_buy": -0.1265,
+  "dd_from_52w_high_at_buy": -0.152,
+  "adv_m": 55.9,
+  "flags": []
+ },
+ {
+  "ticker": "SKIL",
+  "company": "Skillsoft Corp.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 128595,
+  "first": "2026-09-15",
+  "last": "2026-09-15",
+  "vwap": 5.14,
+  "price": 6.3,
+  "since_first_buy": 0.0881,
+  "dd_from_52w_high_at_buy": -0.677,
+  "adv_m": 0.4,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "SENS",
+  "company": "Senseonics Holdings, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 125300,
+  "first": "2026-08-19",
+  "last": "2026-08-19",
+  "vwap": 8.98,
+  "price": 9.16,
+  "since_first_buy": 0.0055,
+  "dd_from_52w_high_at_buy": -0.194,
+  "adv_m": 5.3,
+  "flags": []
+ },
+ {
+  "ticker": "CWBC",
+  "company": "Community West Bancshares",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 118678,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 24.88,
+  "price": 26.06,
+  "since_first_buy": 0.0466,
+  "dd_from_52w_high_at_buy": -0.107,
+  "adv_m": 5.0,
+  "flags": []
+ },
+ {
+  "ticker": "MATW",
+  "company": "Matthews International Corp",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 118000,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 23.6,
+  "price": 19.58,
+  "since_first_buy": -0.148,
+  "dd_from_52w_high_at_buy": -0.195,
+  "adv_m": 15.2,
+  "flags": []
+ },
+ {
+  "ticker": "RRBI",
+  "company": "Red River Bancshares Inc",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 111798,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 99.91,
+  "price": 100.22,
+  "since_first_buy": -0.0022,
+  "dd_from_52w_high_at_buy": -0.013,
+  "adv_m": 6.7,
+  "flags": []
+ },
+ {
+  "ticker": "MTCH",
+  "company": "Match Group, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 109890,
+  "first": "2026-08-11",
+  "last": "2026-08-11",
+  "vwap": 36.63,
+  "price": 40.86,
+  "since_first_buy": 0.1158,
+  "dd_from_52w_high_at_buy": -0.108,
+  "adv_m": 118.9,
+  "flags": []
+ },
+ {
+  "ticker": "VISN",
+  "company": "Vistance Networks, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "SVP, Treasury, Tax, CAO"
+  ],
+  "value": 107500,
+  "first": "2026-08-10",
+  "last": "2026-08-10",
+  "vwap": 10.75,
+  "price": 6.07,
+  "since_first_buy": -0.0676,
+  "dd_from_52w_high_at_buy": -0.113,
+  "adv_m": 41.8,
+  "flags": []
+ },
+ {
+  "ticker": "GBCI",
+  "company": "Glacier Bancorp, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "CHAIRMAN OF THE BOARD"
+  ],
+  "value": 105840,
+  "first": "2026-08-28",
+  "last": "2026-08-28",
+  "vwap": 47.04,
+  "price": 42.77,
+  "since_first_buy": -0.0802,
+  "dd_from_52w_high_at_buy": -0.14,
+  "adv_m": 46.5,
+  "flags": []
+ },
+ {
+  "ticker": "FFIN",
+  "company": "First Financial Bankshares Inc",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 103980,
+  "first": "2026-08-18",
+  "last": "2026-08-18",
+  "vwap": 34.66,
+  "price": 31.39,
+  "since_first_buy": -0.0875,
+  "dd_from_52w_high_at_buy": -0.066,
+  "adv_m": 24.5,
+  "flags": []
+ },
+ {
+  "ticker": "MO",
+  "company": "Altria Group, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 101430,
+  "first": "2026-09-09",
+  "last": "2026-09-09",
+  "vwap": 67.62,
+  "price": 69.38,
+  "since_first_buy": 0.0383,
+  "dd_from_52w_high_at_buy": -0.094,
+  "adv_m": 555.2,
+  "flags": []
+ },
+ {
+  "ticker": "WW",
+  "company": "Ww International, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 100132,
+  "first": "2026-08-18",
+  "last": "2026-08-18",
+  "vwap": 13.84,
+  "price": 15.08,
+  "since_first_buy": 0.0857,
+  "dd_from_52w_high_at_buy": -0.602,
+  "adv_m": 3.1,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "DRIO",
+  "company": "Dariohealth Corp.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 100000,
+  "first": "2026-07-23",
+  "last": "2026-07-23",
+  "vwap": 6.93,
+  "price": 6.08,
+  "since_first_buy": -0.1861,
+  "dd_from_52w_high_at_buy": -0.569,
+  "adv_m": 0.1,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "ALP",
+  "company": "Alpha Compute Corp",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "See Remarks"
+  ],
+  "value": 51483,
+  "first": "2026-09-11",
+  "last": "2026-09-11",
+  "vwap": 4.07,
+  "price": 3.96,
+  "since_first_buy": -0.0198,
+  "dd_from_52w_high_at_buy": -0.993,
+  "adv_m": 0.4,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "SKYH",
+  "company": "Sky Harbour Group Corp",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [
+   "Gonzalez Francisco"
+  ],
+  "titles": [
+   "CFO"
+  ],
+  "value": 50653,
+  "first": "2026-10-01",
+  "last": "2026-10-02",
+  "vwap": 9.29,
+  "price": 9.52,
+  "since_first_buy": 0.0053,
+  "dd_from_52w_high_at_buy": -0.176,
+  "adv_m": 1.5,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "ZSQR",
+  "company": "Z Squared Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "CMO"
+  ],
+  "value": 3920,
+  "first": "2026-08-18",
+  "last": "2026-08-18",
+  "vwap": 3.92,
+  "price": 4.57,
+  "since_first_buy": 0.187,
+  "dd_from_52w_high_at_buy": -0.795,
+  "adv_m": 1.4,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "AUBN",
+  "company": "Auburn National Bancorporation, Inc",
+  "score": 0,
+  "insiders": 2,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 3409,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 27.49,
+  "price": 26.3,
+  "since_first_buy": 0.0019,
+  "dd_from_52w_high_at_buy": -0.082,
+  "adv_m": 0.0,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "IBKR",
+  "company": "Interactive Brokers Group, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 2136,
+  "first": "2026-10-01",
+  "last": "2026-10-01",
+  "vwap": 85.44,
+  "price": 87.74,
+  "since_first_buy": 0.0225,
+  "dd_from_52w_high_at_buy": -0.125,
+  "adv_m": 365.5,
+  "flags": []
+ },
+ {
+  "ticker": "SUNB",
+  "company": "Sunbelt Rentals Holdings, Inc.",
+  "score": 0,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "EVP, Specialty"
+  ],
+  "value": 1863,
+  "first": "2026-10-01",
+  "last": "2026-10-01",
+  "vwap": 74.52,
+  "price": 74.77,
+  "since_first_buy": -0.0111,
+  "dd_from_52w_high_at_buy": -0.109,
+  "adv_m": 240.5,
+  "flags": []
+ },
+ {
+  "ticker": "RSG",
+  "company": "Republic Services, Inc.",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 288898658,
+  "first": "2026-09-08",
+  "last": "2026-09-10",
+  "vwap": 221.95,
+  "price": 216.18,
+  "since_first_buy": -0.0214,
+  "dd_from_52w_high_at_buy": -0.04,
+  "adv_m": 305.6,
+  "flags": [
+   "10%-holder only"
+  ]
+ },
+ {
+  "ticker": "CRBG",
+  "company": "Corebridge Financial, Inc.",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 154513284,
+  "first": "2026-09-09",
+  "last": "2026-10-05",
+  "vwap": 34.31,
+  "price": 34.4,
+  "since_first_buy": 0.0244,
+  "dd_from_52w_high_at_buy": -0.027,
+  "adv_m": 130.6,
+  "flags": [
+   "10%-holder only"
+  ]
+ },
+ {
+  "ticker": "GREE",
+  "company": "Vulcan Infrastructure & Power Inc.",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 4999999,
+  "first": "2026-09-10",
+  "last": "2026-09-10",
+  "vwap": 1.71,
+  "price": 2.84,
+  "since_first_buy": 0.0,
+  "dd_from_52w_high_at_buy": -0.034,
+  "adv_m": 0.4,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "SAH",
+  "company": "Sonic Automotive Inc",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 1354906,
+  "first": "2026-10-01",
+  "last": "2026-10-06",
+  "vwap": 59.52,
+  "price": 60.52,
+  "since_first_buy": -0.0508,
+  "dd_from_52w_high_at_buy": -0.431,
+  "adv_m": 21.4,
+  "flags": [
+   "10%-holder only"
+  ]
+ },
+ {
+  "ticker": "BWFG",
+  "company": "Bankwell Financial Group, Inc.",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir",
+   "Dir, 10%"
+  ],
+  "value": 1186187,
+  "first": "2026-08-07",
+  "last": "2026-09-08",
+  "vwap": 66.62,
+  "price": 65.32,
+  "since_first_buy": -0.0207,
+  "dd_from_52w_high_at_buy": -0.018,
+  "adv_m": 4.3,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "FGBI",
+  "company": "First Guaranty Bancshares, Inc.",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 822014,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 8.28,
+  "price": 8.28,
+  "since_first_buy": 0.0235,
+  "dd_from_52w_high_at_buy": -0.245,
+  "adv_m": 0.1,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "UUU",
+  "company": "Universal Safety Products, Inc.",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 669643,
+  "first": "2026-08-17",
+  "last": "2026-08-27",
+  "vwap": 5.74,
+  "price": 5.21,
+  "since_first_buy": 0.3711,
+  "dd_from_52w_high_at_buy": -0.492,
+  "adv_m": 0.1,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "CMCL",
+  "company": "Caledonia Mining Corp Plc",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 492842,
+  "first": "2026-08-13",
+  "last": "2026-08-13",
+  "vwap": 23.03,
+  "price": 24.15,
+  "since_first_buy": 0.0681,
+  "dd_from_52w_high_at_buy": -0.387,
+  "adv_m": 4.2,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "AOMR",
+  "company": "Angel Oak Mortgage Reit, Inc.",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 290511,
+  "first": "2026-09-25",
+  "last": "2026-09-25",
+  "vwap": 7.5,
+  "price": 7.14,
+  "since_first_buy": -0.0543,
+  "dd_from_52w_high_at_buy": -0.152,
+  "adv_m": 0.9,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "EQBK",
+  "company": "Equity Bancshares Inc",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 200500,
+  "first": "2026-07-31",
+  "last": "2026-08-21",
+  "vwap": 50.12,
+  "price": 47.0,
+  "since_first_buy": -0.0684,
+  "dd_from_52w_high_at_buy": -0.016,
+  "adv_m": 4.9,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "LND",
+  "company": "Brasilagro - Brazilian Agricultural Real Estate Co",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 199696,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 3.52,
+  "price": 3.79,
+  "since_first_buy": 0.0922,
+  "dd_from_52w_high_at_buy": -0.206,
+  "adv_m": 0.2,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "KRNY",
+  "company": "Kearny Financial Corp.",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 138274,
+  "first": "2026-07-27",
+  "last": "2026-07-27",
+  "vwap": 9.41,
+  "price": 9.11,
+  "since_first_buy": -0.0247,
+  "dd_from_52w_high_at_buy": -0.025,
+  "adv_m": 4.7,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "NWFL",
+  "company": "Norwood Financial Corp",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 107105,
+  "first": "2026-07-28",
+  "last": "2026-07-28",
+  "vwap": 34.55,
+  "price": 33.73,
+  "since_first_buy": -0.0094,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 1.0,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "VRA",
+  "company": "Vera Bradley, Inc.",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 50200,
+  "first": "2026-10-06",
+  "last": "2026-10-06",
+  "vwap": 5.02,
+  "price": 4.98,
+  "since_first_buy": -0.0197,
+  "dd_from_52w_high_at_buy": -0.006,
+  "adv_m": 0.4,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "PALI",
+  "company": "Palisade Bio, Inc.",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 28800,
+  "first": "2026-10-01",
+  "last": "2026-10-01",
+  "vwap": 1.44,
+  "price": 1.48,
+  "since_first_buy": 0.035,
+  "dd_from_52w_high_at_buy": -0.489,
+  "adv_m": 3.7,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "EP",
+  "company": "Empire Petroleum Corp",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 26825,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 2.25,
+  "price": 2.73,
+  "since_first_buy": 0.1974,
+  "dd_from_52w_high_at_buy": -0.496,
+  "adv_m": 0.1,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "CINT",
+  "company": "Ci&T Inc",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 13111,
+  "first": "2026-10-01",
+  "last": "2026-10-01",
+  "vwap": 3.18,
+  "price": 3.12,
+  "since_first_buy": -0.0064,
+  "dd_from_52w_high_at_buy": -0.433,
+  "adv_m": 0.2,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "PROP",
+  "company": "Prairie Operating Co.",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 12600,
+  "first": "2026-09-03",
+  "last": "2026-09-03",
+  "vwap": 0.45,
+  "price": 0.4058,
+  "since_first_buy": -0.1388,
+  "dd_from_52w_high_at_buy": -0.812,
+  "adv_m": 0.8,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "AIRG",
+  "company": "Airgain Inc",
+  "score": -1,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 6825,
+  "first": "2026-10-02",
+  "last": "2026-10-02",
+  "vwap": 4.55,
+  "price": 4.12,
+  "since_first_buy": -0.1063,
+  "dd_from_52w_high_at_buy": -0.376,
+  "adv_m": 0.3,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "QVCG",
+  "company": "Qvc Group, Inc.",
+  "score": -2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 29541192,
+  "first": "2026-09-08",
+  "last": "2026-10-02",
+  "vwap": 15.92,
+  "price": 13.32,
+  "since_first_buy": -0.2354,
+  "dd_from_52w_high_at_buy": -0.106,
+  "adv_m": 2.5,
+  "flags": [
+   "10%-holder only",
+   "illiquid",
+   "recent listing"
+  ]
+ },
+ {
+  "ticker": "LLYVK",
+  "company": "Liberty Live Holdings, Inc.",
+  "score": -2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 2904982,
+  "first": "2026-09-24",
+  "last": "2026-09-24",
+  "vwap": 102.53,
+  "price": 98.11,
+  "since_first_buy": -0.0159,
+  "dd_from_52w_high_at_buy": -0.084,
+  "adv_m": 28.3,
+  "flags": [
+   "10%-holder only"
+  ]
+ },
+ {
+  "ticker": "USLM",
+  "company": "United States Lime & Minerals Inc",
+  "score": -2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 2200000,
+  "first": "2026-09-09",
+  "last": "2026-09-09",
+  "vwap": 110.0,
+  "price": 110.27,
+  "since_first_buy": -0.0463,
+  "dd_from_52w_high_at_buy": -0.17,
+  "adv_m": 15.3,
+  "flags": [
+   "10%-holder only"
+  ]
+ },
+ {
+  "ticker": "BPRN",
+  "company": "Princeton Bancorp, Inc.",
+  "score": -2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir, 10%"
+  ],
+  "value": 452730,
+  "first": "2026-08-12",
+  "last": "2026-08-12",
+  "vwap": 42.98,
+  "price": 42.91,
+  "since_first_buy": -0.0074,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 1.0,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "GLRE",
+  "company": "Greenlight Capital Re, Ltd.",
+  "score": -2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 186240,
+  "first": "2026-08-07",
+  "last": "2026-08-07",
+  "vwap": 15.52,
+  "price": 14.77,
+  "since_first_buy": -0.0477,
+  "dd_from_52w_high_at_buy": -0.184,
+  "adv_m": 2.0,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "ESEA",
+  "company": "Euroseas Ltd.",
+  "score": -2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 74626,
+  "first": "2026-10-02",
+  "last": "2026-10-02",
+  "vwap": 71.07,
+  "price": 72.85,
+  "since_first_buy": 0.0059,
+  "dd_from_52w_high_at_buy": -0.078,
+  "adv_m": 2.8,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "HEPA",
+  "company": "Hepion Pharmaceuticals, Inc.",
+  "score": -2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 10000,
+  "first": "2026-09-29",
+  "last": "2026-09-29",
+  "vwap": 0.05,
+  "price": 0.318,
+  "since_first_buy": 0.0,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 0.0,
+  "flags": [
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "CZNC",
+  "company": "Citizens & Northern Corp",
+  "score": -2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Dir"
+  ],
+  "value": 6250,
+  "first": "2026-10-02",
+  "last": "2026-10-02",
+  "vwap": 25.51,
+  "price": 25.2,
+  "since_first_buy": -0.0168,
+  "dd_from_52w_high_at_buy": -0.019,
+  "adv_m": 1.6,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "CNTM",
+  "company": "Connectm Technology Solutions, Inc.",
+  "score": -2,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "Principal Financial Officer"
+  ],
+  "value": 3536,
+  "first": "2026-09-02",
+  "last": "2026-09-02",
+  "vwap": 5.18,
+  "price": 14.08,
+  "since_first_buy": 0.0,
+  "dd_from_52w_high_at_buy": 0.0,
+  "adv_m": 0.0,
+  "flags": [
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "OFIX",
+  "company": "Orthofix Medical Inc.",
+  "score": -3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 2732097,
+  "first": "2026-09-18",
+  "last": "2026-09-18",
+  "vwap": 8.81,
+  "price": 9.2,
+  "since_first_buy": 0.0563,
+  "dd_from_52w_high_at_buy": -0.463,
+  "adv_m": 3.2,
+  "flags": [
+   "10%-holder only",
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "LWAY",
+  "company": "Lifeway Foods, Inc.",
+  "score": -3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 2169394,
+  "first": "2026-10-02",
+  "last": "2026-10-02",
+  "vwap": 20.92,
+  "price": 21.3,
+  "since_first_buy": 0.0042,
+  "dd_from_52w_high_at_buy": -0.344,
+  "adv_m": 2.7,
+  "flags": [
+   "10%-holder only",
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "OM",
+  "company": "Outset Medical, Inc.",
+  "score": -3,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 870260,
+  "first": "2026-10-01",
+  "last": "2026-10-01",
+  "vwap": 3.55,
+  "price": 4.21,
+  "since_first_buy": 0.1227,
+  "dd_from_52w_high_at_buy": -0.763,
+  "adv_m": 0.5,
+  "flags": [
+   "10%-holder only",
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "PRTA",
+  "company": "Prothena Corp Public Ltd Co",
+  "score": -4,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 857240,
+  "first": "2026-10-02",
+  "last": "2026-10-02",
+  "vwap": 8.57,
+  "price": 8.48,
+  "since_first_buy": 0.0144,
+  "dd_from_52w_high_at_buy": -0.274,
+  "adv_m": 3.7,
+  "flags": [
+   "10%-holder only",
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "DLHC",
+  "company": "Dlh Holdings Corp.",
+  "score": -4,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 736666,
+  "first": "2026-10-01",
+  "last": "2026-10-01",
+  "vwap": 3.7,
+  "price": 4.2,
+  "since_first_buy": 0.1413,
+  "dd_from_52w_high_at_buy": -0.44,
+  "adv_m": 0.0,
+  "flags": [
+   "10%-holder only",
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "GRCE",
+  "company": "Grace Therapeutics, Inc.",
+  "score": -4,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 123819,
+  "first": "2026-10-01",
+  "last": "2026-10-01",
+  "vwap": 2.05,
+  "price": 2.1,
+  "since_first_buy": 0.0294,
+  "dd_from_52w_high_at_buy": -0.602,
+  "adv_m": 0.2,
+  "flags": [
+   "10%-holder only",
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "INM",
+  "company": "Inmed Pharmaceuticals Inc.",
+  "score": -4,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 57080,
+  "first": "2026-10-01",
+  "last": "2026-10-01",
+  "vwap": 1.33,
+  "price": 1.33,
+  "since_first_buy": -0.0148,
+  "dd_from_52w_high_at_buy": -0.451,
+  "adv_m": 0.1,
+  "flags": [
+   "10%-holder only",
+   "illiquid",
+   "under $5"
+  ]
+ },
+ {
+  "ticker": "INLX",
+  "company": "Intellinetics, Inc.",
+  "score": -4,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 20000,
+  "first": "2026-10-06",
+  "last": "2026-10-06",
+  "vwap": 5.0,
+  "price": 5.24,
+  "since_first_buy": 0.0804,
+  "dd_from_52w_high_at_buy": -0.587,
+  "adv_m": 0.0,
+  "flags": [
+   "10%-holder only",
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "ACOG",
+  "company": "Alpha Cognition Inc.",
+  "score": -5,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 165634,
+  "first": "2026-10-01",
+  "last": "2026-10-01",
+  "vwap": 8.69,
+  "price": 9.04,
+  "since_first_buy": 0.0391,
+  "dd_from_52w_high_at_buy": -0.108,
+  "adv_m": 0.9,
+  "flags": [
+   "10%-holder only",
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "GRX",
+  "company": "Gabelli Healthcare & Wellnessrx Trust",
+  "score": -5,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 75150,
+  "first": "2026-10-01",
+  "last": "2026-10-05",
+  "vwap": 9.4,
+  "price": 9.42,
+  "since_first_buy": 0.0,
+  "dd_from_52w_high_at_buy": -0.057,
+  "adv_m": 0.2,
+  "flags": [
+   "10%-holder only",
+   "illiquid"
+  ]
+ },
+ {
+  "ticker": "JCTC",
+  "company": "Jewett Cameron Trading Co Ltd",
+  "score": -5,
+  "insiders": 1,
+  "top_buyers": [],
+  "titles": [
+   "10%"
+  ],
+  "value": 23067,
+  "first": "2026-09-30",
+  "last": "2026-09-30",
+  "vwap": 2.91,
+  "price": 2.995,
+  "since_first_buy": 0.0292,
+  "dd_from_52w_high_at_buy": -0.187,
+  "adv_m": 0.0,
+  "flags": [
+   "10%-holder only",
+   "illiquid",
+   "under $5"
+  ]
+ }
+]
